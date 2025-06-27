@@ -14,6 +14,10 @@ use crate::world::{Dungeon, Enemy, Level, Position, Tile, TileType};
 
 const SCREEN_WIDTH: usize = 80;
 const SCREEN_HEIGHT: usize = 25;
+const MAP_WIDTH: usize = 60;
+const MAP_HEIGHT: usize = 20;
+const UI_PANEL_WIDTH: usize = 30; // Increased panel width for longer content
+const BORDER_PADDING: usize = 2; // Padding inside the border
 
 pub struct UI {
     messages: Vec<String>,
@@ -63,25 +67,43 @@ impl UI {
     pub fn draw_title_screen(&self) -> io::Result<()> {
         self.clear_screen()?;
 
+        // Get actual terminal size
+        let (term_width, term_height) = terminal::size()?;
+
         let title = "Echoes of the Forgotten Realm";
         let author = "A Rusty Adventure";
 
-        let title_pos_x = (SCREEN_WIDTH - title.len()) / 2;
-        let author_pos_x = (SCREEN_WIDTH - author.len()) / 2;
+        // Draw a decorative border around the title area
+        let border_width = 60;
+        let border_height = 16;
+        let start_x = ((term_width as i32 - border_width as i32) / 2).max(0) as u16;
+        let start_y = ((term_height as i32 - border_height as i32) / 2).max(0) as u16;
+
+        self.draw_game_border(
+            start_x as usize,
+            start_y as usize,
+            border_width as usize,
+            border_height as usize,
+        )?;
+
+        // Calculate centered positions relative to the border
+        let title_pos_x = start_x + (border_width - title.len() as u16) / 2;
+        let author_pos_x = start_x + (border_width - author.len() as u16) / 2;
+        let option_pos_x = start_x + border_width / 4;
 
         execute!(
             stdout(),
-            cursor::MoveTo(title_pos_x as u16, 5),
+            cursor::MoveTo(title_pos_x, start_y + 3),
             style::SetForegroundColor(Color::Cyan),
             style::Print(title),
-            cursor::MoveTo(author_pos_x as u16, 7),
+            cursor::MoveTo(author_pos_x, start_y + 5),
             style::SetForegroundColor(Color::White),
             style::Print(author),
-            cursor::MoveTo(30, 12),
+            cursor::MoveTo(option_pos_x + 5, start_y + 8),
             style::Print("1. New Game"),
-            cursor::MoveTo(30, 14),
+            cursor::MoveTo(option_pos_x + 5, start_y + 10),
             style::Print("2. Exit"),
-            cursor::MoveTo(0, SCREEN_HEIGHT as u16 - 1),
+            cursor::MoveTo(start_x + 5, start_y + border_height - 2),
             style::Print("Press the corresponding key to select an option..."),
         )?;
 
@@ -89,21 +111,47 @@ impl UI {
     }
 
     pub fn character_creation(&self) -> io::Result<Player> {
+        // Name selection screen
+        let name = self.get_character_name()?;
+
+        // Class selection screen
+        let class_type = self.choose_character_class()?;
+
+        let player = Player::new(name, class_type);
+        Ok(player)
+    }
+
+    fn get_character_name(&self) -> io::Result<String> {
         self.clear_screen()?;
 
-        execute!(
-            stdout(),
-            cursor::MoveTo(20, 2),
-            style::SetForegroundColor(Color::Cyan),
-            style::Print("Character Creation"),
-            style::SetForegroundColor(Color::White),
+        // Get actual terminal size
+        let (term_width, term_height) = terminal::size()?;
+
+        // Create a centered box for name input
+        let border_width = 60;
+        let border_height = 10;
+        let start_x = ((term_width as i32 - border_width as i32) / 2).max(0) as u16;
+        let start_y = ((term_height as i32 - border_height as i32) / 2).max(0) as u16;
+
+        self.draw_game_border(
+            start_x as usize,
+            start_y as usize,
+            border_width as usize,
+            border_height as usize,
         )?;
 
-        // Get character name
+        let title = "Character Creation";
+        let title_pos_x = start_x + (border_width - title.len() as u16) / 2;
+
         execute!(
             stdout(),
-            cursor::MoveTo(10, 5),
+            cursor::MoveTo(title_pos_x, start_y - 1),
+            style::SetForegroundColor(Color::Cyan),
+            style::Print(title),
+            cursor::MoveTo(start_x + 5, start_y + 3),
+            style::SetForegroundColor(Color::White),
             style::Print("Enter your character's name: "),
+            cursor::MoveTo(start_x + 33, start_y + 3),
             cursor::Show
         )?;
 
@@ -117,23 +165,46 @@ impl UI {
             name = "Hero".to_string();
         }
 
-        // Choose class
+        Ok(name)
+    }
+
+    fn choose_character_class(&self) -> io::Result<ClassType> {
         self.clear_screen()?;
+
+        // Get actual terminal size
+        let (term_width, term_height) = terminal::size()?;
+
+        // Create a centered box for class selection
+        let border_width = 70;
+        let border_height = 14;
+        let start_x = ((term_width as i32 - border_width as i32) / 2).max(0) as u16;
+        let start_y = ((term_height as i32 - border_height as i32) / 2).max(0) as u16;
+
+        self.draw_game_border(
+            start_x as usize,
+            start_y as usize,
+            border_width as usize,
+            border_height as usize,
+        )?;
+
+        let title = "Choose Your Class";
+        let title_pos_x = start_x + (border_width - title.len() as u16) / 2;
+
         execute!(
             stdout(),
-            cursor::MoveTo(20, 2),
+            cursor::MoveTo(title_pos_x, start_y - 1),
             style::SetForegroundColor(Color::Cyan),
-            style::Print("Choose Your Class"),
+            style::Print(title),
             style::SetForegroundColor(Color::White),
-            cursor::MoveTo(10, 5),
+            cursor::MoveTo(start_x + 5, start_y + 3),
             style::Print("1. Warrior - A powerful melee fighter with high health"),
-            cursor::MoveTo(10, 6),
+            cursor::MoveTo(start_x + 5, start_y + 5),
             style::Print("2. Mage - A spellcaster with powerful magical abilities"),
-            cursor::MoveTo(10, 7),
+            cursor::MoveTo(start_x + 5, start_y + 7),
             style::Print("3. Ranger - A skilled archer with balanced stats"),
-            cursor::MoveTo(10, 8),
+            cursor::MoveTo(start_x + 5, start_y + 9),
             style::Print("4. Cleric - A healer with supportive abilities"),
-            cursor::MoveTo(10, 10),
+            cursor::MoveTo(start_x + 5, start_y + 12),
             style::Print("Press the number key to select your class..."),
             cursor::Hide
         )?;
@@ -150,8 +221,7 @@ impl UI {
             }
         };
 
-        let player = Player::new(name, class_type);
-        Ok(player)
+        Ok(class_type)
     }
 
     pub fn draw_game_screen(
@@ -162,12 +232,78 @@ impl UI {
     ) -> io::Result<()> {
         self.clear_screen()?;
 
-        // Draw the map
-        for y in 0..level.height.min(20) {
-            for x in 0..level.width.min(60) {
-                let pos = Position::new(x as i32, y as i32);
-                let tile = &level.tiles[y][x];
+        // Get actual terminal size
+        let (term_width, term_height) = terminal::size()?;
 
+        // Define our game dimensions with added padding
+        let content_width = MAP_WIDTH + UI_PANEL_WIDTH;
+        let content_height = MAP_HEIGHT;
+
+        // Add border padding to create outer border dimensions
+        let outer_width = content_width + (BORDER_PADDING * 2);
+        let outer_height = content_height + (BORDER_PADDING * 2);
+
+        // Make sure we have enough space
+        if term_width < (outer_width as u16 + 2) || term_height < (outer_height as u16 + 2) {
+            // Terminal too small, display error message
+            execute!(
+                stdout(),
+                cursor::MoveTo(0, 0),
+                style::SetForegroundColor(Color::Red),
+                style::Print(format!(
+                    "Terminal too small! Need at least {}x{}",
+                    outer_width + 2,
+                    outer_height + 2
+                ))
+            )?;
+            return Ok(());
+        }
+
+        // Calculate the starting coordinates to center the game (for outer border)
+        let border_start_x = ((term_width as usize - outer_width) / 2).max(2);
+        let border_start_y = ((term_height as usize - outer_height) / 2).max(2);
+
+        // Calculate inner content starting position (inside the border)
+        let content_start_x = border_start_x + BORDER_PADDING;
+        let content_start_y = border_start_y + BORDER_PADDING;
+
+        // Draw border around the game area
+        self.draw_game_border(border_start_x, border_start_y, outer_width, outer_height)?;
+
+        // Calculate center point of our view
+        let center_x = MAP_WIDTH / 2;
+        let center_y = MAP_HEIGHT / 2;
+
+        // Draw the visible map portion
+        for screen_y in 0..MAP_HEIGHT {
+            for screen_x in 0..MAP_WIDTH {
+                // Calculate map coordinates by offsetting from player position
+                // This ensures player is always at the center
+                let map_x = level.player_position.x - center_x as i32 + screen_x as i32;
+                let map_y = level.player_position.y - center_y as i32 + screen_y as i32;
+
+                // Ensure we're within map bounds
+                if map_x < 0
+                    || map_x >= level.width as i32
+                    || map_y < 0
+                    || map_y >= level.height as i32
+                {
+                    // Draw a space for out-of-bounds areas
+                    execute!(
+                        stdout(),
+                        cursor::MoveTo(
+                            (content_start_x + screen_x) as u16,
+                            (content_start_y + screen_y) as u16
+                        ),
+                        style::SetForegroundColor(Color::Black),
+                        style::Print(' ')
+                    )?;
+                    continue;
+                }
+
+                let pos = Position::new(map_x, map_y);
+
+                // Determine what character to draw
                 let char_to_draw = if pos == level.player_position {
                     '@'
                 } else if level.enemies.contains_key(&pos) {
@@ -175,12 +311,13 @@ impl UI {
                 } else if level.items.contains_key(&pos) {
                     '!'
                 } else {
-                    tile.render()
+                    // Get the tile at this position
+                    level.tiles[map_y as usize][map_x as usize].render()
                 };
 
                 let color = match char_to_draw {
                     '@' => Color::Yellow,
-                    'E' => Color::Blue,
+                    'E' => Color::Red,
                     '!' => Color::Green,
                     '#' => Color::White,
                     '.' => Color::DarkGrey,
@@ -192,56 +329,60 @@ impl UI {
 
                 execute!(
                     stdout(),
-                    cursor::MoveTo(x as u16, y as u16),
+                    cursor::MoveTo(
+                        (content_start_x + screen_x) as u16,
+                        (content_start_y + screen_y) as u16
+                    ),
                     style::SetForegroundColor(color),
                     style::Print(char_to_draw)
                 )?;
             }
         }
 
-        // Draw UI borders
-        for x in 0..SCREEN_WIDTH {
+        // UI panel starts to the right of the map
+        let ui_start_x = content_start_x + MAP_WIDTH;
+
+        // Draw vertical divider between map and UI panel
+        for y in 0..MAP_HEIGHT {
             execute!(
                 stdout(),
-                cursor::MoveTo(x as u16, 20),
+                cursor::MoveTo(ui_start_x as u16, (content_start_y + y) as u16),
                 style::SetForegroundColor(Color::White),
-                style::Print("-")
+                style::Print("│")
             )?;
         }
 
-        for y in 0..SCREEN_HEIGHT {
-            execute!(
-                stdout(),
-                cursor::MoveTo(60, y as u16),
-                style::SetForegroundColor(Color::White),
-                style::Print("|")
-            )?;
-        }
+        // Draw player stats in the UI panel
+        let ui_text_x = ui_start_x + 2; // Offset from the divider
 
-        // Draw player stats
         execute!(
             stdout(),
-            cursor::MoveTo(62, 1),
+            cursor::MoveTo(ui_text_x as u16, (content_start_y + 1) as u16),
             style::SetForegroundColor(Color::Cyan),
             style::Print(format!("{}", player.name)),
-            cursor::MoveTo(62, 2),
+            cursor::MoveTo(ui_text_x as u16, (content_start_y + 2) as u16),
             style::SetForegroundColor(Color::White),
             style::Print(format!(
                 "Level {} {}",
                 player.level, player.class.class_type
             )),
-            cursor::MoveTo(62, 3),
+            cursor::MoveTo(ui_text_x as u16, (content_start_y + 3) as u16),
             style::Print(format!("HP: {}/{}", player.health, player.max_health)),
-            cursor::MoveTo(62, 4),
+            cursor::MoveTo(ui_text_x as u16, (content_start_y + 4) as u16),
             style::Print(format!("MP: {}/{}", player.mana, player.max_mana)),
-            cursor::MoveTo(62, 5),
+            cursor::MoveTo(ui_text_x as u16, (content_start_y + 5) as u16),
             style::Print(format!("XP: {}/{}", player.experience, player.level * 100)),
-            cursor::MoveTo(62, 6),
-            style::Print(format!("Gold: {}", player.gold)),
-            cursor::MoveTo(62, 8),
+            cursor::MoveTo(ui_text_x as u16, (content_start_y + 6) as u16),
+            style::Print(format!("Gold: {}", player.gold))
+        )?;
+
+        // Location information
+        execute!(
+            stdout(),
+            cursor::MoveTo(ui_text_x as u16, (content_start_y + 8) as u16),
             style::SetForegroundColor(Color::Cyan),
             style::Print("Location:"),
-            cursor::MoveTo(62, 9),
+            cursor::MoveTo(ui_text_x as u16, (content_start_y + 9) as u16),
             style::SetForegroundColor(Color::White),
             style::Print(format!(
                 "{} - Level {}",
@@ -250,41 +391,204 @@ impl UI {
             ))
         )?;
 
-        // Draw message log
+        // Draw message log below the border
+        let log_start_y = border_start_y + outer_height + 1; // Position below the border
+
+        // Draw message log header
         execute!(
             stdout(),
-            cursor::MoveTo(1, 21),
+            cursor::MoveTo(border_start_x as u16, log_start_y as u16),
             style::SetForegroundColor(Color::Cyan),
-            style::Print("Message Log:")
+            style::Print(format!(
+                "Message Log: [{}/{}]",
+                self.messages.len().min(2),
+                self.messages.len()
+            ))
         )?;
 
-        for (i, message) in self.messages.iter().enumerate() {
+        // Calculate available width for messages
+        let available_width = outer_width;
+
+        // Show the most recent messages first (reversed)
+        let recent_messages: Vec<&String> = self.messages.iter().rev().take(2).collect();
+
+        for (i, message) in recent_messages.iter().enumerate() {
+            // Truncate long messages
+            let truncated_message = if message.len() > available_width {
+                format!("{}...", &message[0..available_width.saturating_sub(3)])
+            } else {
+                message.to_string()
+            };
+
             execute!(
                 stdout(),
-                cursor::MoveTo(1, 22 + i as u16),
+                cursor::MoveTo(border_start_x as u16, log_start_y as u16 + 1 + i as u16),
                 style::SetForegroundColor(Color::White),
-                style::Print(message)
+                style::Print(truncated_message)
             )?;
         }
 
-        // Draw controls
+        // Position for Symbol Legend inside UI panel
+        let legend_col_x = ui_text_x;
+        let section_start_y = content_start_y + 11;
+
+        // Position for Controls outside the game border
+        let controls_col_x = border_start_x + outer_width + 2; // 2 spaces after border
+        let controls_start_y = border_start_y + 2; // Starting near the top of the border
+
+        // Draw symbol legend in the UI panel (left column)
         execute!(
             stdout(),
-            cursor::MoveTo(62, 18),
+            cursor::MoveTo(legend_col_x as u16, section_start_y as u16),
+            style::SetForegroundColor(Color::Cyan),
+            style::Print("Symbol Legend:")
+        )?;
+
+        // Create a legend of symbols and their meanings
+        let symbols = [
+            ('@', "You (the player)", Color::Yellow),
+            ('E', "Enemy", Color::Red),
+            ('!', "Item", Color::Green),
+            ('#', "Wall", Color::White),
+            ('.', "Floor", Color::DarkGrey),
+            ('+', "Door", Color::Magenta),
+            ('C', "Chest", Color::Cyan),
+            ('>', "Stairs Down", Color::Blue),
+            ('<', "Stairs Up", Color::Blue),
+        ];
+
+        for (i, (symbol, meaning, color)) in symbols.iter().enumerate() {
+            execute!(
+                stdout(),
+                cursor::MoveTo(legend_col_x as u16, (section_start_y + 1 + i) as u16),
+                style::SetForegroundColor(*color),
+                style::Print(*symbol),
+                style::SetForegroundColor(Color::White),
+                style::Print(format!(" - {}", meaning))
+            )?;
+        }
+
+        // Draw controls outside the game border
+        execute!(
+            stdout(),
+            cursor::MoveTo(controls_col_x as u16, controls_start_y as u16),
             style::SetForegroundColor(Color::Cyan),
             style::Print("Controls:"),
-            cursor::MoveTo(62, 19),
+            cursor::MoveTo(controls_col_x as u16, (controls_start_y + 1) as u16),
             style::SetForegroundColor(Color::White),
-            style::Print("Arrow keys: Move"),
-            cursor::MoveTo(62, 20),
+            style::Print("↑↓←→: Move"),
+            cursor::MoveTo(controls_col_x as u16, (controls_start_y + 2) as u16),
             style::Print("I: Inventory"),
-            cursor::MoveTo(62, 21),
+            cursor::MoveTo(controls_col_x as u16, (controls_start_y + 3) as u16),
             style::Print("C: Character"),
-            cursor::MoveTo(62, 22),
+            cursor::MoveTo(controls_col_x as u16, (controls_start_y + 4) as u16),
             style::Print("G: Get item"),
-            cursor::MoveTo(62, 23),
+            cursor::MoveTo(controls_col_x as u16, (controls_start_y + 5) as u16),
             style::Print("Q: Quit")
         )?;
+
+        Ok(())
+    }
+
+    // Helper function to draw a border around the game area
+    fn draw_game_border(
+        &self,
+        start_x: usize,
+        start_y: usize,
+        width: usize,
+        height: usize,
+    ) -> io::Result<()> {
+        // Check terminal dimensions
+        let (term_width, term_height) = terminal::size()?;
+
+        // Ensure we don't start drawing outside the terminal
+        let safe_start_x = start_x.min(term_width as usize - 1);
+        let safe_start_y = start_y.min(term_height as usize - 1);
+
+        // Draw title at the top of the border
+        let title = "Echoes of the Forgotten Realm";
+        let title_start = safe_start_x + (width - title.len()) / 2;
+
+        // Draw top border with title
+        execute!(
+            stdout(),
+            cursor::MoveTo(safe_start_x as u16, (safe_start_y - 1) as u16),
+            style::SetForegroundColor(Color::White),
+            style::Print("┌")
+        )?;
+
+        for x in 1..width - 1 {
+            let pos_x = start_x + x;
+            if pos_x >= title_start && pos_x < title_start + title.len() {
+                // Part of the title
+                let char_idx = pos_x - title_start;
+                execute!(
+                    stdout(),
+                    cursor::MoveTo((safe_start_x + x) as u16, (safe_start_y - 1) as u16),
+                    style::SetForegroundColor(Color::Cyan),
+                    style::Print(title.chars().nth(char_idx).unwrap_or(' '))
+                )?;
+            } else {
+                // Regular border
+                execute!(
+                    stdout(),
+                    cursor::MoveTo(pos_x as u16, (start_y - 1) as u16),
+                    style::SetForegroundColor(Color::White),
+                    style::Print("─")
+                )?;
+            }
+        }
+
+        execute!(
+            stdout(),
+            cursor::MoveTo((safe_start_x + width - 1) as u16, (safe_start_y - 1) as u16),
+            style::SetForegroundColor(Color::White),
+            style::Print("┐")
+        )?;
+
+        // Draw bottom border
+        execute!(
+            stdout(),
+            cursor::MoveTo(safe_start_x as u16, (safe_start_y + height) as u16),
+            style::SetForegroundColor(Color::White),
+            style::Print("└")
+        )?;
+
+        for x in 1..width - 1 {
+            execute!(
+                stdout(),
+                cursor::MoveTo((safe_start_x + x) as u16, (safe_start_y + height) as u16),
+                style::SetForegroundColor(Color::White),
+                style::Print("─")
+            )?;
+        }
+
+        execute!(
+            stdout(),
+            cursor::MoveTo(
+                (safe_start_x + width - 1) as u16,
+                (safe_start_y + height) as u16
+            ),
+            style::SetForegroundColor(Color::White),
+            style::Print("┘")
+        )?;
+
+        // Draw left and right borders
+        for y in 0..height {
+            execute!(
+                stdout(),
+                cursor::MoveTo(safe_start_x as u16, (safe_start_y + y) as u16),
+                style::SetForegroundColor(Color::White),
+                style::Print("│")
+            )?;
+
+            execute!(
+                stdout(),
+                cursor::MoveTo((safe_start_x + width - 1) as u16, (safe_start_y + y) as u16),
+                style::SetForegroundColor(Color::White),
+                style::Print("│")
+            )?;
+        }
 
         Ok(())
     }
@@ -663,19 +967,44 @@ impl UI {
     pub fn draw_game_over(&self, player: &Player) -> io::Result<()> {
         self.clear_screen()?;
 
+        // Get actual terminal size
+        let (term_width, term_height) = terminal::size()?;
+
+        // Create a centered box for game over screen
+        let border_width = 60;
+        let border_height = 10;
+        let start_x = ((term_width as i32 - border_width as i32) / 2).max(0) as u16;
+        let start_y = ((term_height as i32 - border_height as i32) / 2).max(0) as u16;
+
+        self.draw_game_border(
+            start_x as usize,
+            start_y as usize,
+            border_width as usize,
+            border_height as usize,
+        )?;
+
+        let title = "Game Over";
+        let title_pos_x = start_x + (border_width - title.len() as u16) / 2;
+
+        let message = format!(
+            "{} died at level {} after a brave adventure.",
+            player.name, player.level
+        );
+        let message_pos_x = start_x + (border_width - message.len() as u16) / 2;
+
+        let prompt = "Press any key to exit...";
+        let prompt_pos_x = start_x + (border_width - prompt.len() as u16) / 2;
+
         execute!(
             stdout(),
-            cursor::MoveTo(30, 10),
+            cursor::MoveTo(title_pos_x, start_y + 2),
             style::SetForegroundColor(Color::Red),
-            style::Print("Game Over"),
-            cursor::MoveTo(20, 12),
+            style::Print(title),
+            cursor::MoveTo(message_pos_x, start_y + 5),
             style::SetForegroundColor(Color::White),
-            style::Print(format!(
-                "{} died at level {} after a brave adventure.",
-                player.name, player.level
-            )),
-            cursor::MoveTo(25, 14),
-            style::Print("Press any key to exit...")
+            style::Print(message),
+            cursor::MoveTo(prompt_pos_x, start_y + 8),
+            style::Print(prompt)
         )?;
 
         self.wait_for_key()?;
@@ -685,19 +1014,44 @@ impl UI {
     pub fn draw_victory_screen(&self, player: &Player) -> io::Result<()> {
         self.clear_screen()?;
 
+        // Get actual terminal size
+        let (term_width, term_height) = terminal::size()?;
+
+        // Create a centered box for victory screen
+        let border_width = 70;
+        let border_height = 10;
+        let start_x = ((term_width as i32 - border_width as i32) / 2).max(0) as u16;
+        let start_y = ((term_height as i32 - border_height as i32) / 2).max(0) as u16;
+
+        self.draw_game_border(
+            start_x as usize,
+            start_y as usize,
+            border_width as usize,
+            border_height as usize,
+        )?;
+
+        let title = "Congratulations! You've won!";
+        let title_pos_x = start_x + (border_width - title.len() as u16) / 2;
+
+        let message = format!(
+            "{} completed the adventure at level {} and saved the realm!",
+            player.name, player.level
+        );
+        let message_pos_x = start_x + (border_width - message.len() as u16) / 2;
+
+        let prompt = "Press any key to exit...";
+        let prompt_pos_x = start_x + (border_width - prompt.len() as u16) / 2;
+
         execute!(
             stdout(),
-            cursor::MoveTo(25, 10),
+            cursor::MoveTo(title_pos_x, start_y + 2),
             style::SetForegroundColor(Color::Green),
-            style::Print("Congratulations! You've won!"),
-            cursor::MoveTo(15, 12),
+            style::Print(title),
+            cursor::MoveTo(message_pos_x, start_y + 5),
             style::SetForegroundColor(Color::White),
-            style::Print(format!(
-                "{} completed the adventure at level {} and saved the realm!",
-                player.name, player.level
-            )),
-            cursor::MoveTo(25, 14),
-            style::Print("Press any key to exit...")
+            style::Print(message),
+            cursor::MoveTo(prompt_pos_x, start_y + 8),
+            style::Print(prompt)
         )?;
 
         self.wait_for_key()?;
