@@ -6,6 +6,8 @@ use crossterm::{
     terminal::{self, Clear, ClearType},
 };
 use std::io::{self, Write, stdout};
+use std::thread;
+use std::time::Duration;
 
 use crate::character::{ClassType, Player};
 use crate::combat::{CombatAction, CombatResult};
@@ -30,6 +32,263 @@ impl UI {
             messages: Vec::new(),
             max_messages: 5,
         }
+    }
+
+    pub fn show_combat_tutorial(&mut self) -> io::Result<()> {
+        self.clear_screen()?;
+
+        // Draw a flashy combat intro
+        let (term_width, term_height) = terminal::size()?;
+        let title = "*** COMBAT TUTORIAL ***";
+        let title_pos_x = (term_width - title.len() as u16) / 2;
+
+        execute!(
+            stdout(),
+            cursor::MoveTo(title_pos_x, term_height / 2 - 2),
+            style::SetForegroundColor(Color::Red),
+            style::Print(title)
+        )?;
+
+        let subtitle = "Prepare for battle!";
+        let subtitle_pos_x = (term_width - subtitle.len() as u16) / 2;
+
+        execute!(
+            stdout(),
+            cursor::MoveTo(subtitle_pos_x, term_height / 2),
+            style::SetForegroundColor(Color::Yellow),
+            style::Print(subtitle),
+            style::SetForegroundColor(Color::White)
+        )?;
+
+        // Pause for dramatic effect
+        std::thread::sleep(std::time::Duration::from_millis(1500));
+
+        self.clear_screen()?;
+
+        // Draw bordered tutorial
+        let border_width = 70;
+        let border_height = 22;
+        let (term_width, term_height) = terminal::size()?;
+        let start_x = ((term_width as i32 - border_width as i32) / 2).max(0) as u16;
+        let start_y = ((term_height as i32 - border_height as i32) / 2).max(0) as u16;
+
+        self.draw_game_border(
+            start_x as usize,
+            start_y as usize,
+            border_width as usize,
+            border_height as usize,
+        )?;
+
+        let title = "Combat Tutorial";
+        let title_pos_x = start_x + (border_width - title.len() as u16) / 2;
+
+        execute!(
+            stdout(),
+            cursor::MoveTo(title_pos_x, start_y - 1),
+            style::SetForegroundColor(Color::Cyan),
+            style::Print(title),
+            style::SetForegroundColor(Color::White)
+        )?;
+
+        // Content positioning
+        let text_x = start_x + 3;
+        let mut text_y = start_y + 2;
+
+        // Draw tutorial content
+        execute!(
+            stdout(),
+            cursor::MoveTo(text_x, text_y),
+            style::SetForegroundColor(Color::Yellow),
+            style::Print("Welcome to your first combat encounter!"),
+            style::SetForegroundColor(Color::White)
+        )?;
+
+        text_y += 1;
+        execute!(
+            stdout(),
+            cursor::MoveTo(text_x, text_y),
+            style::Print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        )?;
+
+        text_y += 2;
+        execute!(
+            stdout(),
+            cursor::MoveTo(text_x, text_y),
+            style::Print("Combat in Echoes RPG is turn-based. Here's how it works:")
+        )?;
+
+        text_y += 2;
+        execute!(
+            stdout(),
+            cursor::MoveTo(text_x, text_y),
+            style::SetForegroundColor(Color::Cyan),
+            style::Print("1. Attack"),
+            style::SetForegroundColor(Color::White),
+            style::Print(" - Basic attack using your equipped weapon.")
+        )?;
+
+        text_y += 1;
+        execute!(
+            stdout(),
+            cursor::MoveTo(text_x, text_y),
+            style::SetForegroundColor(Color::Cyan),
+            style::Print("2. Use Ability"),
+            style::SetForegroundColor(Color::White),
+            style::Print(" - Use a special ability or spell (costs mana).")
+        )?;
+
+        text_y += 1;
+        execute!(
+            stdout(),
+            cursor::MoveTo(text_x, text_y),
+            style::SetForegroundColor(Color::Cyan),
+            style::Print("3. Use Item"),
+            style::SetForegroundColor(Color::White),
+            style::Print(" - Use a consumable item from your inventory.")
+        )?;
+
+        text_y += 1;
+        execute!(
+            stdout(),
+            cursor::MoveTo(text_x, text_y),
+            style::SetForegroundColor(Color::Cyan),
+            style::Print("4. Flee"),
+            style::SetForegroundColor(Color::White),
+            style::Print(" - Attempt to escape combat (chance based on your dexterity).")
+        )?;
+
+        text_y += 2;
+        execute!(
+            stdout(),
+            cursor::MoveTo(text_x, text_y),
+            style::Print("After you take an action, the enemy will counter-attack.")
+        )?;
+
+        text_y += 1;
+        execute!(
+            stdout(),
+            cursor::MoveTo(text_x, text_y),
+            style::Print(
+                "If you defeat an enemy, you'll gain experience, gold, and possibly items!"
+            )
+        )?;
+
+        // Add simulated combat example
+        text_y += 2;
+        let example_x = text_x + 5;
+
+        execute!(
+            stdout(),
+            cursor::MoveTo(text_x, text_y),
+            style::Print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        )?;
+
+        text_y += 1;
+        execute!(
+            stdout(),
+            cursor::MoveTo(text_x, text_y),
+            style::SetForegroundColor(Color::Yellow),
+            style::Print("Combat Example:"),
+            style::SetForegroundColor(Color::White)
+        )?;
+
+        text_y += 1;
+        execute!(
+            stdout(),
+            cursor::MoveTo(example_x, text_y),
+            style::Print("You encounter a Goblin (HP: 20/20)")
+        )?;
+
+        text_y += 1;
+        execute!(
+            stdout(),
+            cursor::MoveTo(example_x, text_y),
+            style::SetForegroundColor(Color::Green),
+            style::Print("You"),
+            style::SetForegroundColor(Color::White),
+            style::Print(": Attack")
+        )?;
+
+        text_y += 1;
+        execute!(
+            stdout(),
+            cursor::MoveTo(example_x, text_y),
+            style::Print("You attack the Goblin for 8 damage!")
+        )?;
+
+        text_y += 1;
+        execute!(
+            stdout(),
+            cursor::MoveTo(example_x, text_y),
+            style::SetForegroundColor(Color::Red),
+            style::Print("Goblin"),
+            style::SetForegroundColor(Color::White),
+            style::Print(": Counter-attack")
+        )?;
+
+        text_y += 1;
+        execute!(
+            stdout(),
+            cursor::MoveTo(example_x, text_y),
+            style::Print("The Goblin hits you for 5 damage!")
+        )?;
+
+        text_y += 2;
+        execute!(
+            stdout(),
+            cursor::MoveTo(text_x, text_y),
+            style::Print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        )?;
+
+        text_y += 1;
+        execute!(
+            stdout(),
+            cursor::MoveTo(text_x, text_y),
+            style::SetForegroundColor(Color::Yellow),
+            style::Print("Combat Tips:"),
+            style::SetForegroundColor(Color::White)
+        )?;
+
+        text_y += 1;
+        execute!(
+            stdout(),
+            cursor::MoveTo(text_x, text_y),
+            style::Print("• Use healing potions when your health is low")
+        )?;
+
+        text_y += 1;
+        execute!(
+            stdout(),
+            cursor::MoveTo(text_x, text_y),
+            style::Print("• Special abilities can deal more damage but cost mana")
+        )?;
+
+        text_y += 1;
+        execute!(
+            stdout(),
+            cursor::MoveTo(text_x, text_y),
+            style::Print("• Sometimes fleeing is the best option if you're outmatched")
+        )?;
+
+        text_y += 2;
+        execute!(
+            stdout(),
+            cursor::MoveTo(text_x, text_y),
+            style::Print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        )?;
+
+        text_y += 1;
+        execute!(
+            stdout(),
+            cursor::MoveTo(text_x, text_y),
+            style::SetForegroundColor(Color::Green),
+            style::Print("Press any key to continue your adventure...")
+        )?;
+
+        // Wait for key press
+        self.wait_for_key()?;
+
+        Ok(())
     }
 
     pub fn initialize(&self) -> io::Result<()> {

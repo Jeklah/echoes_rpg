@@ -332,6 +332,16 @@ pub fn run() {
 
     // Create new game
     let mut game = Game::new(player);
+
+    // Show combat tutorial
+    if let Err(e) = ui.show_combat_tutorial() {
+        eprintln!("Error showing combat tutorial: {}", e);
+        if let Err(e) = ui.cleanup() {
+            eprintln!("Error cleaning up UI: {}", e);
+        }
+        return;
+    }
+
     game.game_state = GameState::Playing;
 
     // Game loop
