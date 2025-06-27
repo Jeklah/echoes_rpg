@@ -217,7 +217,7 @@ impl Game {
     }
 
     pub fn update_visibility(&mut self) {
-        // Simple implementation - in a real game, you'd use field-of-view algorithms
+        // Get the current level and player position
         let level = self.current_level_mut();
         let player_pos = level.player_position;
 
@@ -229,7 +229,7 @@ impl Game {
         }
 
         // Reveal a circular area around the player
-        let view_radius = 8;
+        let view_radius = 10; // Increased view radius to match UI display
 
         for dy in -view_radius..=view_radius {
             for dx in -view_radius..=view_radius {
@@ -248,6 +248,28 @@ impl Game {
                             tile.explored = true;
                             tile.visible = true;
                         }
+                    }
+                }
+            }
+        }
+
+        // Add more tile visibility for the screen around the player
+        // This ensures all tiles shown on screen are visible, even beyond the circular radius
+        let screen_width = 30; // Half the screen width
+        let screen_height = 10; // Half the screen height
+
+        for dy in -screen_height..=screen_height {
+            for dx in -screen_width..=screen_width {
+                let x = player_pos.x + dx;
+                let y = player_pos.y + dy;
+
+                // Check if within bounds and not already visible
+                if x >= 0 && x < level.width as i32 && y >= 0 && y < level.height as i32 {
+                    level.revealed_tiles[y as usize][x as usize] = true;
+
+                    // Only mark as explored, not necessarily visible (for fog of war effect)
+                    if let Some(tile) = level.get_tile_mut(x, y) {
+                        tile.explored = true;
                     }
                 }
             }
