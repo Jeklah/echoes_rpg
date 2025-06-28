@@ -65,14 +65,19 @@ impl Game {
         let current_pos = self.current_level().player_position;
         let new_pos = Position::new(current_pos.x + dx, current_pos.y + dy);
 
-        // Check if the position is valid
-        if !self.current_level().is_position_walkable(new_pos) {
+        // Check if the position is valid (tiles only, not enemies)
+        let tile_walkable = self.current_level().is_position_valid(new_pos.x, new_pos.y)
+            && self.current_level().tiles[new_pos.y as usize][new_pos.x as usize]
+                .tile_type
+                .is_walkable();
+
+        if !tile_walkable {
             return false;
         }
 
         // Check for enemies
         if self.current_level().enemies.contains_key(&new_pos) {
-            // Start combat
+            // Start combat with the enemy at this position
             self.game_state = GameState::Combat(new_pos);
             return true;
         }
@@ -140,12 +145,18 @@ impl Game {
         // Create a copy of UI
         let ui = UI::new();
 
+        // Ensure the enemy exists at the given position
+        let enemy_option = self.current_level().get_enemy_at(&enemy_pos);
+        if enemy_option.is_none() {
+            // Enemy not found, return a dummy result
+            let mut result = CombatResult::new();
+            result.add_message("No enemy found at that position.");
+            self.game_state = GameState::Playing;
+            return result;
+        }
+
         // Clone enemy and player for UI operations
-        let mut enemy_clone = self
-            .current_level()
-            .get_enemy_at(&enemy_pos)
-            .unwrap()
-            .clone();
+        let mut enemy_clone = enemy_option.unwrap().clone();
         let mut player_clone = self.player.clone();
 
         // Draw combat screen using the clones
@@ -366,22 +377,42 @@ pub fn run() {
                 Ok(key_event) => match key_event.code {
                     crossterm::event::KeyCode::Up => {
                         if game.move_player(0, -1) {
-                            game.process_turn();
+                            match game.game_state {
+                                GameState::Combat(_) => {
+                                    // Combat will be handled in the next loop iteration
+                                }
+                                _ => game.process_turn(),
+                            }
                         }
                     }
                     crossterm::event::KeyCode::Down => {
                         if game.move_player(0, 1) {
-                            game.process_turn();
+                            match game.game_state {
+                                GameState::Combat(_) => {
+                                    // Combat will be handled in the next loop iteration
+                                }
+                                _ => game.process_turn(),
+                            }
                         }
                     }
                     crossterm::event::KeyCode::Left => {
                         if game.move_player(-1, 0) {
-                            game.process_turn();
+                            match game.game_state {
+                                GameState::Combat(_) => {
+                                    // Combat will be handled in the next loop iteration
+                                }
+                                _ => game.process_turn(),
+                            }
                         }
                     }
                     crossterm::event::KeyCode::Right => {
                         if game.move_player(1, 0) {
-                            game.process_turn();
+                            match game.game_state {
+                                GameState::Combat(_) => {
+                                    // Combat will be handled in the next loop iteration
+                                }
+                                _ => game.process_turn(),
+                            }
                         }
                     }
                     crossterm::event::KeyCode::Char('i') => {
@@ -401,8 +432,14 @@ pub fn run() {
                 }
             },
             GameState::Combat(enemy_pos) => {
-                let result = game.handle_combat(enemy_pos);
-                ui.add_messages_from_combat(&result);
+                // Make sure the enemy still exists at this position
+                if game.current_level().enemies.contains_key(&enemy_pos) {
+                    let result = game.handle_combat(enemy_pos);
+                    ui.add_messages_from_combat(&result);
+                } else {
+                    // Enemy no longer exists at this position, return to playing
+                    game.game_state = GameState::Playing;
+                }
             }
             GameState::Inventory => {
                 if let Err(e) = ui.draw_inventory_screen(&game.player) {

@@ -383,11 +383,21 @@ impl Level {
     }
 
     pub fn is_position_walkable(&self, pos: Position) -> bool {
+        // Check if the position is valid and the tile type is walkable
         self.is_position_valid(pos.x, pos.y)
             && self.tiles[pos.y as usize][pos.x as usize]
                 .tile_type
                 .is_walkable()
+            // Don't consider positions with enemies as walkable
             && !self.enemies.contains_key(&pos)
+    }
+
+    // This method only checks if the tile is walkable, ignoring enemies
+    pub fn is_tile_walkable(&self, pos: Position) -> bool {
+        self.is_position_valid(pos.x, pos.y)
+            && self.tiles[pos.y as usize][pos.x as usize]
+                .tile_type
+                .is_walkable()
     }
 
     pub fn get_tile(&self, x: i32, y: i32) -> Option<&Tile> {
