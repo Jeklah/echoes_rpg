@@ -317,6 +317,10 @@ impl UI {
         }
     }
 
+    pub fn clear_messages(&mut self) {
+        self.messages.clear();
+    }
+
     pub fn add_messages_from_combat(&mut self, result: &CombatResult) {
         for message in &result.messages {
             self.add_message(message.clone());
@@ -1007,7 +1011,7 @@ impl UI {
         Ok(())
     }
 
-    pub fn draw_combat_screen(&self, player: &Player, enemy: &Enemy) -> io::Result<()> {
+    pub fn draw_combat_screen(&mut self, player: &Player, enemy: &Enemy) -> io::Result<()> {
         self.clear_screen()?;
 
         execute!(

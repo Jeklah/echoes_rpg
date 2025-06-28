@@ -25,6 +25,7 @@ pub struct Game {
     pub dungeons: Vec<Dungeon>,
     pub current_dungeon_index: usize,
     pub game_state: GameState,
+    pub combat_started: bool,
 }
 
 impl Game {
@@ -37,6 +38,7 @@ impl Game {
             dungeons: vec![first_dungeon],
             current_dungeon_index: 0,
             game_state: GameState::MainMenu,
+            combat_started: false,
         }
     }
 
@@ -77,8 +79,12 @@ impl Game {
 
         // Check for enemies
         if self.current_level().enemies.contains_key(&new_pos) {
-            // Start combat with the enemy at this position
+            // Start combat - don't move the player into the enemy's position
             self.game_state = GameState::Combat(new_pos);
+
+            // Mark that we're starting a new combat
+            self.combat_started = true;
+
             return true;
         }
 
@@ -86,7 +92,7 @@ impl Game {
         if self.current_level().items.contains_key(&new_pos) {
             let item = self.current_level_mut().remove_item_at(&new_pos).unwrap();
             // Try to add to inventory
-            if let Err(e) = self.player.inventory.add_item(item.clone()) {
+            if let Err(_e) = self.player.inventory.add_item(item.clone()) {
                 // Put the item back if inventory is full
                 self.current_level_mut().items.insert(new_pos, item);
                 return false;
@@ -141,53 +147,11 @@ impl Game {
         true
     }
 
-    pub fn handle_combat(&mut self, enemy_pos: Position) -> CombatResult {
-        // Create a copy of UI
-        let ui = UI::new();
-
-        // Ensure the enemy exists at the given position
-        let enemy_option = self.current_level().get_enemy_at(&enemy_pos);
-        if enemy_option.is_none() {
-            // Enemy not found, return a dummy result
-            let mut result = CombatResult::new();
-            result.add_message("No enemy found at that position.");
-            self.game_state = GameState::Playing;
-            return result;
-        }
-
-        // Clone enemy and player for UI operations
-        let mut enemy_clone = enemy_option.unwrap().clone();
-        let mut player_clone = self.player.clone();
-
-        // Draw combat screen using the clones
-        ui.draw_combat_screen(&player_clone, &enemy_clone).unwrap();
-
-        // Get combat action from user
-        let action = ui.handle_combat_action(&player_clone).unwrap();
-
-        // Process combat with the clones
-        let result = process_combat_turn(&mut player_clone, &mut enemy_clone, action);
-
-        // Update the real player and enemy with the changes
-        self.player = player_clone;
-
-        // Update the enemy in the world if still alive
-        if !result.enemy_defeated {
-            if let Some(enemy) = self.current_level_mut().get_enemy_at_mut(&enemy_pos) {
-                *enemy = enemy_clone;
-            }
-        }
-
-        // Check if combat is over
-        if result.enemy_defeated {
-            self.current_level_mut().remove_enemy_at(&enemy_pos);
-            self.game_state = GameState::Playing;
-        } else if result.player_fled {
-            self.game_state = GameState::Playing;
-        } else if !self.player.is_alive() {
-            self.game_state = GameState::GameOver;
-        }
-
+    // This method is kept for compatibility but is no longer used
+    // Combat is now handled directly in the game loop
+    pub fn handle_combat(&mut self, _enemy_pos: Position) -> CombatResult {
+        let mut result = CombatResult::new();
+        result.add_message("Combat handled in game loop now.");
         result
     }
 
@@ -434,8 +398,71 @@ pub fn run() {
             GameState::Combat(enemy_pos) => {
                 // Make sure the enemy still exists at this position
                 if game.current_level().enemies.contains_key(&enemy_pos) {
-                    let result = game.handle_combat(enemy_pos);
+                    // Check if we need to clear messages for a new combat
+                    if game.combat_started {
+                        // Clone the enemy name before clearing the UI to avoid borrowing issues
+                        let enemy_name = game
+                            .current_level()
+                            .get_enemy_at(&enemy_pos)
+                            .unwrap()
+                            .name
+                            .clone();
+                        ui.clear_messages();
+                        ui.add_message(format!("Combat started with {}!", enemy_name));
+                        game.combat_started = false;
+                    }
+
+                    // Get the enemy reference after clearing messages
+                    let enemy = game.current_level().get_enemy_at(&enemy_pos).unwrap();
+
+                    // Draw the combat screen
+                    if let Err(e) = ui.draw_combat_screen(&game.player, enemy) {
+                        eprintln!("Error drawing combat screen: {}", e);
+                        break;
+                    }
+
+                    // Get the combat action from the user
+                    let action = match ui.handle_combat_action(&game.player) {
+                        Ok(a) => a,
+                        Err(e) => {
+                            eprintln!("Error handling combat action: {}", e);
+                            break;
+                        }
+                    };
+
+                    // Apply the chosen action
+                    let mut enemy_clone = enemy.clone();
+                    let mut player_clone = game.player.clone();
+                    let result = process_combat_turn(&mut player_clone, &mut enemy_clone, action);
+
+                    // Update game state
+                    game.player = player_clone;
+                    if !result.enemy_defeated && !result.player_fled {
+                        if let Some(enemy_ref) =
+                            game.current_level_mut().get_enemy_at_mut(&enemy_pos)
+                        {
+                            *enemy_ref = enemy_clone;
+                        }
+                    }
+
+                    // Add combat messages to UI
                     ui.add_messages_from_combat(&result);
+
+                    // Check if combat is over
+                    if result.enemy_defeated {
+                        game.current_level_mut().remove_enemy_at(&enemy_pos);
+                        game.game_state = GameState::Playing;
+                        // Reset combat state and add victory message
+                        game.combat_started = false;
+                        ui.add_message("You were victorious!".to_string());
+                    } else if result.player_fled {
+                        game.game_state = GameState::Playing;
+                        // Reset combat state and add fled message
+                        game.combat_started = false;
+                        ui.add_message("You fled from combat!".to_string());
+                    } else if !game.player.is_alive() {
+                        game.game_state = GameState::GameOver;
+                    }
                 } else {
                     // Enemy no longer exists at this position, return to playing
                     game.game_state = GameState::Playing;
