@@ -250,6 +250,82 @@ impl Game {
             }
         }
     }
+
+    pub fn try_get_item(&mut self) -> Option<String> {
+        let player_pos = self.current_level().player_position;
+
+        // First check if there's an item at the current position
+        if let Some(item) = self.current_level().get_item_at(&player_pos) {
+            let item_clone = item.clone();
+            match self.player.inventory.add_item(item_clone) {
+                Ok(()) => {
+                    self.current_level_mut().remove_item_at(&player_pos);
+                    return Some("You picked up an item.".to_string());
+                }
+                Err(msg) => {
+                    return Some(msg);
+                }
+            }
+        }
+
+        // Check adjacent positions for chests or items
+        let directions = [(0, -1), (0, 1), (-1, 0), (1, 0)]; // up, down, left, right
+
+        for (dx, dy) in directions.iter() {
+            let adj_pos = Position::new(player_pos.x + dx, player_pos.y + dy);
+
+            // Check if position is valid
+            if !self.current_level().is_position_valid(adj_pos.x, adj_pos.y) {
+                continue;
+            }
+
+            // Check if there's a chest at this position
+            if let Some(tile) = self.current_level().get_tile(adj_pos.x, adj_pos.y) {
+                if tile.tile_type == TileType::Chest {
+                    // Try to loot the chest
+                    if let Some(item) = self.current_level().get_item_at(&adj_pos) {
+                        let item_clone = item.clone();
+                        match self.player.inventory.add_item(item_clone) {
+                            Ok(()) => {
+                                self.current_level_mut().remove_item_at(&adj_pos);
+                                // Replace chest with floor
+                                if let Some(tile_mut) =
+                                    self.current_level_mut().get_tile_mut(adj_pos.x, adj_pos.y)
+                                {
+                                    *tile_mut = Tile::floor();
+                                }
+                                return Some("You looted the chest!".to_string());
+                            }
+                            Err(msg) => {
+                                return Some(format!(
+                                    "Chest is full of treasure, but {}.",
+                                    msg.to_lowercase()
+                                ));
+                            }
+                        }
+                    } else {
+                        return Some("The chest is empty.".to_string());
+                    }
+                }
+            }
+
+            // Check if there's an item at this adjacent position
+            if let Some(item) = self.current_level().get_item_at(&adj_pos) {
+                let item_clone = item.clone();
+                match self.player.inventory.add_item(item_clone) {
+                    Ok(()) => {
+                        self.current_level_mut().remove_item_at(&adj_pos);
+                        return Some("You picked up an item.".to_string());
+                    }
+                    Err(msg) => {
+                        return Some(msg);
+                    }
+                }
+            }
+        }
+
+        Some("There's nothing here to pick up.".to_string())
+    }
 }
 
 pub fn run() {
@@ -384,6 +460,12 @@ pub fn run() {
                     }
                     crossterm::event::KeyCode::Char('c') => {
                         game.game_state = GameState::Character;
+                    }
+                    crossterm::event::KeyCode::Char('g') => {
+                        // Try to get item at current position or adjacent chest
+                        if let Some(result) = game.try_get_item() {
+                            ui.add_message(result);
+                        }
                     }
                     crossterm::event::KeyCode::Char('q') => {
                         break;
