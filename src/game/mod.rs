@@ -1,10 +1,13 @@
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::io;
+#[cfg(windows)]
+use std::time::Instant;
 
 use crate::character::{ClassType, Player};
-use crate::combat::{CombatAction, CombatResult, process_combat_turn};
+use crate::combat::{process_combat_turn, CombatAction, CombatResult};
 use crate::item::Item;
+use crate::platform;
 use crate::ui::UI;
 use crate::world::{Dungeon, DungeonType, Level, Position, Tile, TileType};
 
@@ -26,6 +29,9 @@ pub struct Game {
     pub current_dungeon_index: usize,
     pub game_state: GameState,
     pub combat_started: bool,
+    #[cfg(windows)]
+    #[serde(skip)]
+    pub last_render_time: Option<Instant>,
 }
 
 impl Game {
@@ -33,13 +39,20 @@ impl Game {
         // Create initial dungeon
         let first_dungeon = Dungeon::generate_random(player.level);
 
-        Game {
+        let mut game = Game {
             player,
             dungeons: vec![first_dungeon],
             current_dungeon_index: 0,
             game_state: GameState::MainMenu,
             combat_started: false,
-        }
+            #[cfg(windows)]
+            last_render_time: None,
+        };
+
+        // Initialize visibility for the starting level
+        game.update_visibility();
+
+        game
     }
 
     pub fn current_dungeon(&self) -> &Dungeon {
@@ -400,15 +413,43 @@ pub fn run() {
         GameState::GameOver | GameState::Victory => false,
         _ => true,
     } {
+        // Windows-specific frame rate limiting for better performance
+        #[cfg(windows)]
+        {
+            if platform::is_command_prompt() {
+                platform::cmd_frame_limit();
+            } else {
+                platform::windows_frame_limit();
+            }
+        }
+
         // Update visibility
         game.update_visibility();
 
-        // Draw game screen
-        if let Err(e) =
-            ui.draw_game_screen(&game.player, game.current_level(), game.current_dungeon())
-        {
-            eprintln!("Error drawing game screen: {}", e);
-            break;
+        // Windows-specific screen update optimization
+        #[cfg(windows)]
+        let should_redraw = {
+            let now = std::time::Instant::now();
+            let should_draw = game.last_render_time.map_or(true, |last| {
+                now.duration_since(last).as_millis() > 16 // ~60 FPS max
+            });
+            if should_draw {
+                game.last_render_time = Some(now);
+            }
+            should_draw
+        };
+
+        #[cfg(not(windows))]
+        let should_redraw = true;
+
+        // Draw game screen only when needed
+        if should_redraw {
+            if let Err(e) =
+                ui.draw_game_screen(&game.player, game.current_level(), game.current_dungeon())
+            {
+                eprintln!("Error drawing game screen: {}", e);
+                break;
+            }
         }
 
         // Handle input based on game state

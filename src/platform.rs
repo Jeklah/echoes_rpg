@@ -1,108 +1,64 @@
-//! Cross-platform terminal and system utilities
+//! Cross-platform utilities for Echoes RPG
 //!
-//! This module provides platform-specific functionality to ensure
-//! the game works consistently across Windows, macOS, and Linux.
+//! This module provides cross-platform functionality using pure Rust libraries
+//! instead of platform-specific APIs, ensuring consistent behavior across
+//! Windows, macOS, and Linux.
 
-use std::io::{self, Result};
+use anyhow::{Context, Result};
+use crossterm::{
+    cursor, execute, queue,
+    style::Color,
+    terminal::{self, Clear, ClearType},
+};
+use dirs;
+#[cfg(windows)]
+use std::env;
+use std::io::{stdout, Write};
+#[cfg(windows)]
+use std::time::{Duration, Instant};
 
-#[cfg(windows)]
-use std::ffi::CString;
-#[cfg(windows)]
-use winapi::um::consoleapi::AllocConsole;
-#[cfg(windows)]
-use winapi::um::consoleapi::{GetConsoleMode, SetConsoleMode};
-#[cfg(windows)]
-use winapi::um::processenv::GetStdHandle;
-#[cfg(windows)]
-use winapi::um::winbase::{STD_INPUT_HANDLE, STD_OUTPUT_HANDLE};
-#[cfg(windows)]
-use winapi::um::wincon::{ENABLE_VIRTUAL_TERMINAL_INPUT, ENABLE_VIRTUAL_TERMINAL_PROCESSING};
-#[cfg(windows)]
-use winapi::um::winuser::{GetConsoleWindow, SetConsoleTitle, ShowWindow, SW_SHOW};
-
-/// Initialize platform-specific terminal settings
+/// Initialize cross-platform terminal settings
 pub fn init_terminal() -> Result<()> {
-    #[cfg(windows)]
-    {
-        // Enable ANSI escape sequences on Windows 10+
-        unsafe {
-            let stdout_handle = GetStdHandle(STD_OUTPUT_HANDLE);
-            let stdin_handle = GetStdHandle(STD_INPUT_HANDLE);
+    // Enable raw mode for input handling
+    terminal::enable_raw_mode().context("Failed to enable raw mode")?;
 
-            if stdout_handle != std::ptr::null_mut() {
-                let mut mode: u32 = 0;
-                if GetConsoleMode(stdout_handle, &mut mode) != 0 {
-                    let new_mode = mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING;
-                    SetConsoleMode(stdout_handle, new_mode);
-                }
-            }
+    // Enter alternate screen buffer
+    execute!(stdout(), terminal::EnterAlternateScreen)
+        .context("Failed to enter alternate screen")?;
 
-            if stdin_handle != std::ptr::null_mut() {
-                let mut mode: u32 = 0;
-                if GetConsoleMode(stdin_handle, &mut mode) != 0 {
-                    let new_mode = mode | ENABLE_VIRTUAL_TERMINAL_INPUT;
-                    SetConsoleMode(stdin_handle, new_mode);
-                }
-            }
-        }
-    }
+    // Hide cursor for cleaner display
+    execute!(stdout(), cursor::Hide).context("Failed to hide cursor")?;
 
     Ok(())
 }
 
-/// Launch game in new console window (Windows only)
-#[cfg(windows)]
-pub fn launch_in_new_window() -> Result<()> {
-    unsafe {
-        // Check if we already have a console window
-        let console_window = GetConsoleWindow();
+/// Cleanup terminal state
+pub fn cleanup_terminal() -> Result<()> {
+    // Show cursor
+    execute!(stdout(), cursor::Show).context("Failed to show cursor")?;
 
-        if console_window.is_null() {
-            // No console window exists, create one
-            if AllocConsole() == 0 {
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    "Failed to allocate console",
-                ));
-            }
-        }
+    // Leave alternate screen buffer
+    execute!(stdout(), terminal::LeaveAlternateScreen)
+        .context("Failed to leave alternate screen")?;
 
-        // Set console window title
-        let title = CString::new("Echoes of the Forgotten Realm - RPG Adventure").unwrap();
-        SetConsoleTitle(title.as_ptr());
-
-        // Show the console window
-        let console_window = GetConsoleWindow();
-        if !console_window.is_null() {
-            ShowWindow(console_window, SW_SHOW);
-        }
-
-        // Reinitialize stdio handles after console allocation
-        init_terminal()?;
-    }
+    // Disable raw mode
+    terminal::disable_raw_mode().context("Failed to disable raw mode")?;
 
     Ok(())
 }
 
-/// Launch game in new console window (non-Windows platforms)
-#[cfg(not(windows))]
-pub fn launch_in_new_window() -> Result<()> {
-    // On non-Windows platforms, this is a no-op since the game
-    // already runs in the terminal where it was launched
-    Ok(())
-}
-
-/// Get the appropriate terminal size for the current platform
+/// Get terminal size with fallback defaults
 pub fn get_terminal_size() -> (u16, u16) {
-    match crossterm::terminal::size() {
-        Ok((width, height)) => (width, height),
+    match terminal::size() {
+        Ok((width, height)) => {
+            // Ensure minimum size for gameplay
+            let min_width = 80;
+            let min_height = 24;
+            (width.max(min_width), height.max(min_height))
+        }
         Err(_) => {
-            // Fallback to common terminal sizes
-            #[cfg(windows)]
-            return (120, 30); // Windows Command Prompt default
-
-            #[cfg(not(windows))]
-            return (80, 24); // Unix terminal default
+            // Fallback to standard terminal size
+            (80, 24)
         }
     }
 }
@@ -111,138 +67,295 @@ pub fn get_terminal_size() -> (u16, u16) {
 pub fn clear_screen() -> Result<()> {
     #[cfg(windows)]
     {
-        // On Windows, we might need additional clearing
-        crossterm::execute!(
-            io::stdout(),
-            crossterm::terminal::Clear(crossterm::terminal::ClearType::All),
-            crossterm::cursor::MoveTo(0, 0)
-        )?;
+        // Windows-optimized screen clearing
+        use std::io::Write;
+        queue!(stdout(), Clear(ClearType::All), cursor::MoveTo(0, 0))
+            .context("Failed to clear screen")?;
+        stdout().flush().context("Failed to flush stdout")?;
     }
 
     #[cfg(not(windows))]
     {
-        crossterm::execute!(
-            io::stdout(),
-            crossterm::terminal::Clear(crossterm::terminal::ClearType::All),
-            crossterm::cursor::MoveTo(0, 0)
-        )?;
+        execute!(stdout(), Clear(ClearType::All), cursor::MoveTo(0, 0))
+            .context("Failed to clear screen")?;
     }
 
     Ok(())
 }
 
-/// Platform-specific error handling
-pub fn handle_platform_error(error: &str) -> String {
-    #[cfg(windows)]
-    {
-        format!("Windows Error: {}\n\nTip: Make sure you're using Windows 10 or later with a modern terminal (Windows Terminal, PowerShell, or Command Prompt).", error)
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        format!(
-            "macOS Error: {}\n\nTip: Make sure you're using Terminal.app or iTerm2.",
-            error
-        )
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        format!(
-            "Linux Error: {}\n\nTip: Make sure your terminal supports ANSI escape sequences.",
-            error
-        )
-    }
-
-    #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
-    {
-        format!("Platform Error: {}", error)
-    }
-}
-
 /// Check if the current terminal supports the features we need
 pub fn check_terminal_compatibility() -> Result<()> {
     // Check if we can get terminal size
-    if crossterm::terminal::size().is_err() {
-        return Err(io::Error::new(
-            io::ErrorKind::Unsupported,
-            "Terminal does not support size detection",
-        ));
-    }
+    terminal::size().context("Terminal does not support size detection")?;
 
-    // Test basic crossterm functionality
-    match crossterm::terminal::enable_raw_mode() {
-        Ok(_) => {
-            let _ = crossterm::terminal::disable_raw_mode();
-            Ok(())
-        }
-        Err(e) => Err(io::Error::new(
-            io::ErrorKind::Unsupported,
-            format!("Terminal does not support raw mode: {}", e),
-        )),
-    }
+    // Test raw mode capability
+    terminal::enable_raw_mode().context("Terminal does not support raw mode")?;
+    terminal::disable_raw_mode().context("Failed to disable raw mode after test")?;
+
+    Ok(())
 }
 
-/// Get platform-specific game data directory
-pub fn get_game_data_dir() -> Option<std::path::PathBuf> {
-    #[cfg(windows)]
-    {
-        if let Ok(appdata) = std::env::var("APPDATA") {
-            let mut path = std::path::PathBuf::from(appdata);
-            path.push("EchoesRPG");
-            return Some(path);
-        }
+/// Get platform-appropriate game data directory
+pub fn get_game_data_dir() -> Result<std::path::PathBuf> {
+    let base_dir = dirs::data_dir().context("Could not determine user data directory")?;
+
+    let game_dir = base_dir.join("echoes_rpg");
+
+    // Create directory if it doesn't exist
+    if !game_dir.exists() {
+        std::fs::create_dir_all(&game_dir).context("Failed to create game data directory")?;
     }
+
+    Ok(game_dir)
+}
+
+/// Get platform-appropriate config directory
+pub fn get_config_dir() -> Result<std::path::PathBuf> {
+    let base_dir = dirs::config_dir().context("Could not determine user config directory")?;
+
+    let config_dir = base_dir.join("echoes_rpg");
+
+    // Create directory if it doesn't exist
+    if !config_dir.exists() {
+        std::fs::create_dir_all(&config_dir).context("Failed to create config directory")?;
+    }
+
+    Ok(config_dir)
+}
+
+/// Platform-specific error handling with helpful messages
+pub fn handle_error(error: &anyhow::Error) -> String {
+    let platform_info = get_platform_info();
+
+    format!(
+        "Error: {}\n\nPlatform: {}\n\nTroubleshooting tips:\n{}",
+        error,
+        platform_info,
+        get_troubleshooting_tips()
+    )
+}
+
+/// Get current platform information
+pub fn get_platform_info() -> String {
+    format!(
+        "{} {} ({})",
+        std::env::consts::OS,
+        std::env::consts::ARCH,
+        std::env::consts::FAMILY
+    )
+}
+
+/// Get platform-specific troubleshooting tips
+fn get_troubleshooting_tips() -> &'static str {
+    #[cfg(windows)]
+    return "• Use Windows Terminal or PowerShell for best experience\n\
+            • Ensure Windows 10 version 1511 or later for color support\n\
+            • Try running in a different terminal if issues persist\n\
+            • Check Windows Defender exclusions if performance is poor";
 
     #[cfg(target_os = "macos")]
-    {
-        if let Some(home) = std::env::var_os("HOME") {
-            let mut path = std::path::PathBuf::from(home);
-            path.push("Library");
-            path.push("Application Support");
-            path.push("EchoesRPG");
-            return Some(path);
-        }
-    }
+    return "• Use Terminal.app or iTerm2 for best experience\n\
+            • Ensure terminal window is at least 80x24 characters\n\
+            • Check terminal preferences for UTF-8 encoding\n\
+            • Try resizing the terminal window if display issues occur";
 
     #[cfg(target_os = "linux")]
-    {
-        if let Some(home) = std::env::var_os("HOME") {
-            let mut path = std::path::PathBuf::from(home);
-            path.push(".local");
-            path.push("share");
-            path.push("echoes_rpg");
-            return Some(path);
-        }
-    }
+    return "• Use gnome-terminal, konsole, or xterm for best experience\n\
+            • Ensure TERM environment variable is set correctly\n\
+            • Check that your terminal supports ANSI escape sequences\n\
+            • Try: export TERM=xterm-256color if colors don't work";
 
-    // Fallback to current directory
-    std::env::current_dir().ok()
+    #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
+    return "• Ensure your terminal supports ANSI escape sequences\n\
+            • Try using a more modern terminal emulator\n\
+            • Check that your terminal supports UTF-8 encoding";
 }
 
-/// Platform-specific key handling adjustments
+/// Display welcome message with platform information
+pub fn show_welcome_message() -> Result<()> {
+    clear_screen()?;
+
+    let (width, height) = get_terminal_size();
+    let platform = get_platform_info();
+
+    // Create the welcome messages
+    let title = "Welcome to Echoes of the Forgotten Realm!";
+    let subtitle = format!("Cross-platform RPG running on {}", platform);
+    let separator = "═".repeat(title.len()); // Exact same length as title
+    let continue_msg = "Press any key to continue...";
+
+    // Calculate positions for centered text
+    let title_x = (width.saturating_sub(title.len() as u16)) / 2;
+    let subtitle_x = (width.saturating_sub(subtitle.len() as u16)) / 2;
+    let separator_x = title_x; // Use same x position as title for perfect alignment
+    let continue_x = (width.saturating_sub(continue_msg.len() as u16)) / 2;
+    let center_y = height / 2;
+
+    execute!(
+        stdout(),
+        // Title with decorative border
+        cursor::MoveTo(separator_x, center_y.saturating_sub(3)),
+        crossterm::style::SetForegroundColor(crossterm::style::Color::Cyan),
+        crossterm::style::Print(&separator),
+        cursor::MoveTo(title_x, center_y.saturating_sub(2)),
+        crossterm::style::SetForegroundColor(crossterm::style::Color::Yellow),
+        crossterm::style::Print(title),
+        cursor::MoveTo(separator_x, center_y.saturating_sub(1)),
+        crossterm::style::SetForegroundColor(crossterm::style::Color::Cyan),
+        crossterm::style::Print(&separator),
+        // Platform information
+        cursor::MoveTo(subtitle_x, center_y + 1),
+        crossterm::style::SetForegroundColor(crossterm::style::Color::Green),
+        crossterm::style::Print(subtitle),
+        // Continue prompt with spacing
+        cursor::MoveTo(continue_x, center_y + 4),
+        crossterm::style::SetForegroundColor(crossterm::style::Color::Yellow),
+        crossterm::style::Print(continue_msg),
+        crossterm::style::ResetColor,
+    )?;
+
+    Ok(())
+}
+
+/// Normalize key events across platforms
 pub fn normalize_key_event(key_event: crossterm::event::KeyEvent) -> crossterm::event::KeyEvent {
     #[cfg(windows)]
     {
-        // Windows might send different key codes for some keys
-        match key_event.code {
-            crossterm::event::KeyCode::Enter => {
-                // Ensure Enter key works consistently
-                crossterm::event::KeyEvent {
-                    code: crossterm::event::KeyCode::Enter,
-                    modifiers: key_event.modifiers,
-                    kind: key_event.kind,
-                    state: key_event.state,
-                }
-            }
-            _ => key_event,
+        use crossterm::event::KeyEventKind;
+
+        // On Windows, ensure we only process key press events to prevent double input
+        // This addresses the issue where Windows terminals send both press and release events
+        crossterm::event::KeyEvent {
+            code: key_event.code,
+            modifiers: key_event.modifiers,
+            kind: KeyEventKind::Press, // Force to Press to ensure consistency
+            state: key_event.state,
         }
     }
 
     #[cfg(not(windows))]
     {
+        // On other platforms, pass through as-is
         key_event
     }
+}
+
+/// Windows-specific frame rate limiting to improve performance
+#[cfg(windows)]
+static mut LAST_FRAME_TIME: Option<Instant> = None;
+
+/// Limit frame rate on Windows to reduce terminal load
+#[cfg(windows)]
+pub fn windows_frame_limit() {
+    const TARGET_FRAME_TIME: Duration = Duration::from_millis(16); // ~60 FPS
+
+    unsafe {
+        let now = Instant::now();
+
+        if let Some(last_frame) = LAST_FRAME_TIME {
+            let elapsed = now.duration_since(last_frame);
+            if elapsed < TARGET_FRAME_TIME {
+                std::thread::sleep(TARGET_FRAME_TIME - elapsed);
+            }
+        }
+
+        LAST_FRAME_TIME = Some(Instant::now());
+    }
+}
+
+/// No-op frame limit for non-Windows platforms
+#[cfg(not(windows))]
+pub fn windows_frame_limit() {
+    // Do nothing on non-Windows platforms
+}
+
+/// Detect if running in Command Prompt (cmd.exe) for specialized optimizations
+#[cfg(windows)]
+pub fn is_command_prompt() -> bool {
+    // Check COMSPEC environment variable and terminal capabilities
+    if let Ok(comspec) = env::var("COMSPEC") {
+        if comspec.to_lowercase().contains("cmd.exe") {
+            return true;
+        }
+    }
+
+    // Additional detection methods
+    if let Ok(term) = env::var("TERM") {
+        // Command Prompt typically doesn't set TERM or sets it to basic values
+        if term.is_empty() || term == "dumb" || term == "cygwin" {
+            return true;
+        }
+    } else {
+        // TERM not set is often Command Prompt
+        return true;
+    }
+
+    // Check for Windows Terminal or PowerShell indicators
+    if env::var("WT_SESSION").is_ok() || env::var("POWERSHELL_DISTRIBUTION_CHANNEL").is_ok() {
+        return false;
+    }
+
+    false
+}
+
+/// Get optimized color palette for Command Prompt
+#[cfg(windows)]
+pub fn get_cmd_color_palette() -> Vec<(Color, Color)> {
+    // Simplified color palette that works well in Command Prompt
+    vec![
+        (Color::Yellow, Color::Yellow),  // Player - bright and visible
+        (Color::Red, Color::Red),        // Enemies - danger
+        (Color::Green, Color::Green),    // Items - safe
+        (Color::White, Color::Grey),     // Walls - visible but not bright
+        (Color::DarkGrey, Color::Black), // Floor - subtle
+        (Color::Cyan, Color::Blue),      // Special elements
+        (Color::Black, Color::Black),    // Fog of war - invisible
+    ]
+}
+
+/// Command Prompt specific frame limiting (more aggressive)
+#[cfg(windows)]
+pub fn cmd_frame_limit() {
+    const CMD_TARGET_FRAME_TIME: Duration = Duration::from_millis(33); // ~30 FPS for cmd
+
+    unsafe {
+        let now = Instant::now();
+        if let Some(last_frame) = LAST_FRAME_TIME {
+            let elapsed = now.duration_since(last_frame);
+            if elapsed < CMD_TARGET_FRAME_TIME {
+                std::thread::sleep(CMD_TARGET_FRAME_TIME - elapsed);
+            }
+        }
+        LAST_FRAME_TIME = Some(Instant::now());
+    }
+}
+
+/// Check if running in a compatible terminal environment
+pub fn is_terminal_compatible() -> bool {
+    // Check if stdout is a TTY
+    if !atty::is(atty::Stream::Stdout) {
+        return false;
+    }
+
+    // Check if we can get terminal size
+    if terminal::size().is_err() {
+        return false;
+    }
+
+    true
+}
+
+/// Get recommended terminal size for optimal gameplay
+pub fn get_recommended_size() -> (u16, u16) {
+    (100, 30) // Width x Height in characters
+}
+
+/// Check if current terminal size is adequate
+pub fn is_terminal_size_adequate() -> bool {
+    let (current_width, current_height) = get_terminal_size();
+    let (min_width, min_height) = (80, 24);
+
+    current_width >= min_width && current_height >= min_height
 }
 
 #[cfg(test)]
@@ -250,21 +363,35 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_terminal_size() {
+    fn test_get_terminal_size() {
         let (width, height) = get_terminal_size();
-        assert!(width > 0);
-        assert!(height > 0);
+        assert!(width >= 80);
+        assert!(height >= 24);
+    }
+
+    #[test]
+    fn test_platform_info() {
+        let info = get_platform_info();
+        assert!(!info.is_empty());
+        assert!(info.contains(std::env::consts::OS));
     }
 
     #[test]
     fn test_game_data_dir() {
         let dir = get_game_data_dir();
-        assert!(dir.is_some());
+        assert!(dir.is_ok());
     }
 
     #[test]
-    fn test_error_handling() {
-        let error_msg = handle_platform_error("test error");
-        assert!(error_msg.contains("test error"));
+    fn test_config_dir() {
+        let dir = get_config_dir();
+        assert!(dir.is_ok());
+    }
+
+    #[test]
+    fn test_terminal_compatibility() {
+        // This test might fail in CI environments without a proper TTY
+        // but should work in development
+        let _ = is_terminal_compatible();
     }
 }

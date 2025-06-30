@@ -1,25 +1,26 @@
 use crossterm::{
     cursor,
-    event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
-    execute,
+    event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
+    execute, queue,
     style::{self, Color, Stylize},
     terminal::{self, Clear, ClearType},
 };
-use std::io::{self, Write, stdout};
+use std::io::{self, stdout, Write};
 use std::thread;
 use std::time::Duration;
 
 use crate::character::{ClassType, Player};
 use crate::combat::{CombatAction, CombatResult};
 use crate::item::{ConsumableType, Equipment, EquipmentSlot, Item};
+use crate::platform;
 use crate::world::{Dungeon, Enemy, Level, Position, Tile, TileType};
 
-const SCREEN_WIDTH: usize = 80;
-const SCREEN_HEIGHT: usize = 25;
-const MAP_WIDTH: usize = 60;
-const MAP_HEIGHT: usize = 20;
-const UI_PANEL_WIDTH: usize = 30; // Increased panel width for longer content
-const BORDER_PADDING: usize = 2; // Padding inside the border
+const SCREEN_WIDTH: usize = 100;
+const SCREEN_HEIGHT: usize = 35;
+const MAP_WIDTH: usize = 70;
+const MAP_HEIGHT: usize = 25;
+const UI_PANEL_WIDTH: usize = 35; // Increased panel width for longer content
+const BORDER_PADDING: usize = 4; // Increased padding inside the border
 
 pub struct UI {
     messages: Vec<String>,
@@ -38,7 +39,7 @@ impl UI {
         self.clear_screen()?;
 
         // Draw a flashy combat intro
-        let (term_width, term_height) = terminal::size()?;
+        let (term_width, term_height) = platform::get_terminal_size();
         let title = "*** COMBAT TUTORIAL ***";
         let title_pos_x = (term_width - title.len() as u16) / 2;
 
@@ -291,10 +292,8 @@ impl UI {
         Ok(())
     }
 
-    pub fn initialize(&self) -> io::Result<()> {
-        terminal::enable_raw_mode()?;
-        execute!(stdout(), terminal::EnterAlternateScreen)?;
-        execute!(stdout(), cursor::Hide)?;
+    pub fn initialize(&mut self) -> io::Result<()> {
+        // Terminal initialization is now handled by platform module
         Ok(())
     }
 
@@ -305,8 +304,8 @@ impl UI {
         Ok(())
     }
 
-    pub fn clear_screen(&self) -> io::Result<()> {
-        execute!(stdout(), Clear(ClearType::All), cursor::MoveTo(0, 0))?;
+    pub fn clear_screen(&mut self) -> io::Result<()> {
+        platform::clear_screen().map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
         Ok(())
     }
 
@@ -327,7 +326,7 @@ impl UI {
         }
     }
 
-    pub fn draw_title_screen(&self) -> io::Result<()> {
+    pub fn draw_title_screen(&mut self) -> io::Result<()> {
         self.clear_screen()?;
 
         // Get actual terminal size
@@ -373,7 +372,7 @@ impl UI {
         Ok(())
     }
 
-    pub fn character_creation(&self) -> io::Result<Player> {
+    pub fn character_creation(&mut self) -> io::Result<Player> {
         // Name selection screen
         let name = self.get_character_name()?;
 
@@ -384,7 +383,7 @@ impl UI {
         Ok(player)
     }
 
-    fn get_character_name(&self) -> io::Result<String> {
+    fn get_character_name(&mut self) -> io::Result<String> {
         self.clear_screen()?;
 
         // Get actual terminal size
@@ -431,7 +430,7 @@ impl UI {
         Ok(name)
     }
 
-    fn choose_character_class(&self) -> io::Result<ClassType> {
+    fn choose_character_class(&mut self) -> io::Result<ClassType> {
         self.clear_screen()?;
 
         // Get actual terminal size
@@ -473,8 +472,16 @@ impl UI {
         )?;
 
         let class_type = loop {
-            if let Event::Key(KeyEvent { code, .. }) = event::read()? {
-                match code {
+            if let Event::Key(key_event) = event::read()? {
+                // On Windows, only process key press events
+                #[cfg(windows)]
+                {
+                    if key_event.kind != KeyEventKind::Press {
+                        continue;
+                    }
+                }
+
+                match key_event.code {
                     KeyCode::Char('1') => break ClassType::Warrior,
                     KeyCode::Char('2') => break ClassType::Mage,
                     KeyCode::Char('3') => break ClassType::Ranger,
@@ -488,7 +495,7 @@ impl UI {
     }
 
     pub fn draw_game_screen(
-        &self,
+        &mut self,
         player: &Player,
         level: &Level,
         dungeon: &Dungeon,
@@ -537,68 +544,240 @@ impl UI {
         let center_x = MAP_WIDTH / 2;
         let center_y = MAP_HEIGHT / 2;
 
-        // Draw the visible map portion
-        for screen_y in 0..MAP_HEIGHT {
-            for screen_x in 0..MAP_WIDTH {
-                // Calculate map coordinates by offsetting from player position
-                // This ensures player is always at the center
-                let map_x = level.player_position.x - center_x as i32 + screen_x as i32;
-                let map_y = level.player_position.y - center_y as i32 + screen_y as i32;
+        // Windows-specific optimized rendering
+        #[cfg(windows)]
+        {
+            // Check if running in Command Prompt for specialized optimization
+            let is_cmd = platform::is_command_prompt();
 
-                // Ensure we're within map bounds
-                if map_x < 0
-                    || map_x >= level.width as i32
-                    || map_y < 0
-                    || map_y >= level.height as i32
-                {
-                    // Draw a space for out-of-bounds areas
+            if is_cmd {
+                // Command Prompt specialized rendering - line-by-line with minimal colors
+                self.render_cmd_optimized(
+                    level,
+                    center_x,
+                    center_y,
+                    content_start_x,
+                    content_start_y,
+                )?;
+            } else {
+                // Standard Windows Terminal/PowerShell rendering
+                // Batch all rendering operations for better Windows performance
+                let mut render_buffer = Vec::new();
+
+                for screen_y in 0..MAP_HEIGHT {
+                    for screen_x in 0..MAP_WIDTH {
+                        // Calculate map coordinates by offsetting from player position
+                        let map_x = level.player_position.x - center_x as i32 + screen_x as i32;
+                        let map_y = level.player_position.y - center_y as i32 + screen_y as i32;
+
+                        // Ensure we're within map bounds
+                        if map_x < 0
+                            || map_x >= level.width as i32
+                            || map_y < 0
+                            || map_y >= level.height as i32
+                        {
+                            render_buffer.push((
+                                (content_start_x + screen_x) as u16,
+                                (content_start_y + screen_y) as u16,
+                                Color::Black,
+                                ' ',
+                            ));
+                            continue;
+                        }
+
+                        let pos = Position::new(map_x, map_y);
+                        let tile = &level.tiles[map_y as usize][map_x as usize];
+
+                        // Determine what character to draw
+                        let char_to_draw = if pos == level.player_position {
+                            '@'
+                        } else if !tile.explored {
+                            ' '
+                        } else if tile.visible && level.enemies.contains_key(&pos) {
+                            'E'
+                        } else if tile.visible && level.items.contains_key(&pos) {
+                            '!'
+                        } else if !tile.visible {
+                            ' ' // Complete fog of war on Windows
+                        } else {
+                            tile.render()
+                        };
+
+                        let color = match char_to_draw {
+                            '@' => Color::Yellow,
+                            'E' => Color::Red,
+                            '!' => Color::Green,
+                            '#' => {
+                                if tile.visible {
+                                    Color::White
+                                } else {
+                                    Color::Black
+                                }
+                            }
+                            '.' => {
+                                if tile.visible {
+                                    Color::DarkGrey
+                                } else {
+                                    Color::Black
+                                }
+                            }
+                            '+' => {
+                                if tile.visible {
+                                    Color::Magenta
+                                } else {
+                                    Color::Black
+                                }
+                            }
+                            'C' => {
+                                if tile.visible {
+                                    Color::Cyan
+                                } else {
+                                    Color::Black
+                                }
+                            }
+                            '>' | '<' => {
+                                if tile.visible {
+                                    Color::Blue
+                                } else {
+                                    Color::Black
+                                }
+                            }
+                            ' ' => Color::Black,
+                            _ => {
+                                if tile.visible {
+                                    Color::Grey
+                                } else {
+                                    Color::Black
+                                }
+                            }
+                        };
+
+                        render_buffer.push((
+                            (content_start_x + screen_x) as u16,
+                            (content_start_y + screen_y) as u16,
+                            color,
+                            char_to_draw,
+                        ));
+                    }
+                }
+
+                // Batch render all characters with minimal color changes
+                let mut current_color = Color::White;
+                for (x, y, color, ch) in render_buffer {
+                    queue!(stdout(), cursor::MoveTo(x, y))?;
+                    if color != current_color {
+                        queue!(stdout(), style::SetForegroundColor(color))?;
+                        current_color = color;
+                    }
+                    queue!(stdout(), style::Print(ch))?;
+                }
+                stdout().flush()?;
+            }
+        }
+
+        // Non-Windows platforms use original rendering
+        #[cfg(not(windows))]
+        {
+            for screen_y in 0..MAP_HEIGHT {
+                for screen_x in 0..MAP_WIDTH {
+                    // Calculate map coordinates by offsetting from player position
+                    let map_x = level.player_position.x - center_x as i32 + screen_x as i32;
+                    let map_y = level.player_position.y - center_y as i32 + screen_y as i32;
+
+                    // Ensure we're within map bounds
+                    if map_x < 0
+                        || map_x >= level.width as i32
+                        || map_y < 0
+                        || map_y >= level.height as i32
+                    {
+                        execute!(
+                            stdout(),
+                            cursor::MoveTo(
+                                (content_start_x + screen_x) as u16,
+                                (content_start_y + screen_y) as u16
+                            ),
+                            style::SetForegroundColor(Color::Black),
+                            style::Print(' ')
+                        )?;
+                        continue;
+                    }
+
+                    let pos = Position::new(map_x, map_y);
+                    let tile = &level.tiles[map_y as usize][map_x as usize];
+
+                    let char_to_draw = if pos == level.player_position {
+                        '@'
+                    } else if !tile.explored {
+                        ' '
+                    } else if tile.visible && level.enemies.contains_key(&pos) {
+                        'E'
+                    } else if tile.visible && level.items.contains_key(&pos) {
+                        '!'
+                    } else if !tile.visible {
+                        tile.render() // Show dimmed tile character on non-Windows
+                    } else {
+                        tile.render()
+                    };
+
+                    let color = match char_to_draw {
+                        '@' => Color::Yellow,
+                        'E' => Color::Red,
+                        '!' => Color::Green,
+                        '#' => {
+                            if tile.visible {
+                                Color::White
+                            } else {
+                                Color::DarkGrey
+                            }
+                        }
+                        '.' => {
+                            if tile.visible {
+                                Color::DarkGrey
+                            } else {
+                                Color::Black
+                            }
+                        }
+                        '+' => {
+                            if tile.visible {
+                                Color::Magenta
+                            } else {
+                                Color::DarkGrey
+                            }
+                        }
+                        'C' => {
+                            if tile.visible {
+                                Color::Cyan
+                            } else {
+                                Color::DarkGrey
+                            }
+                        }
+                        '>' | '<' => {
+                            if tile.visible {
+                                Color::Blue
+                            } else {
+                                Color::DarkGrey
+                            }
+                        }
+                        ' ' => Color::Black,
+                        _ => {
+                            if tile.visible {
+                                Color::Grey
+                            } else {
+                                Color::DarkGrey
+                            }
+                        }
+                    };
+
                     execute!(
                         stdout(),
                         cursor::MoveTo(
                             (content_start_x + screen_x) as u16,
                             (content_start_y + screen_y) as u16
                         ),
-                        style::SetForegroundColor(Color::Black),
-                        style::Print(' ')
+                        style::SetForegroundColor(color),
+                        style::Print(char_to_draw)
                     )?;
-                    continue;
                 }
-
-                let pos = Position::new(map_x, map_y);
-
-                // Determine what character to draw
-                let char_to_draw = if pos == level.player_position {
-                    '@'
-                } else if level.enemies.contains_key(&pos) {
-                    'E'
-                } else if level.items.contains_key(&pos) {
-                    '!'
-                } else {
-                    // Get the tile at this position
-                    level.tiles[map_y as usize][map_x as usize].render()
-                };
-
-                let color = match char_to_draw {
-                    '@' => Color::Yellow,
-                    'E' => Color::Red,
-                    '!' => Color::Green,
-                    '#' => Color::White,
-                    '.' => Color::DarkGrey,
-                    '+' => Color::Magenta,
-                    'C' => Color::Cyan,
-                    '>' | '<' => Color::Blue,
-                    _ => Color::Grey,
-                };
-
-                execute!(
-                    stdout(),
-                    cursor::MoveTo(
-                        (content_start_x + screen_x) as u16,
-                        (content_start_y + screen_y) as u16
-                    ),
-                    style::SetForegroundColor(color),
-                    style::Print(char_to_draw)
-                )?;
             }
         }
 
@@ -606,53 +785,179 @@ impl UI {
         let ui_start_x = content_start_x + MAP_WIDTH;
 
         // Draw vertical divider between map and UI panel
-        for y in 0..MAP_HEIGHT {
-            execute!(
-                stdout(),
-                cursor::MoveTo(ui_start_x as u16, (content_start_y + y) as u16),
-                style::SetForegroundColor(Color::White),
-                style::Print("│")
-            )?;
+        #[cfg(windows)]
+        {
+            // Batch vertical divider rendering on Windows
+            queue!(stdout(), style::SetForegroundColor(Color::White))?;
+            for y in 0..MAP_HEIGHT {
+                queue!(
+                    stdout(),
+                    cursor::MoveTo(ui_start_x as u16, (content_start_y + y) as u16),
+                    style::Print("│")
+                )?;
+            }
+            stdout().flush()?;
+        }
+        #[cfg(not(windows))]
+        {
+            for y in 0..MAP_HEIGHT {
+                execute!(
+                    stdout(),
+                    cursor::MoveTo(ui_start_x as u16, (content_start_y + y) as u16),
+                    style::SetForegroundColor(Color::White),
+                    style::Print("│")
+                )?;
+            }
         }
 
         // Draw player stats in the UI panel
         let ui_text_x = ui_start_x + 2; // Offset from the divider
 
-        execute!(
-            stdout(),
-            cursor::MoveTo(ui_text_x as u16, (content_start_y + 1) as u16),
-            style::SetForegroundColor(Color::Cyan),
-            style::Print(format!("{}", player.name)),
-            cursor::MoveTo(ui_text_x as u16, (content_start_y + 2) as u16),
-            style::SetForegroundColor(Color::White),
-            style::Print(format!(
-                "Level {} {}",
-                player.level, player.class.class_type
-            )),
-            cursor::MoveTo(ui_text_x as u16, (content_start_y + 3) as u16),
-            style::Print(format!("HP: {}/{}", player.health, player.max_health)),
-            cursor::MoveTo(ui_text_x as u16, (content_start_y + 4) as u16),
-            style::Print(format!("MP: {}/{}", player.mana, player.max_mana)),
-            cursor::MoveTo(ui_text_x as u16, (content_start_y + 5) as u16),
-            style::Print(format!("XP: {}/{}", player.experience, player.level * 100)),
-            cursor::MoveTo(ui_text_x as u16, (content_start_y + 6) as u16),
-            style::Print(format!("Gold: {}", player.gold))
-        )?;
+        // Player stats rendering with Windows optimization
+        #[cfg(windows)]
+        {
+            let is_cmd = platform::is_command_prompt();
 
-        // Location information
-        execute!(
-            stdout(),
-            cursor::MoveTo(ui_text_x as u16, (content_start_y + 8) as u16),
-            style::SetForegroundColor(Color::Cyan),
-            style::Print("Location:"),
-            cursor::MoveTo(ui_text_x as u16, (content_start_y + 9) as u16),
-            style::SetForegroundColor(Color::White),
-            style::Print(format!(
-                "{} - Level {}",
-                dungeon.name,
-                dungeon.current_level + 1
-            ))
-        )?;
+            if is_cmd {
+                // Simplified UI for Command Prompt - fewer colors, simpler layout
+                queue!(
+                    stdout(),
+                    cursor::MoveTo(ui_text_x as u16, (content_start_y + 1) as u16),
+                    style::SetForegroundColor(Color::White),
+                    style::Print(format!("{} L{}", player.name, player.level))
+                )?;
+                queue!(
+                    stdout(),
+                    cursor::MoveTo(ui_text_x as u16, (content_start_y + 2) as u16),
+                    style::Print(format!("HP:{}/{}", player.health, player.max_health))
+                )?;
+                queue!(
+                    stdout(),
+                    cursor::MoveTo(ui_text_x as u16, (content_start_y + 3) as u16),
+                    style::Print(format!("MP:{}/{}", player.mana, player.max_mana))
+                )?;
+                queue!(
+                    stdout(),
+                    cursor::MoveTo(ui_text_x as u16, (content_start_y + 4) as u16),
+                    style::Print(format!("Gold:{}", player.gold))
+                )?;
+                stdout().flush()?;
+            } else {
+                queue!(
+                    stdout(),
+                    cursor::MoveTo(ui_text_x as u16, (content_start_y + 1) as u16),
+                    style::SetForegroundColor(Color::Cyan),
+                    style::Print(format!("{}", player.name))
+                )?;
+                queue!(
+                    stdout(),
+                    cursor::MoveTo(ui_text_x as u16, (content_start_y + 2) as u16),
+                    style::SetForegroundColor(Color::White)
+                )?;
+                queue!(
+                    stdout(),
+                    style::Print(format!(
+                        "Level {} {}",
+                        player.level, player.class.class_type
+                    ))
+                )?;
+                queue!(
+                    stdout(),
+                    cursor::MoveTo(ui_text_x as u16, (content_start_y + 3) as u16),
+                    style::Print(format!("HP: {}/{}", player.health, player.max_health))
+                )?;
+                queue!(
+                    stdout(),
+                    cursor::MoveTo(ui_text_x as u16, (content_start_y + 4) as u16),
+                    style::Print(format!("MP: {}/{}", player.mana, player.max_mana))
+                )?;
+                queue!(
+                    stdout(),
+                    cursor::MoveTo(ui_text_x as u16, (content_start_y + 5) as u16),
+                    style::Print(format!("XP: {}/{}", player.experience, player.level * 100))
+                )?;
+                queue!(
+                    stdout(),
+                    cursor::MoveTo(ui_text_x as u16, (content_start_y + 6) as u16),
+                    style::Print(format!("Gold: {}", player.gold))
+                )?;
+                stdout().flush()?;
+            }
+            #[cfg(not(windows))]
+            {
+                execute!(
+                    stdout(),
+                    cursor::MoveTo(ui_text_x as u16, (content_start_y + 1) as u16),
+                    style::SetForegroundColor(Color::Cyan),
+                    style::Print(format!("{}", player.name)),
+                    cursor::MoveTo(ui_text_x as u16, (content_start_y + 2) as u16),
+                    style::SetForegroundColor(Color::White),
+                    style::Print(format!(
+                        "Level {} {}",
+                        player.level, player.class.class_type
+                    )),
+                    cursor::MoveTo(ui_text_x as u16, (content_start_y + 3) as u16),
+                    style::Print(format!("HP: {}/{}", player.health, player.max_health)),
+                    cursor::MoveTo(ui_text_x as u16, (content_start_y + 4) as u16),
+                    style::Print(format!("MP: {}/{}", player.mana, player.max_mana)),
+                    cursor::MoveTo(ui_text_x as u16, (content_start_y + 5) as u16),
+                    style::Print(format!("XP: {}/{}", player.experience, player.level * 100)),
+                    cursor::MoveTo(ui_text_x as u16, (content_start_y + 6) as u16),
+                    style::Print(format!("Gold: {}", player.gold))
+                )?;
+            }
+
+            // Location information with Windows optimization
+            #[cfg(windows)]
+            {
+                let is_cmd = platform::is_command_prompt();
+
+                if is_cmd {
+                    // Simplified location info for Command Prompt
+                    queue!(
+                        stdout(),
+                        cursor::MoveTo(ui_text_x as u16, (content_start_y + 6) as u16),
+                        style::SetForegroundColor(Color::White),
+                        style::Print(format!("{} L{}", dungeon.name, dungeon.current_level + 1))
+                    )?;
+                    stdout().flush()?;
+                } else {
+                    queue!(
+                        stdout(),
+                        cursor::MoveTo(ui_text_x as u16, (content_start_y + 8) as u16),
+                        style::SetForegroundColor(Color::Cyan),
+                        style::Print("Location:")
+                    )?;
+                    queue!(
+                        stdout(),
+                        cursor::MoveTo(ui_text_x as u16, (content_start_y + 9) as u16),
+                        style::SetForegroundColor(Color::White),
+                        style::Print(format!(
+                            "{} - Level {}",
+                            dungeon.name,
+                            dungeon.current_level + 1
+                        ))
+                    )?;
+                    stdout().flush()?;
+                }
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            execute!(
+                stdout(),
+                cursor::MoveTo(ui_text_x as u16, (content_start_y + 8) as u16),
+                style::SetForegroundColor(Color::Cyan),
+                style::Print("Location:"),
+                cursor::MoveTo(ui_text_x as u16, (content_start_y + 9) as u16),
+                style::SetForegroundColor(Color::White),
+                style::Print(format!(
+                    "{} - Level {}",
+                    dungeon.name,
+                    dungeon.current_level + 1
+                ))
+            )?;
+        }
 
         // Draw message log below the border
         let log_start_y = border_start_y + outer_height + 1; // Position below the border
@@ -708,6 +1013,35 @@ impl UI {
         )?;
 
         // Create a legend of symbols and their meanings
+        #[cfg(windows)]
+        let symbols = if platform::is_command_prompt() {
+            // Simplified legend for Command Prompt
+            [
+                ('@', "You", Color::Yellow),
+                ('E', "Enemy", Color::Red),
+                ('!', "Item", Color::Green),
+                ('#', "Wall", Color::White),
+                ('.', "Floor", Color::White),
+                ('>', "Exit", Color::White),
+                (' ', "", Color::Black),
+                (' ', "", Color::Black),
+                (' ', "", Color::Black),
+            ]
+        } else {
+            [
+                ('@', "You (the player)", Color::Yellow),
+                ('E', "Enemy", Color::Red),
+                ('!', "Item", Color::Green),
+                ('#', "Wall", Color::White),
+                ('.', "Floor", Color::DarkGrey),
+                ('+', "Door", Color::Magenta),
+                ('C', "Chest", Color::Cyan),
+                ('>', "Stairs Down", Color::Blue),
+                ('<', "Stairs Up", Color::Blue),
+            ]
+        };
+
+        #[cfg(not(windows))]
         let symbols = [
             ('@', "You (the player)", Color::Yellow),
             ('E', "Enemy", Color::Red),
@@ -856,7 +1190,7 @@ impl UI {
         Ok(())
     }
 
-    pub fn draw_inventory_screen(&self, player: &Player) -> io::Result<()> {
+    pub fn draw_inventory_screen(&mut self, player: &Player) -> io::Result<()> {
         self.clear_screen()?;
 
         execute!(
@@ -889,7 +1223,11 @@ impl UI {
                 let equipped_marker = match item {
                     Item::Equipment(equipment) => {
                         if let Some(Some(idx)) = player.inventory.equipped.get(&equipment.slot) {
-                            if *idx == i { " [E]" } else { "" }
+                            if *idx == i {
+                                " [E]"
+                            } else {
+                                ""
+                            }
                         } else {
                             ""
                         }
@@ -914,7 +1252,7 @@ impl UI {
         Ok(())
     }
 
-    pub fn draw_character_screen(&self, player: &Player) -> io::Result<()> {
+    pub fn draw_character_screen(&mut self, player: &Player) -> io::Result<()> {
         self.clear_screen()?;
 
         execute!(
@@ -1065,7 +1403,7 @@ impl UI {
         Ok(())
     }
 
-    pub fn draw_ability_selection(&self, player: &Player) -> io::Result<usize> {
+    pub fn draw_ability_selection(&mut self, player: &Player) -> io::Result<usize> {
         self.clear_screen()?;
 
         execute!(
@@ -1111,8 +1449,16 @@ impl UI {
         )?;
 
         loop {
-            if let Event::Key(KeyEvent { code, .. }) = event::read()? {
-                match code {
+            if let Event::Key(key_event) = event::read()? {
+                // On Windows, only process key press events
+                #[cfg(windows)]
+                {
+                    if key_event.kind != KeyEventKind::Press {
+                        continue;
+                    }
+                }
+
+                match key_event.code {
                     KeyCode::Char(c) if c >= '1' && c <= '9' => {
                         let index = c.to_digit(10).unwrap() as usize - 1;
                         if index < player.class.abilities.len() {
@@ -1122,13 +1468,13 @@ impl UI {
                     KeyCode::Esc => {
                         return Err(io::Error::new(io::ErrorKind::Other, "Cancelled"));
                     }
-                    _ => {}
+                    _ => continue,
                 }
             }
         }
     }
 
-    pub fn draw_item_selection(&self, player: &Player) -> io::Result<usize> {
+    pub fn draw_item_selection(&mut self, player: &Player) -> io::Result<usize> {
         self.clear_screen()?;
 
         execute!(
@@ -1182,8 +1528,16 @@ impl UI {
         )?;
 
         loop {
-            if let Event::Key(KeyEvent { code, .. }) = event::read()? {
-                match code {
+            if let Event::Key(key_event) = event::read()? {
+                // On Windows, only process key press events
+                #[cfg(windows)]
+                {
+                    if key_event.kind != KeyEventKind::Press {
+                        continue;
+                    }
+                }
+
+                match key_event.code {
                     KeyCode::Char(c) if c >= '1' && c <= '9' => {
                         let index = c.to_digit(10).unwrap() as usize - 1;
                         if index < consumables.len() {
@@ -1193,16 +1547,24 @@ impl UI {
                     KeyCode::Esc => {
                         return Err(io::Error::new(io::ErrorKind::Other, "Cancelled"));
                     }
-                    _ => {}
+                    _ => continue,
                 }
             }
         }
     }
 
-    pub fn handle_combat_action(&self, player: &Player) -> io::Result<CombatAction> {
+    pub fn handle_combat_action(&mut self, player: &Player) -> io::Result<CombatAction> {
         loop {
-            if let Event::Key(KeyEvent { code, .. }) = event::read()? {
-                match code {
+            if let Event::Key(key_event) = event::read()? {
+                // On Windows, only process key press events
+                #[cfg(windows)]
+                {
+                    if key_event.kind != KeyEventKind::Press {
+                        continue;
+                    }
+                }
+
+                match key_event.code {
                     KeyCode::Char('1') => return Ok(CombatAction::Attack),
                     KeyCode::Char('2') => match self.draw_ability_selection(player) {
                         Ok(ability_index) => return Ok(CombatAction::UseAbility(ability_index)),
@@ -1213,21 +1575,141 @@ impl UI {
                         Err(_) => continue,
                     },
                     KeyCode::Char('4') => return Ok(CombatAction::Flee),
-                    _ => {}
+                    _ => continue,
                 }
             }
         }
     }
 
-    pub fn wait_for_key(&self) -> io::Result<KeyEvent> {
+    pub fn wait_for_key(&mut self) -> io::Result<KeyEvent> {
         loop {
             if let Event::Key(key_event) = event::read()? {
-                return Ok(key_event);
+                // On Windows, filter out key release events to prevent double input
+                #[cfg(windows)]
+                {
+                    if key_event.kind == KeyEventKind::Press {
+                        return Ok(platform::normalize_key_event(key_event));
+                    }
+                }
+                #[cfg(not(windows))]
+                {
+                    // On other platforms, use the original behavior
+                    return Ok(platform::normalize_key_event(key_event));
+                }
             }
         }
     }
 
-    pub fn draw_game_over(&self, player: &Player) -> io::Result<()> {
+    /// Command Prompt optimized rendering - renders line by line with minimal colors
+    #[cfg(windows)]
+    fn render_cmd_optimized(
+        &mut self,
+        level: &Level,
+        center_x: usize,
+        center_y: usize,
+        content_start_x: usize,
+        content_start_y: usize,
+    ) -> io::Result<()> {
+        use crossterm::style::Color;
+
+        // Build entire screen as strings to minimize terminal operations
+        let mut screen_lines = Vec::new();
+
+        for screen_y in 0..MAP_HEIGHT {
+            let mut line_chars = Vec::new();
+            let mut line_colors = Vec::new();
+
+            for screen_x in 0..MAP_WIDTH {
+                let map_x = level.player_position.x - center_x as i32 + screen_x as i32;
+                let map_y = level.player_position.y - center_y as i32 + screen_y as i32;
+
+                if map_x < 0
+                    || map_x >= level.width as i32
+                    || map_y < 0
+                    || map_y >= level.height as i32
+                {
+                    line_chars.push(' ');
+                    line_colors.push(Color::Black);
+                    continue;
+                }
+
+                let pos = Position::new(map_x, map_y);
+                let tile = &level.tiles[map_y as usize][map_x as usize];
+
+                let (char_to_draw, color) = if pos == level.player_position {
+                    ('@', Color::Yellow)
+                } else if !tile.explored {
+                    (' ', Color::Black)
+                } else if tile.visible && level.enemies.contains_key(&pos) {
+                    ('E', Color::Red)
+                } else if tile.visible && level.items.contains_key(&pos) {
+                    ('!', Color::Green)
+                } else if !tile.visible {
+                    (' ', Color::Black) // Complete fog of war for Command Prompt
+                } else {
+                    // Simplified tile rendering for Command Prompt
+                    match tile.tile_type {
+                        crate::world::TileType::Wall => ('#', Color::White),
+                        crate::world::TileType::Floor => ('.', Color::DarkGrey),
+                        crate::world::TileType::Door => ('+', Color::Cyan),
+                        crate::world::TileType::StairsDown => ('>', Color::Blue),
+                        crate::world::TileType::StairsUp => ('<', Color::Blue),
+                        crate::world::TileType::Chest => ('C', Color::Cyan),
+                        crate::world::TileType::Exit => ('E', Color::Green),
+                    }
+                };
+
+                line_chars.push(char_to_draw);
+                line_colors.push(color);
+            }
+
+            screen_lines.push((line_chars, line_colors));
+        }
+
+        // Render line by line with color optimization for Command Prompt
+        for (y, (chars, colors)) in screen_lines.iter().enumerate() {
+            queue!(
+                stdout(),
+                cursor::MoveTo(content_start_x as u16, (content_start_y + y) as u16)
+            )?;
+
+            let mut current_color = Color::White;
+            let mut line_buffer = String::new();
+            let mut buffer_color = Color::White;
+
+            for (i, (&ch, &color)) in chars.iter().zip(colors.iter()).enumerate() {
+                if color != buffer_color || i == chars.len() - 1 {
+                    // Flush current buffer if color changes or at end
+                    if !line_buffer.is_empty() {
+                        if buffer_color != current_color {
+                            queue!(stdout(), style::SetForegroundColor(buffer_color))?;
+                            current_color = buffer_color;
+                        }
+                        queue!(stdout(), style::Print(&line_buffer))?;
+                        line_buffer.clear();
+                    }
+
+                    if i == chars.len() - 1 {
+                        // Handle last character
+                        if color != current_color {
+                            queue!(stdout(), style::SetForegroundColor(color))?;
+                        }
+                        queue!(stdout(), style::Print(ch))?;
+                    } else {
+                        buffer_color = color;
+                        line_buffer.push(ch);
+                    }
+                } else {
+                    line_buffer.push(ch);
+                }
+            }
+        }
+
+        stdout().flush()?;
+        Ok(())
+    }
+
+    pub fn draw_game_over(&mut self, player: &Player) -> io::Result<()> {
         self.clear_screen()?;
 
         // Get actual terminal size
@@ -1274,7 +1756,7 @@ impl UI {
         Ok(())
     }
 
-    pub fn draw_victory_screen(&self, player: &Player) -> io::Result<()> {
+    pub fn draw_victory_screen(&mut self, player: &Player) -> io::Result<()> {
         self.clear_screen()?;
 
         // Get actual terminal size
