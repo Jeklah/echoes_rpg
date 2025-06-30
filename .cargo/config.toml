@@ -1,0 +1,20 @@
+[target.x86_64-pc-windows-gnu]
+linker = "x86_64-w64-mingw32-gcc"
+ar = "x86_64-w64-mingw32-ar"
+
+[target.x86_64-pc-windows-msvc]
+# MSVC target configuration (requires Visual Studio Build Tools)
+# This target is commented out as it requires Windows-specific tools
+
+# Build aliases for convenience
+[alias]
+build-windows = "build --release --target x86_64-pc-windows-gnu"
+build-linux = "build --release --target x86_64-unknown-linux-gnu"
+
+# Profile settings for optimized Windows builds
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true  # Remove debug symbols to reduce file size
