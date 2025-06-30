@@ -557,7 +557,13 @@ impl eframe::App for EchoesApp {
 
                                 for (y, line) in self.terminal_buffer.iter().enumerate() {
                                     ui.horizontal(|ui| {
-                                        // Render each character with its individual color
+                                        ui.spacing_mut().item_spacing.x = 0.0; // Remove horizontal spacing
+
+                                        // Group consecutive characters with same color into segments
+                                        let mut current_segment = String::new();
+                                        let mut current_color = Color32::from_rgb(192, 192, 192);
+                                        let mut segment_start = true;
+
                                         for (x, ch) in line.chars().enumerate() {
                                             let color = if y < self.color_buffer.len()
                                                 && x < self.color_buffer[y].len()
@@ -567,9 +573,31 @@ impl eframe::App for EchoesApp {
                                                 Color32::from_rgb(192, 192, 192)
                                             };
 
-                                            let text = RichText::new(ch.to_string())
+                                            // If color changes or this is the first character, start new segment
+                                            if segment_start || color != current_color {
+                                                // Render previous segment if it exists
+                                                if !current_segment.is_empty() {
+                                                    let text = RichText::new(&current_segment)
+                                                        .font(font_id.clone())
+                                                        .color(current_color);
+                                                    ui.label(text);
+                                                }
+
+                                                // Start new segment
+                                                current_segment = ch.to_string();
+                                                current_color = color;
+                                                segment_start = false;
+                                            } else {
+                                                // Add to current segment
+                                                current_segment.push(ch);
+                                            }
+                                        }
+
+                                        // Render final segment
+                                        if !current_segment.is_empty() {
+                                            let text = RichText::new(&current_segment)
                                                 .font(font_id.clone())
-                                                .color(color);
+                                                .color(current_color);
                                             ui.label(text);
                                         }
                                     });
