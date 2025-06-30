@@ -66,22 +66,23 @@ impl UI {
 
         self.clear_screen()?;
 
-        // Draw bordered tutorial
-        let border_width = 70;
-        let border_height = 22;
+        // Draw bordered tutorial with responsive sizing
         let (term_width, term_height) = terminal::size()?;
+        let max_border_width = 80;
+        let border_width = (max_border_width).min(term_width as usize - 10);
+        let border_height = 24;
         let start_x = ((term_width as i32 - border_width as i32) / 2).max(0) as u16;
         let start_y = ((term_height as i32 - border_height as i32) / 2).max(0) as u16;
 
         self.draw_game_border(
             start_x as usize,
             start_y as usize,
-            border_width as usize,
-            border_height as usize,
+            border_width,
+            border_height,
         )?;
 
         let title = "Combat Tutorial";
-        let title_pos_x = start_x + (border_width - title.len() as u16) / 2;
+        let title_pos_x = start_x + (border_width as u16 - title.len() as u16) / 2;
 
         execute!(
             stdout(),
@@ -91,16 +92,30 @@ impl UI {
             style::SetForegroundColor(Color::White)
         )?;
 
-        // Content positioning
+        // Content positioning with responsive width
         let text_x = start_x + 3;
         let mut text_y = start_y + 2;
+        let available_width = border_width - 6; // 3 chars padding on each side
+        let separator = "─".repeat(available_width);
+
+        // Helper function to wrap text to available width
+        let wrap_text = |text: &str, max_width: usize| -> String {
+            if text.len() <= max_width {
+                text.to_string()
+            } else {
+                format!("{}...", &text[0..max_width.saturating_sub(3)])
+            }
+        };
 
         // Draw tutorial content
         execute!(
             stdout(),
             cursor::MoveTo(text_x, text_y),
             style::SetForegroundColor(Color::Yellow),
-            style::Print("Welcome to your first combat encounter!"),
+            style::Print(wrap_text(
+                "Welcome to your first combat encounter!",
+                available_width
+            )),
             style::SetForegroundColor(Color::White)
         )?;
 
@@ -108,14 +123,17 @@ impl UI {
         execute!(
             stdout(),
             cursor::MoveTo(text_x, text_y),
-            style::Print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            style::Print(&separator)
         )?;
 
         text_y += 2;
         execute!(
             stdout(),
             cursor::MoveTo(text_x, text_y),
-            style::Print("Combat in Echoes RPG is turn-based. Here's how it works:")
+            style::Print(wrap_text(
+                "Combat in Echoes RPG is turn-based. Here's how it works:",
+                available_width
+            ))
         )?;
 
         text_y += 2;
@@ -125,7 +143,10 @@ impl UI {
             style::SetForegroundColor(Color::Cyan),
             style::Print("1. Attack"),
             style::SetForegroundColor(Color::White),
-            style::Print(" - Basic attack using your equipped weapon.")
+            style::Print(&wrap_text(
+                " - Basic attack using your weapon.",
+                available_width - 10
+            ))
         )?;
 
         text_y += 1;
@@ -135,7 +156,10 @@ impl UI {
             style::SetForegroundColor(Color::Cyan),
             style::Print("2. Use Ability"),
             style::SetForegroundColor(Color::White),
-            style::Print(" - Use a special ability or spell (costs mana).")
+            style::Print(&wrap_text(
+                " - Use special ability (costs mana).",
+                available_width - 14
+            ))
         )?;
 
         text_y += 1;
@@ -145,7 +169,10 @@ impl UI {
             style::SetForegroundColor(Color::Cyan),
             style::Print("3. Use Item"),
             style::SetForegroundColor(Color::White),
-            style::Print(" - Use a consumable item from your inventory.")
+            style::Print(&wrap_text(
+                " - Use consumable from inventory.",
+                available_width - 12
+            ))
         )?;
 
         text_y += 1;
@@ -155,33 +182,40 @@ impl UI {
             style::SetForegroundColor(Color::Cyan),
             style::Print("4. Flee"),
             style::SetForegroundColor(Color::White),
-            style::Print(" - Attempt to escape combat (chance based on your dexterity).")
+            style::Print(&wrap_text(
+                " - Attempt to escape (chance based on dexterity).",
+                available_width - 8
+            ))
         )?;
 
         text_y += 2;
         execute!(
             stdout(),
             cursor::MoveTo(text_x, text_y),
-            style::Print("After you take an action, the enemy will counter-attack.")
+            style::Print(wrap_text(
+                "After you act, the enemy will counter-attack.",
+                available_width
+            ))
         )?;
 
         text_y += 1;
         execute!(
             stdout(),
             cursor::MoveTo(text_x, text_y),
-            style::Print(
-                "If you defeat an enemy, you'll gain experience, gold, and possibly items!"
-            )
+            style::Print(wrap_text(
+                "Victory grants experience, gold, and possibly items!",
+                available_width
+            ))
         )?;
 
         // Add simulated combat example
         text_y += 2;
-        let example_x = text_x + 5;
+        let example_x = text_x + 2;
 
         execute!(
             stdout(),
             cursor::MoveTo(text_x, text_y),
-            style::Print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            style::Print(&separator)
         )?;
 
         text_y += 1;
@@ -197,7 +231,10 @@ impl UI {
         execute!(
             stdout(),
             cursor::MoveTo(example_x, text_y),
-            style::Print("You encounter a Goblin (HP: 20/20)")
+            style::Print(wrap_text(
+                "You encounter a Goblin (HP: 20/20)",
+                available_width - 2
+            ))
         )?;
 
         text_y += 1;
@@ -214,7 +251,10 @@ impl UI {
         execute!(
             stdout(),
             cursor::MoveTo(example_x, text_y),
-            style::Print("You attack the Goblin for 8 damage!")
+            style::Print(wrap_text(
+                "You attack the Goblin for 8 damage!",
+                available_width - 2
+            ))
         )?;
 
         text_y += 1;
@@ -231,14 +271,17 @@ impl UI {
         execute!(
             stdout(),
             cursor::MoveTo(example_x, text_y),
-            style::Print("The Goblin hits you for 5 damage!")
+            style::Print(wrap_text(
+                "The Goblin hits you for 5 damage!",
+                available_width - 2
+            ))
         )?;
 
         text_y += 2;
         execute!(
             stdout(),
             cursor::MoveTo(text_x, text_y),
-            style::Print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            style::Print(&separator)
         )?;
 
         text_y += 1;
@@ -254,28 +297,37 @@ impl UI {
         execute!(
             stdout(),
             cursor::MoveTo(text_x, text_y),
-            style::Print("• Use healing potions when your health is low")
+            style::Print(wrap_text(
+                "• Use healing potions when health is low",
+                available_width
+            ))
         )?;
 
         text_y += 1;
         execute!(
             stdout(),
             cursor::MoveTo(text_x, text_y),
-            style::Print("• Special abilities can deal more damage but cost mana")
+            style::Print(wrap_text(
+                "• Special abilities deal more damage but cost mana",
+                available_width
+            ))
         )?;
 
         text_y += 1;
         execute!(
             stdout(),
             cursor::MoveTo(text_x, text_y),
-            style::Print("• Sometimes fleeing is the best option if you're outmatched")
+            style::Print(wrap_text(
+                "• Sometimes fleeing is the best option",
+                available_width
+            ))
         )?;
 
         text_y += 2;
         execute!(
             stdout(),
             cursor::MoveTo(text_x, text_y),
-            style::Print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            style::Print(&separator)
         )?;
 
         text_y += 1;
@@ -283,7 +335,10 @@ impl UI {
             stdout(),
             cursor::MoveTo(text_x, text_y),
             style::SetForegroundColor(Color::Green),
-            style::Print("Press any key to continue your adventure...")
+            style::Print(wrap_text(
+                "Press any key to continue your adventure...",
+                available_width
+            ))
         )?;
 
         // Wait for key press
