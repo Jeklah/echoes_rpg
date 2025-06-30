@@ -15,6 +15,7 @@ use egui::{Color32, FontFamily, FontId, RichText};
 pub struct EchoesApp {
     game: Option<Game>,
     terminal_buffer: Vec<String>,
+    color_buffer: Vec<Vec<Color32>>,
     input_buffer: String,
     last_key: Option<char>,
     show_combat_tutorial: bool,
@@ -38,6 +39,7 @@ impl Default for EchoesApp {
         Self {
             game: None,
             terminal_buffer: vec![" ".repeat(120); 50],
+            color_buffer: vec![vec![Color32::from_rgb(192, 192, 192); 120]; 50],
             input_buffer: String::new(),
             last_key: None,
             show_combat_tutorial: false,
@@ -60,15 +62,27 @@ impl Default for EchoesApp {
 #[cfg(feature = "gui")]
 impl EchoesApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        // Use default fonts - egui has good built-in monospace fonts
+        // Configure dark theme and colors for terminal appearance
+        let mut visuals = egui::Visuals::dark();
+        visuals.window_fill = Color32::BLACK;
+        visuals.panel_fill = Color32::BLACK;
+        visuals.extreme_bg_color = Color32::BLACK;
+        visuals.faint_bg_color = Color32::from_gray(10);
+        visuals.widgets.noninteractive.bg_stroke.color = Color32::from_gray(30);
+        cc.egui_ctx.set_visuals(visuals);
+
         let mut app = Self::default();
         app.init_terminal();
         app
     }
 
     fn init_terminal(&mut self) {
-        // Initialize terminal buffer
+        // Initialize terminal buffer and color buffer
         self.terminal_buffer = vec![" ".repeat(self.terminal_size.0); self.terminal_size.1];
+        self.color_buffer = vec![
+            vec![Color32::from_rgb(192, 192, 192); self.terminal_size.0];
+            self.terminal_size.1
+        ];
         self.clear_screen();
         self.show_main_menu();
     }
@@ -77,15 +91,28 @@ impl EchoesApp {
         for line in &mut self.terminal_buffer {
             *line = " ".repeat(self.terminal_size.0);
         }
+        for line in &mut self.color_buffer {
+            for color in line {
+                *color = Color32::from_rgb(192, 192, 192);
+            }
+        }
         self.cursor_pos = (0, 0);
     }
 
-    fn print_at(&mut self, x: usize, y: usize, text: &str, _color: Option<Color32>) {
+    fn print_at(&mut self, x: usize, y: usize, text: &str, color: Option<Color32>) {
         if y < self.terminal_buffer.len() && x < self.terminal_size.0 {
             let line = &mut self.terminal_buffer[y];
             let end_x = (x + text.len()).min(line.len());
             if x < line.len() {
                 line.replace_range(x..end_x, &text[..end_x - x]);
+
+                // Set colors for each character
+                let color_to_use = color.unwrap_or(Color32::from_rgb(192, 192, 192));
+                for i in x..end_x {
+                    if i < self.color_buffer[y].len() {
+                        self.color_buffer[y][i] = color_to_use;
+                    }
+                }
             }
         }
     }
@@ -103,7 +130,7 @@ impl EchoesApp {
             (self.terminal_size.0 - subtitle.len()) / 2,
             center_y - 1,
             subtitle,
-            Some(Color32::from_rgb(0, 255, 255)),
+            Some(Color32::from_rgb(0, 255, 0)),
         );
 
         self.print_at(center_x, center_y + 2, "1. Start New Game", None);
@@ -499,90 +526,132 @@ impl eframe::App for EchoesApp {
             }
         });
 
-        // Main UI
-        egui::CentralPanel::default().show(ctx, |ui| {
-            // Set monospace font for terminal display
-            let font_id = FontId::new(self.font_size, FontFamily::Monospace);
+        // Main UI with dark terminal theme
+        egui::CentralPanel::default()
+            .frame(egui::Frame::none().fill(Color32::BLACK))
+            .show(ctx, |ui| {
+                // Set dark background
+                ui.visuals_mut().extreme_bg_color = Color32::BLACK;
+                ui.visuals_mut().window_fill = Color32::BLACK;
+                ui.visuals_mut().panel_fill = Color32::BLACK;
 
-            ui.heading(
-                RichText::new("Echoes of the Forgotten Realm")
-                    .size(20.0)
-                    .color(Color32::YELLOW),
-            );
-            ui.separator();
+                // Set monospace font for terminal display
+                let font_id = FontId::new(self.font_size, FontFamily::Monospace);
 
-            // Terminal display area
-            egui::ScrollArea::vertical()
-                .id_source("terminal")
-                .show(ui, |ui| {
-                    ui.add_space(5.0);
-
-                    for (_y, line) in self.terminal_buffer.iter().enumerate() {
-                        ui.horizontal(|ui| {
-                            ui.add_space(10.0);
-
-                            // Split line into colored segments if needed
-                            let text = RichText::new(line)
-                                .font(font_id.clone())
-                                .color(Color32::WHITE);
-                            ui.label(text);
-                        });
-                    }
-                });
-
-            // Render game if active
-            if self.game_initialized && !self.show_combat_tutorial {
-                // Clone the necessary data to avoid borrow checker issues
-                if let Some(info) = self.get_game_info() {
-                    // Render game screen with cloned data
-                    self.clear_screen();
-
-                    // Simple display for now
-                    self.print_at(10, 10, &format!("Player: {}", info.0), None);
-                    self.print_at(10, 11, &format!("Level: {}", info.1), None);
-                    self.print_at(10, 12, &format!("HP: {}/{}", info.2, info.3), None);
-                    self.print_at(10, 13, &format!("MP: {}/{}", info.4, info.5), None);
-                    self.print_at(10, 14, &format!("Gold: {}", info.6), None);
-
-                    self.print_at(10, 16, "Use WASD to move, Q to quit", None);
-                }
-            }
-
-            // Status bar
-            ui.separator();
-            ui.horizontal(|ui| {
-                ui.label("Status:");
-                if self.main_menu {
-                    ui.label("Main Menu");
-                } else if self.creating_character {
-                    ui.label("Character Creation");
-                } else if self.show_combat_tutorial {
-                    ui.label("Combat Tutorial");
-                } else if self.game_initialized {
-                    ui.label("In Game");
-                }
-
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if let Some(key) = self.last_key {
-                        ui.label(format!("Last key: {}", key));
-                    }
-                });
-            });
-
-            // Messages area
-            if !self.ui_messages.is_empty() {
+                ui.heading(
+                    RichText::new("Echoes of the Forgotten Realm")
+                        .size(20.0)
+                        .color(Color32::YELLOW),
+                );
                 ui.separator();
-                ui.label("Messages:");
-                for msg in &self.ui_messages {
-                    ui.label(format!("• {}", msg));
+
+                // Terminal display area with dark background
+                egui::Frame::none()
+                    .fill(Color32::BLACK)
+                    .inner_margin(egui::Margin::same(10.0))
+                    .show(ui, |ui| {
+                        egui::ScrollArea::vertical()
+                            .id_source("terminal")
+                            .show(ui, |ui| {
+                                ui.style_mut().visuals.extreme_bg_color = Color32::BLACK;
+
+                                for (y, line) in self.terminal_buffer.iter().enumerate() {
+                                    ui.horizontal(|ui| {
+                                        // Render each character with its individual color
+                                        for (x, ch) in line.chars().enumerate() {
+                                            let color = if y < self.color_buffer.len()
+                                                && x < self.color_buffer[y].len()
+                                            {
+                                                self.color_buffer[y][x]
+                                            } else {
+                                                Color32::from_rgb(192, 192, 192)
+                                            };
+
+                                            let text = RichText::new(ch.to_string())
+                                                .font(font_id.clone())
+                                                .color(color);
+                                            ui.label(text);
+                                        }
+                                    });
+                                }
+                            });
+                    });
+
+                // Render game if active
+                if self.game_initialized && !self.show_combat_tutorial {
+                    // Clone the necessary data to avoid borrow checker issues
+                    if let Some(info) = self.get_game_info() {
+                        // Render game screen with cloned data
+                        self.clear_screen();
+
+                        // Simple display for now
+                        self.print_at(10, 10, &format!("Player: {}", info.0), None);
+                        self.print_at(10, 11, &format!("Level: {}", info.1), None);
+                        self.print_at(10, 12, &format!("HP: {}/{}", info.2, info.3), None);
+                        self.print_at(10, 13, &format!("MP: {}/{}", info.4, info.5), None);
+                        self.print_at(10, 14, &format!("Gold: {}", info.6), None);
+
+                        self.print_at(10, 16, "Use WASD to move, Q to quit", None);
+                    }
                 }
 
-                // Clear old messages
-                if self.ui_messages.len() > 5 {
-                    self.ui_messages.remove(0);
+                // Status bar with dark theme
+                ui.separator();
+                egui::Frame::none()
+                    .fill(Color32::from_gray(20))
+                    .inner_margin(egui::Margin::same(5.0))
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                RichText::new("Status:").color(Color32::from_rgb(0, 255, 255)),
+                            );
+                            if self.main_menu {
+                                ui.label(RichText::new("Main Menu").color(Color32::YELLOW));
+                            } else if self.creating_character {
+                                ui.label(
+                                    RichText::new("Character Creation").color(Color32::YELLOW),
+                                );
+                            } else if self.show_combat_tutorial {
+                                ui.label(RichText::new("Combat Tutorial").color(Color32::YELLOW));
+                            } else if self.game_initialized {
+                                ui.label(RichText::new("In Game").color(Color32::GREEN));
+                            }
+
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    if let Some(key) = self.last_key {
+                                        ui.label(
+                                            RichText::new(format!("Last key: {}", key))
+                                                .color(Color32::LIGHT_GRAY),
+                                        );
+                                    }
+                                },
+                            );
+                        });
+                    });
+
+                // Messages area with dark theme
+                if !self.ui_messages.is_empty() {
+                    ui.separator();
+                    egui::Frame::none()
+                        .fill(Color32::from_gray(15))
+                        .inner_margin(egui::Margin::same(5.0))
+                        .show(ui, |ui| {
+                            ui.label(
+                                RichText::new("Messages:").color(Color32::from_rgb(0, 255, 255)),
+                            );
+                            for msg in &self.ui_messages {
+                                ui.label(RichText::new(format!("• {}", msg)).color(Color32::WHITE));
+                            }
+                        });
+
+                    // Clear old messages
+                    if self.ui_messages.len() > 5 {
+                        self.ui_messages.remove(0);
+                    }
                 }
-            }
-        });
+            });
 
         // Request repaint for smooth updates
         ctx.request_repaint();
