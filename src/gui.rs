@@ -38,17 +38,17 @@ impl Default for EchoesApp {
     fn default() -> Self {
         Self {
             game: None,
-            terminal_buffer: vec![" ".repeat(120); 50],
-            color_buffer: vec![vec![Color32::from_rgb(192, 192, 192); 120]; 50],
+            terminal_buffer: vec![" ".repeat(140); 60],
+            color_buffer: vec![vec![Color32::from_rgb(192, 192, 192); 140]; 60],
             input_buffer: String::new(),
             last_key: None,
             show_combat_tutorial: false,
-            window_size: (1200.0, 800.0),
+            window_size: (1400.0, 1000.0),
             font_size: 14.0,
             char_width: 8.0,
             char_height: 16.0,
             cursor_pos: (0, 0),
-            terminal_size: (120, 50),
+            terminal_size: (140, 60),
             ui_messages: Vec::new(),
             game_initialized: false,
             character_name: String::new(),
@@ -191,64 +191,50 @@ impl EchoesApp {
     }
 
     fn handle_character_creation_input(&mut self, key: char) {
-        if self.character_name.is_empty()
-            || (self.character_class.is_none() && !self.character_name.is_empty())
-        {
+        if self.character_name.is_empty() {
             // Getting character name
-            if self.character_name.is_empty() {
-                if key.is_alphanumeric() || key == ' ' {
-                    if self.character_name.len() < 20 {
-                        self.character_name.push(key);
-                        self.show_character_creation();
-                    }
-                } else if key == '\u{8}' {
-                    // Backspace - nothing to do if name is empty
-                } else if key == '\r' || key == '\n' {
-                    // Enter pressed but name is empty
-                }
-            } else if self.character_class.is_none() {
-                // Have name, choosing class
-                match key {
-                    '1' => {
-                        self.character_class = Some(crate::character::ClassType::Warrior);
-                        self.finish_character_creation();
-                    }
-                    '2' => {
-                        self.character_class = Some(crate::character::ClassType::Mage);
-                        self.finish_character_creation();
-                    }
-                    '3' => {
-                        self.character_class = Some(crate::character::ClassType::Ranger);
-                        self.finish_character_creation();
-                    }
-                    '4' => {
-                        self.character_class = Some(crate::character::ClassType::Cleric);
-                        self.finish_character_creation();
-                    }
-                    '\u{8}' => {
-                        // Backspace - go back to name entry
-                        self.character_name.clear();
-                        self.show_character_creation();
-                    }
-                    _ => {}
-                }
-            }
-        } else {
-            // Getting character name input
             if key.is_alphanumeric() || key == ' ' {
                 if self.character_name.len() < 20 {
                     self.character_name.push(key);
                     self.show_character_creation();
                 }
             } else if key == '\u{8}' {
-                // Backspace
-                if !self.character_name.is_empty() {
-                    self.character_name.pop();
+                // Backspace - nothing to do if name is empty
+            } else if key == '\r' || key == '\n' {
+                // Enter pressed but name is empty - do nothing
+            }
+        } else if self.character_class.is_none() {
+            // Have name, now choosing class
+            match key {
+                '1' => {
+                    self.character_class = Some(crate::character::ClassType::Warrior);
+                    self.finish_character_creation();
+                }
+                '2' => {
+                    self.character_class = Some(crate::character::ClassType::Mage);
+                    self.finish_character_creation();
+                }
+                '3' => {
+                    self.character_class = Some(crate::character::ClassType::Ranger);
+                    self.finish_character_creation();
+                }
+                '4' => {
+                    self.character_class = Some(crate::character::ClassType::Cleric);
+                    self.finish_character_creation();
+                }
+                '\u{8}' => {
+                    // Backspace - go back to name entry
+                    self.character_name.clear();
                     self.show_character_creation();
                 }
-            } else if (key == '\r' || key == '\n') && !self.character_name.is_empty() {
-                // Enter pressed with non-empty name, show class selection
-                self.show_character_creation();
+                _ if key.is_alphanumeric() || key == ' ' => {
+                    // Add to name if still typing
+                    if self.character_name.len() < 20 {
+                        self.character_name.push(key);
+                        self.show_character_creation();
+                    }
+                }
+                _ => {}
             }
         }
     }
@@ -470,30 +456,33 @@ impl EchoesApp {
             match key {
                 'w' | 'W' => {
                     game.move_player(0, -1);
+                    game.update_visibility();
                 }
                 's' | 'S' => {
                     game.move_player(0, 1);
+                    game.update_visibility();
                 }
                 'a' | 'A' => {
                     game.move_player(-1, 0);
+                    game.update_visibility();
                 }
                 'd' | 'D' => {
                     game.move_player(1, 0);
+                    game.update_visibility();
                 }
                 'i' | 'I' => {
                     // Show inventory (simplified for GUI)
                     self.ui_messages.push("Inventory opened".to_string());
                 }
                 'c' | 'C' => {
-                    // Show character screen
+                    // Show character screen (simplified for GUI)
                     self.ui_messages.push("Character screen opened".to_string());
                 }
-                'g' | 'G' => {
-                    // Get item
-                    self.ui_messages.push("Looking for items...".to_string());
-                }
                 'q' | 'Q' => {
-                    std::process::exit(0);
+                    // Quit to main menu
+                    self.game_initialized = false;
+                    self.main_menu = true;
+                    self.show_main_menu();
                 }
                 _ => {}
             }
@@ -518,6 +507,43 @@ impl EchoesApp {
 #[cfg(feature = "gui")]
 impl eframe::App for EchoesApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // Handle text input for character name entry
+        ctx.input(|i| {
+            // Handle text input for character name
+            if self.creating_character && self.character_name.is_empty() {
+                for ch in &i.events {
+                    if let egui::Event::Text(text) = ch {
+                        for c in text.chars() {
+                            if c.is_alphanumeric() || c == ' ' {
+                                self.handle_input(c);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Only process key input if not in character name entry mode
+        if !(self.creating_character && self.character_name.is_empty()) {
+            ctx.input(|i| {
+                for event in &i.events {
+                    if let egui::Event::Text(text) = event {
+                        for c in text.chars() {
+                            if self.creating_character
+                                && self.character_class.is_none()
+                                && !self.character_name.is_empty()
+                            {
+                                // Allow adding more characters to name
+                                if c.is_alphanumeric() || c == ' ' {
+                                    self.handle_input(c);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
         // Handle keyboard input
         ctx.input(|i| {
             for event in &i.events {
@@ -525,6 +551,16 @@ impl eframe::App for EchoesApp {
                     key, pressed: true, ..
                 } = event
                 {
+                    // Skip letter keys during character creation name entry
+                    if self.creating_character && self.character_name.is_empty() {
+                        match key {
+                            egui::Key::Enter => self.handle_input('\r'),
+                            egui::Key::Backspace => self.handle_input('\u{8}'),
+                            _ => {}
+                        }
+                        continue;
+                    }
+
                     match key {
                         egui::Key::A => self.handle_input('a'),
                         egui::Key::B => self.handle_input('b'),
@@ -566,19 +602,6 @@ impl eframe::App for EchoesApp {
                         egui::Key::Enter => self.handle_input('\r'),
                         egui::Key::Backspace => self.handle_input('\u{8}'),
                         _ => {}
-                    }
-                }
-            }
-
-            // Handle text input for character name
-            if self.creating_character {
-                for ch in &i.events {
-                    if let egui::Event::Text(text) = ch {
-                        for c in text.chars() {
-                            if c.is_alphanumeric() || c == ' ' {
-                                self.handle_input(c);
-                            }
-                        }
                     }
                 }
             }
@@ -761,8 +784,8 @@ impl eframe::App for EchoesApp {
 pub fn run_gui() -> Result<(), eframe::Error> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([1200.0, 800.0])
-            .with_min_inner_size([800.0, 600.0])
+            .with_inner_size([1400.0, 1000.0])
+            .with_min_inner_size([1200.0, 800.0])
             .with_title("Echoes of the Forgotten Realm"),
         ..Default::default()
     };
