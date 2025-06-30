@@ -20,6 +20,11 @@ fn main() {
         std::process::exit(1);
     }
 
+    // Set Command Prompt to full screen if applicable
+    if let Err(e) = platform::set_cmd_fullscreen() {
+        eprintln!("Warning: Could not set fullscreen mode: {}", e);
+    }
+
     // Check terminal size
     if !platform::is_terminal_size_adequate() {
         let (current_w, current_h) = platform::get_terminal_size();

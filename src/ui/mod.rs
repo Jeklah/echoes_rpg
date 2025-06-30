@@ -996,18 +996,18 @@ impl UI {
             )?;
         }
 
-        // Position for Symbol Legend inside UI panel
-        let legend_col_x = ui_text_x;
-        let section_start_y = content_start_y + 11;
+        // Position for Symbol Legend outside the game border (right side)
+        let legend_col_x = border_start_x + outer_width + 2; // 2 spaces after border
+        let legend_start_y = border_start_y + 10; // Below controls
 
         // Position for Controls outside the game border
         let controls_col_x = border_start_x + outer_width + 2; // 2 spaces after border
         let controls_start_y = border_start_y + 2; // Starting near the top of the border
 
-        // Draw symbol legend in the UI panel (left column)
+        // Draw symbol legend outside the game border (right side)
         execute!(
             stdout(),
-            cursor::MoveTo(legend_col_x as u16, section_start_y as u16),
+            cursor::MoveTo(legend_col_x as u16, legend_start_y as u16),
             style::SetForegroundColor(Color::Cyan),
             style::Print("Symbol Legend:")
         )?;
@@ -1016,19 +1016,16 @@ impl UI {
         #[cfg(windows)]
         let symbols = if platform::is_command_prompt() {
             // Simplified legend for Command Prompt
-            [
+            vec![
                 ('@', "You", Color::Yellow),
                 ('E', "Enemy", Color::Red),
                 ('!', "Item", Color::Green),
                 ('#', "Wall", Color::White),
                 ('.', "Floor", Color::White),
                 ('>', "Exit", Color::White),
-                (' ', "", Color::Black),
-                (' ', "", Color::Black),
-                (' ', "", Color::Black),
             ]
         } else {
-            [
+            vec![
                 ('@', "You (the player)", Color::Yellow),
                 ('E', "Enemy", Color::Red),
                 ('!', "Item", Color::Green),
@@ -1042,7 +1039,7 @@ impl UI {
         };
 
         #[cfg(not(windows))]
-        let symbols = [
+        let symbols = vec![
             ('@', "You (the player)", Color::Yellow),
             ('E', "Enemy", Color::Red),
             ('!', "Item", Color::Green),
@@ -1055,14 +1052,16 @@ impl UI {
         ];
 
         for (i, (symbol, meaning, color)) in symbols.iter().enumerate() {
-            execute!(
-                stdout(),
-                cursor::MoveTo(legend_col_x as u16, (section_start_y + 1 + i) as u16),
-                style::SetForegroundColor(*color),
-                style::Print(*symbol),
-                style::SetForegroundColor(Color::White),
-                style::Print(format!(" - {}", meaning))
-            )?;
+            if !meaning.is_empty() {
+                execute!(
+                    stdout(),
+                    cursor::MoveTo(legend_col_x as u16, (legend_start_y + 1 + i) as u16),
+                    style::SetForegroundColor(*color),
+                    style::Print(*symbol),
+                    style::SetForegroundColor(Color::White),
+                    style::Print(format!(" - {}", meaning))
+                )?;
+            }
         }
 
         // Draw controls outside the game border

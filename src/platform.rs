@@ -15,6 +15,8 @@ use dirs;
 use std::env;
 use std::io::{stdout, Write};
 #[cfg(windows)]
+use std::process::Command;
+#[cfg(windows)]
 use std::time::{Duration, Instant};
 
 /// Initialize cross-platform terminal settings
@@ -51,14 +53,14 @@ pub fn cleanup_terminal() -> Result<()> {
 pub fn get_terminal_size() -> (u16, u16) {
     match terminal::size() {
         Ok((width, height)) => {
-            // Ensure minimum size for gameplay
-            let min_width = 80;
-            let min_height = 24;
+            // Ensure minimum size for gameplay with room for legend
+            let min_width = 140;
+            let min_height = 45;
             (width.max(min_width), height.max(min_height))
         }
         Err(_) => {
             // Fallback to standard terminal size
-            (80, 24)
+            (140, 45)
         }
     }
 }
@@ -269,6 +271,63 @@ pub fn windows_frame_limit() {
     // Do nothing on non-Windows platforms
 }
 
+/// Set Command Prompt to full screen mode
+#[cfg(windows)]
+pub fn set_cmd_fullscreen() -> Result<()> {
+    if is_command_prompt() {
+        // Method 1: Resize console buffer and window
+        let _ = Command::new("mode")
+            .args(&["con", "cols=150", "lines=50"])
+            .status();
+
+        // Method 2: Simple Alt+Enter approach (most reliable)
+        std::thread::sleep(std::time::Duration::from_millis(500));
+
+        // Try multiple times with different timing
+        for _ in 0..3 {
+            let _ = Command::new("powershell")
+                .args(&[
+                    "-WindowStyle", "Hidden",
+                    "-ExecutionPolicy", "Bypass",
+                    "-Command",
+                    "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('%{ENTER}'); Start-Sleep -Milliseconds 100"
+                ])
+                .status();
+
+            std::thread::sleep(std::time::Duration::from_millis(200));
+        }
+
+        // Method 3: Direct Windows API approach
+        let script = r#"
+try {
+    Add-Type -Name Win32 -Namespace Native -MemberDefinition @'
+        [DllImport("kernel32.dll")]
+        public static extern IntPtr GetConsoleWindow();
+        [DllImport("user32.dll")]
+        public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+        [DllImport("user32.dll")]
+        public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+'@
+    $hwnd = [Native.Win32]::GetConsoleWindow()
+    [Native.Win32]::ShowWindow($hwnd, 3)
+    Start-Sleep -Milliseconds 200
+    [Native.Win32]::SetWindowPos($hwnd, -1, 0, 0, 0, 0, 0x0003)
+} catch {}
+"#;
+
+        let _ = Command::new("powershell")
+            .args(&["-WindowStyle", "Hidden", "-Command", script])
+            .status();
+    }
+    Ok(())
+}
+
+/// No-op fullscreen for non-Windows platforms
+#[cfg(not(windows))]
+pub fn set_cmd_fullscreen() -> Result<()> {
+    Ok(())
+}
+
 /// Detect if running in Command Prompt (cmd.exe) for specialized optimizations
 #[cfg(windows)]
 pub fn is_command_prompt() -> bool {
@@ -347,13 +406,13 @@ pub fn is_terminal_compatible() -> bool {
 
 /// Get recommended terminal size for optimal gameplay
 pub fn get_recommended_size() -> (u16, u16) {
-    (100, 30) // Width x Height in characters
+    (150, 50) // Width x Height in characters
 }
 
 /// Check if current terminal size is adequate
 pub fn is_terminal_size_adequate() -> bool {
     let (current_width, current_height) = get_terminal_size();
-    let (min_width, min_height) = (80, 24);
+    let (min_width, min_height) = (140, 45);
 
     current_width >= min_width && current_height >= min_height
 }
