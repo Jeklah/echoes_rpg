@@ -6,7 +6,26 @@ mod platform;
 mod ui;
 mod world;
 
+#[cfg(feature = "gui")]
+mod gui;
+
 fn main() {
+    // Check if GUI feature is enabled and we're on Windows
+    #[cfg(all(feature = "gui", target_os = "windows"))]
+    {
+        // Run GUI version on Windows when feature is enabled
+        if let Err(e) = gui::run_gui() {
+            eprintln!("Failed to run GUI: {}", e);
+            std::process::exit(1);
+        }
+        return;
+    }
+
+    // Fall back to terminal version
+    run_terminal_version();
+}
+
+fn run_terminal_version() {
     // Check if running in a compatible terminal
     if !platform::is_terminal_compatible() {
         eprintln!("Error: This game requires a terminal environment to run.");
