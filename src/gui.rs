@@ -167,9 +167,16 @@ impl EchoesApp {
 
         self.print_at(center_x, 5, title, Some(Color32::YELLOW));
 
-        self.print_at(10, 10, &format!("Name: {}_", self.character_name), None);
-
-        if !self.character_name.is_empty() {
+        if self.character_name.is_empty() {
+            self.print_at(10, 10, "Name: _", None);
+            self.print_at(
+                10,
+                13,
+                "Type your character name and press Enter",
+                Some(Color32::from_rgb(0, 255, 255)),
+            );
+        } else if self.character_class.is_none() {
+            self.print_at(10, 10, &format!("Name: {}", self.character_name), None);
             self.print_at(
                 10,
                 13,
@@ -180,19 +187,54 @@ impl EchoesApp {
             self.print_at(10, 16, "2. Mage - Powerful spellcaster", None);
             self.print_at(10, 17, "3. Ranger - Balanced archer", None);
             self.print_at(10, 18, "4. Cleric - Healer and support", None);
-        } else {
-            self.print_at(
-                10,
-                13,
-                "Type your character name and press Enter",
-                Some(Color32::from_rgb(0, 255, 255)),
-            );
         }
     }
 
     fn handle_character_creation_input(&mut self, key: char) {
-        if self.character_name.is_empty() {
+        if self.character_name.is_empty()
+            || (self.character_class.is_none() && !self.character_name.is_empty())
+        {
             // Getting character name
+            if self.character_name.is_empty() {
+                if key.is_alphanumeric() || key == ' ' {
+                    if self.character_name.len() < 20 {
+                        self.character_name.push(key);
+                        self.show_character_creation();
+                    }
+                } else if key == '\u{8}' {
+                    // Backspace - nothing to do if name is empty
+                } else if key == '\r' || key == '\n' {
+                    // Enter pressed but name is empty
+                }
+            } else if self.character_class.is_none() {
+                // Have name, choosing class
+                match key {
+                    '1' => {
+                        self.character_class = Some(crate::character::ClassType::Warrior);
+                        self.finish_character_creation();
+                    }
+                    '2' => {
+                        self.character_class = Some(crate::character::ClassType::Mage);
+                        self.finish_character_creation();
+                    }
+                    '3' => {
+                        self.character_class = Some(crate::character::ClassType::Ranger);
+                        self.finish_character_creation();
+                    }
+                    '4' => {
+                        self.character_class = Some(crate::character::ClassType::Cleric);
+                        self.finish_character_creation();
+                    }
+                    '\u{8}' => {
+                        // Backspace - go back to name entry
+                        self.character_name.clear();
+                        self.show_character_creation();
+                    }
+                    _ => {}
+                }
+            }
+        } else {
+            // Getting character name input
             if key.is_alphanumeric() || key == ' ' {
                 if self.character_name.len() < 20 {
                     self.character_name.push(key);
@@ -200,33 +242,13 @@ impl EchoesApp {
                 }
             } else if key == '\u{8}' {
                 // Backspace
-                self.character_name.pop();
-                self.show_character_creation();
-            } else if key == '\r' || key == '\n' {
                 if !self.character_name.is_empty() {
+                    self.character_name.pop();
                     self.show_character_creation();
                 }
-            }
-        } else {
-            // Choosing class
-            match key {
-                '1' => {
-                    self.character_class = Some(crate::character::ClassType::Warrior);
-                    self.finish_character_creation();
-                }
-                '2' => {
-                    self.character_class = Some(crate::character::ClassType::Mage);
-                    self.finish_character_creation();
-                }
-                '3' => {
-                    self.character_class = Some(crate::character::ClassType::Ranger);
-                    self.finish_character_creation();
-                }
-                '4' => {
-                    self.character_class = Some(crate::character::ClassType::Cleric);
-                    self.finish_character_creation();
-                }
-                _ => {}
+            } else if (key == '\r' || key == '\n') && !self.character_name.is_empty() {
+                // Enter pressed with non-empty name, show class selection
+                self.show_character_creation();
             }
         }
     }
@@ -300,7 +322,7 @@ impl EchoesApp {
         let player_pos = level.player_position;
 
         // Calculate view area (centered on player)
-        let view_width = 60;
+        let view_width = 70;
         let view_height = 25;
         let start_x = 5;
         let start_y = 5;
@@ -311,8 +333,8 @@ impl EchoesApp {
                 let map_x = player_pos.x - view_width as i32 / 2 + screen_x as i32;
                 let map_y = player_pos.y - view_height as i32 / 2 + screen_y as i32;
 
-                let char_to_draw = if map_x == player_pos.x && map_y == player_pos.y {
-                    '@'
+                let (char_to_draw, color) = if map_x == player_pos.x && map_y == player_pos.y {
+                    ('@', Some(Color32::YELLOW))
                 } else if map_x >= 0
                     && map_x < level.width as i32
                     && map_y >= 0
@@ -320,21 +342,57 @@ impl EchoesApp {
                 {
                     let tile = &level.tiles[map_y as usize][map_x as usize];
                     if !tile.explored {
-                        ' '
-                    } else if tile.visible {
-                        tile.tile_type.symbol()
+                        (' ', None)
                     } else {
-                        tile.tile_type.symbol() // Show explored areas
+                        let pos = crate::world::Position::new(map_x, map_y);
+
+                        // Check for enemies first
+                        let has_enemy = level.enemies.contains_key(&pos);
+
+                        // Check for items
+                        let has_item = level.items.contains_key(&pos);
+
+                        let (symbol, tile_color) = if has_enemy && tile.visible {
+                            ('E', Some(Color32::RED))
+                        } else if has_item && tile.visible {
+                            ('!', Some(Color32::from_rgb(0, 255, 255)))
+                        } else {
+                            let symbol = tile.tile_type.symbol();
+                            let color = match tile.tile_type.symbol() {
+                                '#' => Some(Color32::GRAY),                  // Wall
+                                '.' => Some(Color32::WHITE),                 // Floor
+                                '+' => Some(Color32::from_rgb(139, 69, 19)), // Door (brown)
+                                'C' => Some(Color32::from_rgb(255, 215, 0)), // Chest (gold)
+                                '>' => Some(Color32::GREEN),                 // Stairs
+                                _ => Some(Color32::WHITE),
+                            };
+                            (symbol, color)
+                        };
+
+                        if tile.visible {
+                            (symbol, tile_color)
+                        } else {
+                            // Explored but not visible - dimmed
+                            let dimmed_color = tile_color.map(|c| {
+                                Color32::from_rgba_unmultiplied(
+                                    (c.r() as f32 * 0.5) as u8,
+                                    (c.g() as f32 * 0.5) as u8,
+                                    (c.b() as f32 * 0.5) as u8,
+                                    255,
+                                )
+                            });
+                            (symbol, dimmed_color)
+                        }
                     }
                 } else {
-                    ' '
+                    (' ', None)
                 };
 
                 self.print_at(
                     start_x + screen_x,
                     start_y + screen_y,
                     &char_to_draw.to_string(),
-                    None,
+                    color,
                 );
             }
         }
@@ -513,7 +571,7 @@ impl eframe::App for EchoesApp {
             }
 
             // Handle text input for character name
-            if self.creating_character && self.character_name.is_empty() {
+            if self.creating_character {
                 for ch in &i.events {
                     if let egui::Event::Text(text) = ch {
                         for c in text.chars() {
@@ -538,88 +596,101 @@ impl eframe::App for EchoesApp {
                 // Set monospace font for terminal display
                 let font_id = FontId::new(self.font_size, FontFamily::Monospace);
 
-                ui.heading(
-                    RichText::new("Echoes of the Forgotten Realm")
-                        .size(20.0)
-                        .color(Color32::YELLOW),
-                );
-                ui.separator();
+                // Center the content vertically and horizontally
+                ui.vertical_centered(|ui| {
+                    ui.heading(
+                        RichText::new("Echoes of the Forgotten Realm")
+                            .size(20.0)
+                            .color(Color32::YELLOW),
+                    );
+                    ui.separator();
 
-                // Terminal display area with dark background
-                egui::Frame::none()
-                    .fill(Color32::BLACK)
-                    .inner_margin(egui::Margin::same(10.0))
-                    .show(ui, |ui| {
-                        egui::ScrollArea::vertical()
-                            .id_source("terminal")
-                            .show(ui, |ui| {
-                                ui.style_mut().visuals.extreme_bg_color = Color32::BLACK;
+                    // Add some spacing
+                    ui.add_space(20.0);
 
-                                for (y, line) in self.terminal_buffer.iter().enumerate() {
-                                    ui.horizontal(|ui| {
-                                        ui.spacing_mut().item_spacing.x = 0.0; // Remove horizontal spacing
+                    // Terminal display area with dark background and centered content
+                    let available_width = ui.available_width();
+                    let terminal_width =
+                        (self.terminal_size.0 as f32 * 8.0).min(available_width - 40.0);
 
-                                        // Group consecutive characters with same color into segments
-                                        let mut current_segment = String::new();
-                                        let mut current_color = Color32::from_rgb(192, 192, 192);
-                                        let mut segment_start = true;
+                    ui.allocate_ui_with_layout(
+                        egui::Vec2::new(terminal_width, ui.available_height() - 100.0),
+                        egui::Layout::top_down(egui::Align::Center),
+                        |ui| {
+                            egui::Frame::none()
+                                .fill(Color32::BLACK)
+                                .stroke(egui::Stroke::new(1.0, Color32::GRAY))
+                                .inner_margin(egui::Margin::same(10.0))
+                                .show(ui, |ui| {
+                                    egui::ScrollArea::vertical().id_source("terminal").show(
+                                        ui,
+                                        |ui| {
+                                            ui.style_mut().visuals.extreme_bg_color =
+                                                Color32::BLACK;
 
-                                        for (x, ch) in line.chars().enumerate() {
-                                            let color = if y < self.color_buffer.len()
-                                                && x < self.color_buffer[y].len()
+                                            for (y, line) in self.terminal_buffer.iter().enumerate()
                                             {
-                                                self.color_buffer[y][x]
-                                            } else {
-                                                Color32::from_rgb(192, 192, 192)
-                                            };
+                                                ui.horizontal(|ui| {
+                                                    ui.spacing_mut().item_spacing.x = 0.0; // Remove horizontal spacing
 
-                                            // If color changes or this is the first character, start new segment
-                                            if segment_start || color != current_color {
-                                                // Render previous segment if it exists
-                                                if !current_segment.is_empty() {
-                                                    let text = RichText::new(&current_segment)
-                                                        .font(font_id.clone())
-                                                        .color(current_color);
-                                                    ui.label(text);
-                                                }
+                                                    // Group consecutive characters with same color into segments
+                                                    let mut current_segment = String::new();
+                                                    let mut current_color =
+                                                        Color32::from_rgb(192, 192, 192);
+                                                    let mut segment_start = true;
 
-                                                // Start new segment
-                                                current_segment = ch.to_string();
-                                                current_color = color;
-                                                segment_start = false;
-                                            } else {
-                                                // Add to current segment
-                                                current_segment.push(ch);
+                                                    for (x, ch) in line.chars().enumerate() {
+                                                        let color = if y < self.color_buffer.len()
+                                                            && x < self.color_buffer[y].len()
+                                                        {
+                                                            self.color_buffer[y][x]
+                                                        } else {
+                                                            Color32::from_rgb(192, 192, 192)
+                                                        };
+
+                                                        // If color changes or this is the first character, start new segment
+                                                        if segment_start || color != current_color {
+                                                            // Render previous segment if it exists
+                                                            if !current_segment.is_empty() {
+                                                                let text =
+                                                                    RichText::new(&current_segment)
+                                                                        .font(font_id.clone())
+                                                                        .color(current_color);
+                                                                ui.label(text);
+                                                            }
+
+                                                            // Start new segment
+                                                            current_segment = ch.to_string();
+                                                            current_color = color;
+                                                            segment_start = false;
+                                                        } else {
+                                                            // Add to current segment
+                                                            current_segment.push(ch);
+                                                        }
+                                                    }
+
+                                                    // Render final segment
+                                                    if !current_segment.is_empty() {
+                                                        let text = RichText::new(&current_segment)
+                                                            .font(font_id.clone())
+                                                            .color(current_color);
+                                                        ui.label(text);
+                                                    }
+                                                });
                                             }
-                                        }
-
-                                        // Render final segment
-                                        if !current_segment.is_empty() {
-                                            let text = RichText::new(&current_segment)
-                                                .font(font_id.clone())
-                                                .color(current_color);
-                                            ui.label(text);
-                                        }
-                                    });
-                                }
-                            });
-                    });
+                                        },
+                                    );
+                                });
+                        },
+                    );
+                });
 
                 // Render game if active
                 if self.game_initialized && !self.show_combat_tutorial {
-                    // Clone the necessary data to avoid borrow checker issues
-                    if let Some(info) = self.get_game_info() {
-                        // Render game screen with cloned data
-                        self.clear_screen();
-
-                        // Simple display for now
-                        self.print_at(10, 10, &format!("Player: {}", info.0), None);
-                        self.print_at(10, 11, &format!("Level: {}", info.1), None);
-                        self.print_at(10, 12, &format!("HP: {}/{}", info.2, info.3), None);
-                        self.print_at(10, 13, &format!("MP: {}/{}", info.4, info.5), None);
-                        self.print_at(10, 14, &format!("Gold: {}", info.6), None);
-
-                        self.print_at(10, 16, "Use WASD to move, Q to quit", None);
+                    if self.game.is_some() {
+                        // Clone the game data to avoid borrow checker issues
+                        let game_clone = self.game.clone().unwrap();
+                        self.render_game_screen_safe(&game_clone);
                     }
                 }
 
