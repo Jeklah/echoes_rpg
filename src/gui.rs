@@ -535,57 +535,48 @@ impl eframe::App for EchoesApp {
                     egui::Event::Key {
                         key, pressed: true, ..
                     } => {
-                        // Special handling for character creation name entry
-                        if self.creating_character && self.character_name.is_empty() {
-                            match key {
-                                egui::Key::Enter => self.handle_input('\r'),
-                                egui::Key::Backspace => self.handle_input('\u{8}'),
-                                _ => {} // Ignore other keys during name entry
-                            }
-                        } else {
-                            // Normal key handling for all other states
-                            match key {
-                                egui::Key::A => self.handle_input('a'),
-                                egui::Key::B => self.handle_input('b'),
-                                egui::Key::C => self.handle_input('c'),
-                                egui::Key::D => self.handle_input('d'),
-                                egui::Key::E => self.handle_input('e'),
-                                egui::Key::F => self.handle_input('f'),
-                                egui::Key::G => self.handle_input('g'),
-                                egui::Key::H => self.handle_input('h'),
-                                egui::Key::I => self.handle_input('i'),
-                                egui::Key::J => self.handle_input('j'),
-                                egui::Key::K => self.handle_input('k'),
-                                egui::Key::L => self.handle_input('l'),
-                                egui::Key::M => self.handle_input('m'),
-                                egui::Key::N => self.handle_input('n'),
-                                egui::Key::O => self.handle_input('o'),
-                                egui::Key::P => self.handle_input('p'),
-                                egui::Key::Q => self.handle_input('q'),
-                                egui::Key::R => self.handle_input('r'),
-                                egui::Key::S => self.handle_input('s'),
-                                egui::Key::T => self.handle_input('t'),
-                                egui::Key::U => self.handle_input('u'),
-                                egui::Key::V => self.handle_input('v'),
-                                egui::Key::W => self.handle_input('w'),
-                                egui::Key::X => self.handle_input('x'),
-                                egui::Key::Y => self.handle_input('y'),
-                                egui::Key::Z => self.handle_input('z'),
-                                egui::Key::Num1 => self.handle_input('1'),
-                                egui::Key::Num2 => self.handle_input('2'),
-                                egui::Key::Num3 => self.handle_input('3'),
-                                egui::Key::Num4 => self.handle_input('4'),
-                                egui::Key::Num5 => self.handle_input('5'),
-                                egui::Key::Num6 => self.handle_input('6'),
-                                egui::Key::Num7 => self.handle_input('7'),
-                                egui::Key::Num8 => self.handle_input('8'),
-                                egui::Key::Num9 => self.handle_input('9'),
-                                egui::Key::Num0 => self.handle_input('0'),
-                                egui::Key::Space => self.handle_input(' '),
-                                egui::Key::Enter => self.handle_input('\r'),
-                                egui::Key::Backspace => self.handle_input('\u{8}'),
-                                _ => {}
-                            }
+                        // Handle key presses for all states including name entry
+                        match key {
+                            egui::Key::A => self.handle_input('a'),
+                            egui::Key::B => self.handle_input('b'),
+                            egui::Key::C => self.handle_input('c'),
+                            egui::Key::D => self.handle_input('d'),
+                            egui::Key::E => self.handle_input('e'),
+                            egui::Key::F => self.handle_input('f'),
+                            egui::Key::G => self.handle_input('g'),
+                            egui::Key::H => self.handle_input('h'),
+                            egui::Key::I => self.handle_input('i'),
+                            egui::Key::J => self.handle_input('j'),
+                            egui::Key::K => self.handle_input('k'),
+                            egui::Key::L => self.handle_input('l'),
+                            egui::Key::M => self.handle_input('m'),
+                            egui::Key::N => self.handle_input('n'),
+                            egui::Key::O => self.handle_input('o'),
+                            egui::Key::P => self.handle_input('p'),
+                            egui::Key::Q => self.handle_input('q'),
+                            egui::Key::R => self.handle_input('r'),
+                            egui::Key::S => self.handle_input('s'),
+                            egui::Key::T => self.handle_input('t'),
+                            egui::Key::U => self.handle_input('u'),
+                            egui::Key::V => self.handle_input('v'),
+                            egui::Key::W => self.handle_input('w'),
+                            egui::Key::X => self.handle_input('x'),
+                            egui::Key::Y => self.handle_input('y'),
+                            egui::Key::Z => self.handle_input('z'),
+                            egui::Key::Num1 => self.handle_input('1'),
+                            egui::Key::Num2 => self.handle_input('2'),
+                            egui::Key::Num3 => self.handle_input('3'),
+                            egui::Key::Num4 => self.handle_input('4'),
+                            egui::Key::Num5 => self.handle_input('5'),
+                            egui::Key::Num6 => self.handle_input('6'),
+                            egui::Key::Num7 => self.handle_input('7'),
+                            egui::Key::Num8 => self.handle_input('8'),
+                            egui::Key::Num9 => self.handle_input('9'),
+                            egui::Key::Num0 => self.handle_input('0'),
+                            egui::Key::Space => self.handle_input(' '),
+                            egui::Key::Enter => self.handle_input('\r'),
+                            egui::Key::Backspace => self.handle_input('\u{8}'),
+                            _ => {}
                         }
                     }
                     _ => {}
