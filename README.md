@@ -15,42 +15,32 @@ Echoes of the Forgotten Realm is a terminal-based RPG featuring:
 
 ## 🖥️ Platform Support
 
-| Platform | Status | Best Experience | Notes |
-|----------|--------|-----------------|-------|
-| **Windows 10+** | ✅ Full Support | GUI Launchers | Auto-opens new window, double-click friendly |
+| Platform | Status | Best Terminal | Notes |
+|----------|--------|---------------|-------|
+| **Windows 10+** | ✅ Full Support | Windows Terminal | Full ANSI color support |
 | **Windows 8.1/7** | ⚠️ Limited Support | Command Prompt | Basic functionality, limited colors |
 | **macOS** | ✅ Full Support | iTerm2, Terminal.app | Excellent compatibility |
 | **Linux** | ✅ Full Support | Most modern terminals | Wide compatibility |
 
 ## 🚀 Quick Start
 
-### Windows (Recommended)
-```batch
-# Download and navigate to game folder, then:
-
-# GUI Launcher (Double-click friendly)
-launch_game.bat
-
-# OR Advanced PowerShell launcher
-launch_game.ps1
-
-# OR Create desktop shortcut
-create_desktop_shortcut.bat
+### Windows
+```bash
+git clone https://github.com/yourusername/echoes_rpg.git
+cd echoes_rpg
+cargo run --release
 ```
 
 ### macOS/Linux
 ```bash
-# Clone and run
 git clone https://github.com/yourusername/echoes_rpg.git
 cd echoes_rpg
-./run_unix.sh
-```
-
-### Manual Installation (Any Platform)
-```bash
-# If you have Rust installed
 cargo run --release
 ```
+
+### Prerequisites
+- **Rust** 1.70+ (install from [rustup.rs](https://rustup.rs/))
+- **Git** for cloning the repository
 
 ## 📦 Installation Guide
 
@@ -68,49 +58,18 @@ cargo run --release
 
 ### Windows Installation
 
-#### Option 1: GUI Launcher (Easiest - Recommended)
-1. Download or clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/echoes_rpg.git
-   cd echoes_rpg
-   ```
-2. **Double-click** `launch_game.bat` - Opens automatically in new window
-3. Or run `launch_game.ps1` in PowerShell for advanced GUI features
-
-**Features:**
-- ✅ Automatic new window creation
-- ✅ System requirements checking
-- ✅ Build progress indication
-- ✅ Professional presentation
-- ✅ Error handling with helpful tips
-
-#### Option 2: Windows Terminal
-1. Install [Windows Terminal](https://aka.ms/terminal) from Microsoft Store
-2. Open Windows Terminal (PowerShell or Command Prompt)
+1. Install [Windows Terminal](https://aka.ms/terminal) from Microsoft Store (recommended)
+2. Open Windows Terminal, PowerShell, or Command Prompt
 3. Run the installation commands:
    ```bash
    git clone https://github.com/yourusername/echoes_rpg.git
    cd echoes_rpg
-   
-   # GUI launcher (recommended)
-   launch_game.bat
-   
-   # OR manual build and run
    cargo run --release
    ```
 
-#### Option 3: Command Prompt
-1. Open Command Prompt as Administrator
-2. Enable ANSI support (Windows 10 1511+):
-   ```cmd
-   reg add HKCU\Console /v VirtualTerminalLevel /t REG_DWORD /d 1
-   ```
-3. Follow the same git clone and cargo commands as above
-
-#### Creating Desktop Shortcut
-```batch
-# After installation, run this to create a desktop shortcut:
-create_desktop_shortcut.bat
+**Note**: For Command Prompt on older Windows versions, enable ANSI support:
+```cmd
+reg add HKCU\Console /v VirtualTerminalLevel /t REG_DWORD /d 1
 ```
 
 ### macOS Installation
@@ -130,41 +89,20 @@ create_desktop_shortcut.bat
 
 ### Linux Installation
 
-#### Ubuntu/Debian
-```bash
-# Install Rust
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source ~/.cargo/env
+1. Install Rust if not already installed:
+   ```bash
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+   source ~/.cargo/env
+   ```
+   
+   **Arch Linux**: `sudo pacman -S rustup && rustup default stable`
 
-# Clone and build
-git clone https://github.com/yourusername/echoes_rpg.git
-cd echoes_rpg
-cargo run --release
-```
-
-#### Fedora/RHEL
-```bash
-# Install Rust
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source ~/.cargo/env
-
-# Clone and build
-git clone https://github.com/yourusername/echoes_rpg.git
-cd echoes_rpg
-cargo run --release
-```
-
-#### Arch Linux
-```bash
-# Install Rust
-sudo pacman -S rustup
-rustup default stable
-
-# Clone and build
-git clone https://github.com/yourusername/echoes_rpg.git
-cd echoes_rpg
-cargo run --release
-```
+2. Clone and build:
+   ```bash
+   git clone https://github.com/yourusername/echoes_rpg.git
+   cd echoes_rpg
+   cargo run --release
+   ```
 
 ## 🎯 Game Controls
 
@@ -211,16 +149,13 @@ cargo run
 cargo run --release
 ```
 
-### Windows GUI Launchers
-```batch
-# Simple GUI launcher (double-click friendly)
-launch_game.bat
+### Cross-Platform Building
+```bash
+# Development build (faster compilation)
+cargo run
 
-# Advanced PowerShell GUI with progress dialogs
-launch_game.ps1 [--debug] [--clean]
-
-# Create desktop shortcut
-create_desktop_shortcut.bat
+# Release build (optimized performance)
+cargo run --release
 ```
 
 ### Platform-Specific Builds
@@ -258,23 +193,16 @@ cargo build --release --target aarch64-unknown-linux-gnu
 
 **Problem**: Colors not displaying correctly
 **Solution**: 
-1. Use the GUI launchers (`launch_game.bat` or `launch_game.ps1`)
-2. Use Windows Terminal instead of Command Prompt
-3. Enable ANSI support: `reg add HKCU\Console /v VirtualTerminalLevel /t REG_DWORD /d 1`
-4. Update to Windows 10 version 1511 or later
+1. Use Windows Terminal instead of Command Prompt
+2. Enable ANSI support: `reg add HKCU\Console /v VirtualTerminalLevel /t REG_DWORD /d 1`
+3. Update to Windows 10 version 1511 or later
 
 **Problem**: Game crashes on startup
 **Solution**:
-1. Use the GUI launchers which handle window creation automatically
-2. Run as administrator
-3. Check Windows Defender exclusions
-4. Try PowerShell launcher instead of batch file
-
-**Problem**: No new window opens when double-clicking .exe
-**Solution**:
-1. Use `launch_game.bat` instead of running the .exe directly
-2. The game automatically creates a new console window when launched properly
-3. Create a desktop shortcut using `create_desktop_shortcut.bat`
+1. Run as administrator
+2. Check Windows Defender exclusions
+3. Try Windows Terminal or PowerShell instead of Command Prompt
+4. Ensure terminal supports ANSI escape sequences
 
 ### macOS Issues
 
@@ -304,12 +232,14 @@ cargo build --release --target aarch64-unknown-linux-gnu
 1. Update Rust: `rustup update`
 2. Clean build cache: `cargo clean`
 3. Check Rust version: `rustc --version` (should be 1.70+)
+4. Verify internet connection for dependency downloads
 
 **Problem**: Performance issues
 **Solution**:
 1. Use release build: `cargo run --release`
 2. Increase terminal buffer size
 3. Close other applications using terminal resources
+4. Try a different terminal if issues persist
 
 ## 💾 Save Files
 
@@ -324,8 +254,7 @@ Game progress is saved automatically in platform-specific locations:
 ### Recommended Terminals
 
 #### Windows
-- ✅ **GUI Launchers** - Best experience, auto-opens new window
-- ✅ **Windows Terminal** - Excellent support, full color
+- ✅ **Windows Terminal** - Best experience, full color support
 - ✅ **PowerShell** - Good compatibility
 - ⚠️ **Command Prompt** - Basic support, limited colors
 
@@ -354,7 +283,6 @@ Game progress is saved automatically in platform-specific locations:
 - **Memory**: 8 MB RAM
 - **Storage**: 100 MB available space
 - **Terminal**: Modern terminal with full ANSI color support
-- **Windows**: Use GUI launchers for optimal experience
 
 ## 🔗 Dependencies
 
@@ -362,7 +290,9 @@ The game uses these cross-platform Rust crates:
 - `crossterm` - Cross-platform terminal manipulation
 - `rand` - Random number generation
 - `serde` - Serialization/deserialization
-- `winapi` - Windows-specific APIs (Windows only)
+- `dirs` - Cross-platform directory detection
+- `anyhow` - Error handling
+- `atty` - TTY detection
 
 ## 📚 Game Guide
 
@@ -413,11 +343,11 @@ Contributions are welcome! Please feel free to submit pull requests or open issu
 - Platform-specific improvements
 - Documentation updates
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for details on:
-- Setting up development environment
-- Platform-specific testing
-- Cross-compilation guidelines
-- Code style and standards
+Development guidelines:
+- Test on multiple platforms when possible
+- Follow Rust best practices and conventions
+- Maintain cross-platform compatibility
+- Document any significant changes
 
 ## 📄 License
 
@@ -438,8 +368,6 @@ If you encounter platform-specific issues:
 
 ## 🔗 Links
 
-- [Cross-Platform Implementation Details](CROSS_PLATFORM_IMPLEMENTATION.md)
-- [Windows GUI Features](WINDOWS_GUI_FEATURES.md)
 - [Issue Tracker](https://github.com/yourusername/echoes_rpg/issues)
 - [Rust Installation](https://rustup.rs/)
 
