@@ -1,30 +1,53 @@
 # Echoes of the Forgotten Realm
 
-A cross-platform text-based RPG adventure game built with Rust, featuring turn-based combat, character progression, and procedurally generated dungeons.
+A cross-platform text-based RPG adventure game built with Rust, featuring turn-based combat, character progression, and procedurally generated dungeons. Available in both terminal and GUI versions.
 
 ## 🎮 About the Game
 
-Echoes of the Forgotten Realm is a terminal-based RPG featuring:
+Echoes of the Forgotten Realm is a cross-platform RPG featuring:
 - **Turn-based Combat**: Strategic combat with multiple abilities and items
 - **Character Progression**: Level up your character and improve stats
 - **Equipment System**: Find and equip weapons, armor, and accessories
 - **Inventory Management**: Collect and manage items throughout your journey
 - **Procedural Dungeons**: Explore randomly generated levels
 - **Cross-Platform**: Runs seamlessly on Windows, macOS, and Linux
-- **Terminal-Based**: Retro ASCII graphics in your favorite terminal
+- **Dual Interface**: Choose between terminal-based or GUI versions
+- **Retro ASCII Graphics**: Classic text-based gaming experience
+
+## 🖥️ Interface Options
+
+### Terminal Version (Default)
+- Classic terminal-based interface
+- Runs in any modern terminal
+- Full keyboard controls
+- Cross-platform compatibility
+
+### GUI Version (Windows)
+- Native Windows application
+- Improved input handling
+- Better visual integration
+- Optimized for Windows users
 
 ## 🖥️ Platform Support
 
-| Platform | Status | Best Terminal | Notes |
-|----------|--------|---------------|-------|
-| **Windows 10+** | ✅ Full Support | Windows Terminal | Full ANSI color support |
-| **Windows 8.1/7** | ⚠️ Limited Support | Command Prompt | Basic functionality, limited colors |
-| **macOS** | ✅ Full Support | iTerm2, Terminal.app | Excellent compatibility |
-| **Linux** | ✅ Full Support | Most modern terminals | Wide compatibility |
+| Platform | Terminal Version | GUI Version | Best Terminal | Notes |
+|----------|------------------|-------------|---------------|-------|
+| **Windows 10+** | ✅ Full Support | ✅ Available | Windows Terminal | GUI version with enhanced input handling |
+| **Windows 8.1/7** | ⚠️ Limited Support | ✅ Available | Command Prompt | GUI recommended for older Windows |
+| **macOS** | ✅ Full Support | ❌ Not Available | iTerm2, Terminal.app | Excellent terminal compatibility |
+| **Linux** | ✅ Full Support | ❌ Not Available | Most modern terminals | Wide terminal compatibility |
 
 ## 🚀 Quick Start
 
-### Windows
+### Windows (GUI Version - Recommended)
+```bash
+git clone https://github.com/yourusername/echoes_rpg.git
+cd echoes_rpg
+cargo build --features gui --release
+./target/release/echoes_rpg.exe
+```
+
+### Windows (Terminal Version)
 ```bash
 git clone https://github.com/yourusername/echoes_rpg.git
 cd echoes_rpg
@@ -156,17 +179,23 @@ cargo run
 
 # Release build (optimized performance)
 cargo run --release
+
+# GUI version (Windows only)
+cargo build --features gui --release
 ```
 
 ### Platform-Specific Builds
 
 #### Windows
 ```bash
-# For Windows MSVC
+# Terminal version (MSVC)
 cargo build --release --target x86_64-pc-windows-msvc
 
-# For Windows GNU
+# Terminal version (GNU)
 cargo build --release --target x86_64-pc-windows-gnu
+
+# GUI version (recommended for Windows)
+cargo build --features gui --release --target x86_64-pc-windows-msvc
 ```
 
 #### macOS
@@ -287,12 +316,29 @@ Game progress is saved automatically in platform-specific locations:
 ## 🔗 Dependencies
 
 The game uses these cross-platform Rust crates:
+
+### Core Dependencies
 - `crossterm` - Cross-platform terminal manipulation
 - `rand` - Random number generation
 - `serde` - Serialization/deserialization
 - `dirs` - Cross-platform directory detection
 - `anyhow` - Error handling
 - `atty` - TTY detection
+
+### GUI Dependencies (Windows)
+- `eframe` - Cross-platform GUI framework
+- `egui` - Immediate mode GUI library
+- `egui_extras` - Additional GUI components
+
+## 🎯 Recent Improvements
+
+### Input Handling Enhancements (v0.1.0)
+- **Fixed Triple Input Processing**: Resolved issue where key presses registered multiple times
+- **Clean Character Creation**: Eliminated residual '1' character appearing in player names
+- **Centralized Input System**: Implemented robust input handler with frame-based duplicate prevention
+- **Enhanced GUI Experience**: Windows GUI version now provides smooth, predictable input behavior
+
+For technical details, see [implementation documentation](implementation_readme/).
 
 ## 📚 Game Guide
 
@@ -370,9 +416,10 @@ If you encounter platform-specific issues:
 
 - [Issue Tracker](https://github.com/yourusername/echoes_rpg/issues)
 - [Rust Installation](https://rustup.rs/)
+- [Implementation Documentation](implementation_readme/)
 
 ---
 
 *Adventure awaits in the Echoes of the Forgotten Realm! 🗡️⚔️*
 
-*Happy adventuring across all platforms! 🎮*
+*Choose your interface and start your journey - whether in terminal or GUI! 🎮*
