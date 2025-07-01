@@ -9,6 +9,9 @@ mod world;
 #[cfg(feature = "gui")]
 mod gui;
 
+#[cfg(feature = "gui")]
+mod input;
+
 fn main() {
     // Check if GUI feature is enabled and we're on Windows
     #[cfg(all(feature = "gui", target_os = "windows"))]

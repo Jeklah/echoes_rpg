@@ -2,10 +2,11 @@
 //! Provides a native Windows application with text-based gameplay
 
 #[cfg(feature = "gui")]
-#[cfg(feature = "gui")]
 use crate::character::Player;
 #[cfg(feature = "gui")]
 use crate::game::Game;
+#[cfg(feature = "gui")]
+use crate::input::{InputAction, InputHandler};
 #[cfg(feature = "gui")]
 use eframe::egui;
 #[cfg(feature = "gui")]
@@ -13,13 +14,13 @@ use egui::{Color32, FontFamily, FontId, RichText};
 
 #[cfg(feature = "gui")]
 pub struct EchoesApp {
-    game: Option<Game>,
+    game: Option<crate::game::Game>,
     terminal_buffer: Vec<String>,
     color_buffer: Vec<Vec<Color32>>,
     input_buffer: String,
     last_key: Option<char>,
     show_combat_tutorial: bool,
-    window_size: (f32, f32),
+    window_size: (usize, usize),
     font_size: f32,
     char_width: f32,
     char_height: f32,
@@ -31,6 +32,8 @@ pub struct EchoesApp {
     character_class: Option<crate::character::ClassType>,
     creating_character: bool,
     main_menu: bool,
+    input_handler: crate::input::InputHandler,
+    frame_count: u64,
 }
 
 #[cfg(feature = "gui")]
@@ -38,23 +41,25 @@ impl Default for EchoesApp {
     fn default() -> Self {
         Self {
             game: None,
-            terminal_buffer: vec![" ".repeat(140); 60],
-            color_buffer: vec![vec![Color32::from_rgb(192, 192, 192); 140]; 60],
+            terminal_buffer: vec![String::new(); 30],
+            color_buffer: vec![vec![Color32::from_rgb(192, 192, 192); 80]; 30],
             input_buffer: String::new(),
             last_key: None,
             show_combat_tutorial: false,
-            window_size: (1400.0, 1000.0),
+            window_size: (800, 600),
             font_size: 14.0,
             char_width: 8.0,
             char_height: 16.0,
             cursor_pos: (0, 0),
-            terminal_size: (140, 60),
+            terminal_size: (80, 30),
             ui_messages: Vec::new(),
             game_initialized: false,
             character_name: String::new(),
             character_class: None,
             creating_character: false,
             main_menu: true,
+            input_handler: crate::input::InputHandler::new(),
+            frame_count: 0,
         }
     }
 }
@@ -122,7 +127,7 @@ impl EchoesApp {
         let title = "*** ECHOES OF THE FORGOTTEN REALM ***";
         let subtitle = "A Text-Based RPG Adventure";
 
-        let center_x = (self.terminal_size.0 - title.len()) / 2;
+        let center_x = (self.terminal_size.0.saturating_sub(title.len())) / 2;
         let center_y = self.terminal_size.1 / 2;
 
         self.print_at(center_x, center_y - 3, title, Some(Color32::YELLOW));
@@ -144,14 +149,16 @@ impl EchoesApp {
         );
     }
 
-    fn handle_main_menu_input(&mut self, key: char) {
-        match key {
-            '1' => {
+    fn handle_main_menu_input(&mut self, action: &crate::input::InputAction) {
+        match action {
+            crate::input::InputAction::MenuOption(1) => {
                 self.main_menu = false;
                 self.creating_character = true;
+                self.character_name.clear(); // Clear any residual input
+                self.input_handler.clear_state(); // Clear input state
                 self.show_character_creation();
             }
-            '2' => {
+            crate::input::InputAction::MenuOption(2) => {
                 // Exit application - will be handled by the framework
                 std::process::exit(0);
             }
@@ -190,48 +197,52 @@ impl EchoesApp {
         }
     }
 
-    fn handle_character_creation_input(&mut self, key: char) {
-        if self.character_name.is_empty() {
-            // Getting character name
-            if key.is_alphanumeric() || key == ' ' {
-                if self.character_name.len() < 20 {
-                    self.character_name.push(key);
-                    self.show_character_creation();
-                }
-            } else if key == '\u{8}' {
-                // Backspace - nothing to do if name is empty
-            } else if key == '\r' || key == '\n' {
-                // Enter pressed but name is empty - do nothing
-            }
-        } else if self.character_class.is_none() {
-            // Have name, now choosing class
-            match key {
-                '1' => {
-                    self.character_class = Some(crate::character::ClassType::Warrior);
-                    self.finish_character_creation();
-                }
-                '2' => {
-                    self.character_class = Some(crate::character::ClassType::Mage);
-                    self.finish_character_creation();
-                }
-                '3' => {
-                    self.character_class = Some(crate::character::ClassType::Ranger);
-                    self.finish_character_creation();
-                }
-                '4' => {
-                    self.character_class = Some(crate::character::ClassType::Cleric);
-                    self.finish_character_creation();
-                }
-                '\u{8}' => {
-                    // Backspace - go back to name entry
-                    self.character_name.clear();
-                    self.show_character_creation();
-                }
-                _ if key.is_alphanumeric() || key == ' ' => {
-                    // Add to name if still typing
-                    if self.character_name.len() < 20 {
-                        self.character_name.push(key);
+    fn handle_character_creation_input(&mut self, action: &crate::input::InputAction) {
+        if self.character_class.is_none() {
+            // Still in character creation phase
+            match action {
+                crate::input::InputAction::Character(c) => {
+                    // Add character to name if it's valid and we have space
+                    if (c.is_alphanumeric() || *c == ' ') && self.character_name.len() < 20 {
+                        self.character_name.push(*c);
                         self.show_character_creation();
+                    }
+                }
+                crate::input::InputAction::Backspace => {
+                    if !self.character_name.is_empty() {
+                        self.character_name.pop();
+                        self.show_character_creation();
+                    }
+                }
+                crate::input::InputAction::Enter => {
+                    // Can't proceed without a name
+                    if !self.character_name.is_empty() {
+                        // Move to class selection - show updated screen
+                        self.show_character_creation();
+                    }
+                }
+                crate::input::InputAction::MenuOption(1) => {
+                    if !self.character_name.is_empty() {
+                        self.character_class = Some(crate::character::ClassType::Warrior);
+                        self.finish_character_creation();
+                    }
+                }
+                crate::input::InputAction::MenuOption(2) => {
+                    if !self.character_name.is_empty() {
+                        self.character_class = Some(crate::character::ClassType::Mage);
+                        self.finish_character_creation();
+                    }
+                }
+                crate::input::InputAction::MenuOption(3) => {
+                    if !self.character_name.is_empty() {
+                        self.character_class = Some(crate::character::ClassType::Ranger);
+                        self.finish_character_creation();
+                    }
+                }
+                crate::input::InputAction::MenuOption(4) => {
+                    if !self.character_name.is_empty() {
+                        self.character_class = Some(crate::character::ClassType::Cleric);
+                        self.finish_character_creation();
                     }
                 }
                 _ => {}
@@ -489,100 +500,66 @@ impl EchoesApp {
         }
     }
 
-    fn handle_input(&mut self, key: char) {
-        self.last_key = Some(key);
+    fn handle_input(&mut self, action: &crate::input::InputAction) {
+        // Update last key for display purposes
+        if let Some(c) = crate::input::InputHandler::get_character(action) {
+            self.last_key = Some(c);
+        } else {
+            match action {
+                crate::input::InputAction::Enter => self.last_key = Some('\r'),
+                crate::input::InputAction::Backspace => self.last_key = Some('\u{8}'),
+                crate::input::InputAction::MenuOption(n) => {
+                    self.last_key = Some(char::from_digit(*n as u32, 10).unwrap_or('?'))
+                }
+                _ => {}
+            }
+        }
 
         if self.main_menu {
-            self.handle_main_menu_input(key);
+            self.handle_main_menu_input(action);
         } else if self.creating_character {
-            self.handle_character_creation_input(key);
+            self.handle_character_creation_input(action);
         } else if self.show_combat_tutorial {
-            self.start_game();
+            match action {
+                crate::input::InputAction::Enter | crate::input::InputAction::Character(' ') => {
+                    self.start_game();
+                }
+                _ => {}
+            }
         } else if self.game_initialized {
-            self.handle_game_input(key);
+            self.handle_game_input_legacy(action);
         }
+    }
+
+    fn handle_game_input_legacy(&mut self, action: &crate::input::InputAction) {
+        // Convert action back to char for compatibility with existing game input
+        let key_char = match action {
+            crate::input::InputAction::Character(c) => *c,
+            crate::input::InputAction::Enter => '\r',
+            crate::input::InputAction::Backspace => '\u{8}',
+            crate::input::InputAction::MenuOption(n) => {
+                char::from_digit(*n as u32, 10).unwrap_or('0')
+            }
+            _ => return, // Ignore other actions for now
+        };
+
+        self.handle_game_input(key_char);
     }
 }
 
 #[cfg(feature = "gui")]
 impl eframe::App for EchoesApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // Consolidated input handling - process each event only once
-        ctx.input(|i| {
-            for event in &i.events {
-                match event {
-                    // Handle text input for character name entry
-                    egui::Event::Text(text) => {
-                        if self.creating_character && self.character_name.is_empty() {
-                            for c in text.chars() {
-                                if c.is_alphanumeric() || c == ' ' {
-                                    self.handle_input(c);
-                                }
-                            }
-                        } else if self.creating_character
-                            && self.character_class.is_none()
-                            && !self.character_name.is_empty()
-                        {
-                            // Allow adding more characters to name
-                            for c in text.chars() {
-                                if c.is_alphanumeric() || c == ' ' {
-                                    self.handle_input(c);
-                                }
-                            }
-                        }
-                    }
-                    // Handle key presses
-                    egui::Event::Key {
-                        key, pressed: true, ..
-                    } => {
-                        // Handle key presses for all states including name entry
-                        match key {
-                            egui::Key::A => self.handle_input('a'),
-                            egui::Key::B => self.handle_input('b'),
-                            egui::Key::C => self.handle_input('c'),
-                            egui::Key::D => self.handle_input('d'),
-                            egui::Key::E => self.handle_input('e'),
-                            egui::Key::F => self.handle_input('f'),
-                            egui::Key::G => self.handle_input('g'),
-                            egui::Key::H => self.handle_input('h'),
-                            egui::Key::I => self.handle_input('i'),
-                            egui::Key::J => self.handle_input('j'),
-                            egui::Key::K => self.handle_input('k'),
-                            egui::Key::L => self.handle_input('l'),
-                            egui::Key::M => self.handle_input('m'),
-                            egui::Key::N => self.handle_input('n'),
-                            egui::Key::O => self.handle_input('o'),
-                            egui::Key::P => self.handle_input('p'),
-                            egui::Key::Q => self.handle_input('q'),
-                            egui::Key::R => self.handle_input('r'),
-                            egui::Key::S => self.handle_input('s'),
-                            egui::Key::T => self.handle_input('t'),
-                            egui::Key::U => self.handle_input('u'),
-                            egui::Key::V => self.handle_input('v'),
-                            egui::Key::W => self.handle_input('w'),
-                            egui::Key::X => self.handle_input('x'),
-                            egui::Key::Y => self.handle_input('y'),
-                            egui::Key::Z => self.handle_input('z'),
-                            egui::Key::Num1 => self.handle_input('1'),
-                            egui::Key::Num2 => self.handle_input('2'),
-                            egui::Key::Num3 => self.handle_input('3'),
-                            egui::Key::Num4 => self.handle_input('4'),
-                            egui::Key::Num5 => self.handle_input('5'),
-                            egui::Key::Num6 => self.handle_input('6'),
-                            egui::Key::Num7 => self.handle_input('7'),
-                            egui::Key::Num8 => self.handle_input('8'),
-                            egui::Key::Num9 => self.handle_input('9'),
-                            egui::Key::Num0 => self.handle_input('0'),
-                            egui::Key::Space => self.handle_input(' '),
-                            egui::Key::Enter => self.handle_input('\r'),
-                            egui::Key::Backspace => self.handle_input('\u{8}'),
-                            _ => {}
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        });
+        // Increment frame counter
+        self.frame_count += 1;
+
+        // Process input using centralized handler
+        let actions = self.input_handler.process_input(ctx, self.frame_count);
+
+        // Handle each action
+        for action in actions {
+            self.handle_input(&action);
+        }
 
         // Main UI with dark terminal theme
         egui::CentralPanel::default()
