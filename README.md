@@ -62,8 +62,85 @@ cargo run --release
 ```
 
 ### Prerequisites
-- **Rust** 1.70+ (install from [rustup.rs](https://rustup.rs/))
+- **Rust** 1.70+ (see installation instructions below)
 - **Git** for cloning the repository
+
+## 🔧 Installing Rust
+
+### Using Rustup (Recommended)
+
+**Rustup** is the official Rust toolchain installer and version manager. It's the easiest way to install and manage Rust.
+
+#### Windows
+1. **Download and run the installer:**
+   - Visit [rustup.rs](https://rustup.rs/) 
+   - Download `rustup-init.exe`
+   - Run the installer and follow the prompts
+   - **OR** run this command in PowerShell:
+   ```powershell
+   Invoke-WebRequest -Uri "https://win.rustup.rs/" -OutFile "rustup-init.exe"; .\rustup-init.exe
+   ```
+
+2. **Follow the installation prompts:**
+   - Choose option 1 (default installation)
+   - Restart your terminal or run: `source $env:USERPROFILE\.cargo\env`
+
+3. **Verify installation:**
+   ```bash
+   rustc --version
+   cargo --version
+   ```
+
+#### macOS
+1. **Install via terminal:**
+   ```bash
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+   ```
+
+2. **Follow the installation prompts:**
+   - Choose option 1 (default installation)
+   - Restart your terminal or run: `source ~/.cargo/env`
+
+3. **Verify installation:**
+   ```bash
+   rustc --version
+   cargo --version
+   ```
+
+#### Linux
+1. **Install via terminal:**
+   ```bash
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+   ```
+
+2. **Follow the installation prompts:**
+   - Choose option 1 (default installation)
+   - Restart your terminal or run: `source ~/.cargo/env`
+
+3. **Verify installation:**
+   ```bash
+   rustc --version
+   cargo --version
+   ```
+
+#### Alternative Installation Methods
+
+**Package Managers (Not Recommended):**
+- **Windows**: `winget install Rustlang.Rust.MSVC` or `scoop install rust`
+- **macOS**: `brew install rust`
+- **Linux**: `sudo apt install rustc cargo` (Ubuntu/Debian) or `sudo pacman -S rust` (Arch)
+
+**Note**: Package manager versions may be outdated. Rustup is preferred for latest versions and easy updates.
+
+#### Updating Rust
+```bash
+rustup update
+```
+
+#### Troubleshooting
+- **Windows**: Ensure you have Visual Studio Build Tools or Visual Studio Community installed
+- **All platforms**: If `cargo` command not found, restart your terminal or add `~/.cargo/bin` to your PATH
+- **Permission issues**: Don't use `sudo` with rustup installations
 
 ## 📦 Installation Guide
 
