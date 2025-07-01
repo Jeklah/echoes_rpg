@@ -134,7 +134,14 @@ impl FogOfWar {
     ) -> FogRenderResult {
         match self.get_visibility_state(tile) {
             VisibilityState::Unexplored => {
-                if self.config.hide_unexplored {
+                // Hide walls (#) and floors (.) completely in unexplored areas
+                if base_character == '#' || base_character == '.' {
+                    FogRenderResult {
+                        character: ' ',
+                        color: Some(FogColor::BLACK),
+                        should_render: false,
+                    }
+                } else if self.config.hide_unexplored {
                     FogRenderResult {
                         character: ' ',
                         color: Some(self.config.unexplored_color),
@@ -150,14 +157,24 @@ impl FogOfWar {
             }
             VisibilityState::ExploredHidden => {
                 if self.config.show_explored_dimmed {
-                    let dimmed_color = base_color
-                        .map(|c| c.dimmed(self.config.dimming_factor))
-                        .or(Some(FogColor::DARK_GREY));
+                    // Hide walls (#) and floors (.) in explored but not visible areas
+                    // This only affects the in-game map rendering
+                    if base_character == '#' || base_character == '.' {
+                        FogRenderResult {
+                            character: ' ',
+                            color: Some(self.config.unexplored_color),
+                            should_render: false,
+                        }
+                    } else {
+                        let dimmed_color = base_color
+                            .map(|c| c.dimmed(self.config.dimming_factor))
+                            .or(Some(FogColor::DARK_GREY));
 
-                    FogRenderResult {
-                        character: base_character,
-                        color: dimmed_color,
-                        should_render: true,
+                        FogRenderResult {
+                            character: base_character,
+                            color: dimmed_color,
+                            should_render: true,
+                        }
                     }
                 } else {
                     FogRenderResult {
