@@ -41,17 +41,17 @@ impl Default for EchoesApp {
     fn default() -> Self {
         Self {
             game: None,
-            terminal_buffer: vec![String::new(); 25],
-            color_buffer: vec![vec![Color32::from_rgb(192, 192, 192); 80]; 25],
+            terminal_buffer: vec![String::new(); 40],
+            color_buffer: vec![vec![Color32::from_rgb(192, 192, 192); 120]; 40],
             input_buffer: String::new(),
             last_key: None,
             show_combat_tutorial: false,
-            window_size: (800, 600),
-            font_size: 14.0,
-            char_width: 8.0,
-            char_height: 16.0,
+            window_size: (1200, 800),
+            font_size: 16.0,
+            char_width: 9.6,
+            char_height: 19.2,
             cursor_pos: (0, 0),
-            terminal_size: (80, 25),
+            terminal_size: (120, 40),
             ui_messages: Vec::new(),
             game_initialized: false,
             character_name: String::new(),
@@ -82,7 +82,7 @@ impl EchoesApp {
     }
 
     fn init_terminal(&mut self) {
-        // Initialize terminal buffer and color buffer
+        // Initialize terminal buffer and color buffer with larger size
         self.terminal_buffer = vec![" ".repeat(self.terminal_size.0); self.terminal_size.1];
         self.color_buffer = vec![
             vec![Color32::from_rgb(192, 192, 192); self.terminal_size.0];
@@ -318,11 +318,11 @@ impl EchoesApp {
         let level = game.current_level();
         let player_pos = level.player_position;
 
-        // Calculate view area (centered on player)
-        let view_width = 70;
-        let view_height = 25;
+        // Calculate view area (centered on player) - use larger screen
+        let view_width = 90;
+        let view_height = 35;
         let start_x = 5;
-        let start_y = 5;
+        let start_y = 3;
 
         // Draw map
         for screen_y in 0..view_height {
@@ -573,84 +573,91 @@ impl eframe::App for EchoesApp {
                 // Set monospace font for terminal display
                 let font_id = FontId::new(self.font_size, FontFamily::Monospace);
 
-                // Calculate optimal terminal display size
+                // Calculate responsive sizing
                 let available_size = ui.available_size();
-                let char_width = self.font_size * 0.6; // Approximate character width
-                let char_height = self.font_size * 1.2; // Approximate character height
+                let char_width = self.font_size * 0.6;
+                let char_height = self.font_size * 1.2;
 
-                let max_cols = (available_size.x / char_width) as usize;
-                let max_rows = (available_size.y / char_height) as usize;
+                let max_cols = ((available_size.x * 0.9) / char_width) as usize;
+                let max_rows = ((available_size.y * 0.9) / char_height) as usize;
 
-                // Center the entire content vertically and horizontally
-                ui.centered_and_justified(|ui| {
-                    ui.vertical_centered(|ui| {
-                        // Title
-                        ui.heading(
-                            RichText::new("Echoes of the Forgotten Realm")
-                                .size(20.0)
-                                .color(Color32::YELLOW),
-                        );
+                // Calculate content dimensions for proper centering
+                let content_width = (max_cols as f32 * char_width).min(available_size.x * 0.8);
+                let left_padding = (available_size.x - content_width) / 2.0 + 150.0; // Align with window title
 
-                        ui.add_space(10.0);
+                // Add horizontal spacing to center content properly
+                ui.horizontal(|ui| {
+                    ui.add_space(left_padding);
 
-                        // Terminal content - no borders, no scrollbars, just centered text
-                        ui.vertical_centered(|ui| {
-                            for (y, line) in self.terminal_buffer.iter().enumerate() {
-                                if y >= max_rows.saturating_sub(5) {
-                                    break;
-                                } // Leave space for UI elements
-
-                                ui.horizontal(|ui| {
-                                    ui.spacing_mut().item_spacing.x = 0.0;
-
-                                    // Group consecutive characters with same color into segments
-                                    let mut current_segment = String::new();
-                                    let mut current_color = Color32::from_rgb(192, 192, 192);
-                                    let mut segment_start = true;
-
-                                    for (x, ch) in line.chars().enumerate() {
-                                        if x >= max_cols.saturating_sub(10) {
-                                            break;
-                                        } // Prevent overflow
-
-                                        let color = if y < self.color_buffer.len()
-                                            && x < self.color_buffer[y].len()
-                                        {
-                                            self.color_buffer[y][x]
-                                        } else {
-                                            Color32::from_rgb(192, 192, 192)
-                                        };
-
-                                        // If color changes or this is the first character, start new segment
-                                        if segment_start || color != current_color {
-                                            // Render previous segment if it exists
-                                            if !current_segment.is_empty() {
-                                                let text = RichText::new(&current_segment)
-                                                    .font(font_id.clone())
-                                                    .color(current_color);
-                                                ui.label(text);
-                                            }
-
-                                            // Start new segment
-                                            current_segment = ch.to_string();
-                                            current_color = color;
-                                            segment_start = false;
-                                        } else {
-                                            // Add to current segment
-                                            current_segment.push(ch);
-                                        }
-                                    }
-
-                                    // Render final segment
-                                    if !current_segment.is_empty() {
-                                        let text = RichText::new(&current_segment)
-                                            .font(font_id.clone())
-                                            .color(current_color);
-                                        ui.label(text);
-                                    }
-                                });
-                            }
+                    ui.vertical(|ui| {
+                        // Center the title
+                        ui.horizontal(|ui| {
+                            ui.add_space((content_width - 500.0) / 2.0); // Align game title with window title
+                            ui.heading(
+                                RichText::new("Echoes of the Forgotten Realm")
+                                    .size(24.0)
+                                    .color(Color32::YELLOW),
+                            );
                         });
+
+                        ui.add_space(15.0);
+
+                        // Terminal content with explicit centering
+                        for (y, line) in self.terminal_buffer.iter().enumerate() {
+                            if y >= max_rows.saturating_sub(3) {
+                                break;
+                            } // Leave space for UI elements
+
+                            ui.horizontal(|ui| {
+                                ui.spacing_mut().item_spacing.x = 0.0;
+
+                                // Group consecutive characters with same color into segments
+                                let mut current_segment = String::new();
+                                let mut current_color = Color32::from_rgb(192, 192, 192);
+                                let mut segment_start = true;
+
+                                for (x, ch) in line.chars().enumerate() {
+                                    if x >= max_cols.saturating_sub(5) {
+                                        break;
+                                    } // Prevent overflow with smaller margin
+
+                                    let color = if y < self.color_buffer.len()
+                                        && x < self.color_buffer[y].len()
+                                    {
+                                        self.color_buffer[y][x]
+                                    } else {
+                                        Color32::from_rgb(192, 192, 192)
+                                    };
+
+                                    // If color changes or this is the first character, start new segment
+                                    if segment_start || color != current_color {
+                                        // Render previous segment if it exists
+                                        if !current_segment.is_empty() {
+                                            let text = RichText::new(&current_segment)
+                                                .font(font_id.clone())
+                                                .color(current_color);
+                                            ui.label(text);
+                                        }
+
+                                        // Start new segment
+                                        current_segment = ch.to_string();
+                                        current_color = color;
+                                        segment_start = false;
+                                    } else {
+                                        // Add to current segment
+                                        current_segment.push(ch);
+                                    }
+                                }
+
+                                // Render final segment
+                                if !current_segment.is_empty() {
+                                    let text = RichText::new(&current_segment)
+                                        .font(font_id.clone())
+                                        .color(current_color);
+                                    ui.label(text);
+                                }
+                            });
+                        }
                     });
                 });
 
@@ -714,10 +721,11 @@ impl eframe::App for EchoesApp {
 pub fn run_gui() -> Result<(), eframe::Error> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([1000.0, 700.0])
-            .with_min_inner_size([800.0, 600.0])
+            .with_fullscreen(true)
+            .with_title("Echoes of the Forgotten Realm") // This still is not centered correctly.
             .with_resizable(true)
-            .with_title("Echoes of the Forgotten Realm"),
+            .with_maximize_button(true)
+            .with_minimize_button(true),
         ..Default::default()
     };
 
