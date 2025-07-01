@@ -36,6 +36,9 @@ pub struct EchoesApp {
     main_menu: bool,
     input_handler: crate::input::InputHandler,
     frame_count: u64,
+    in_combat: bool,
+    combat_enemy_pos: Option<Position>,
+    combat_messages: Vec<String>,
 }
 
 #[cfg(feature = "gui")]
@@ -62,6 +65,9 @@ impl Default for EchoesApp {
             main_menu: true,
             input_handler: crate::input::InputHandler::new(),
             frame_count: 0,
+            in_combat: false,
+            combat_enemy_pos: None,
+            combat_messages: Vec::new(),
         }
     }
 }
@@ -431,38 +437,170 @@ impl EchoesApp {
 
     fn handle_game_input(&mut self, key: char) {
         if let Some(ref mut game) = self.game {
-            match key {
-                'w' | 'W' => {
-                    game.move_player(0, -1);
-                    game.update_visibility();
+            if self.in_combat {
+                self.handle_combat_input(key);
+            } else {
+                match key {
+                    'w' | 'W' => {
+                        game.move_player(0, -1);
+                        game.update_visibility();
+                        self.check_for_combat();
+                    }
+                    's' | 'S' => {
+                        game.move_player(0, 1);
+                        game.update_visibility();
+                        self.check_for_combat();
+                    }
+                    'a' | 'A' => {
+                        game.move_player(-1, 0);
+                        game.update_visibility();
+                        self.check_for_combat();
+                    }
+                    'd' | 'D' => {
+                        game.move_player(1, 0);
+                        game.update_visibility();
+                        self.check_for_combat();
+                    }
+                    'i' | 'I' => {
+                        // Show inventory (simplified for GUI)
+                        self.ui_messages.push("Inventory opened".to_string());
+                    }
+                    'c' | 'C' => {
+                        // Show character screen (simplified for GUI)
+                        self.ui_messages.push("Character screen opened".to_string());
+                    }
+                    'q' | 'Q' => {
+                        // Quit to main menu
+                        self.game_initialized = false;
+                        self.main_menu = true;
+                        self.show_main_menu();
+                    }
+                    _ => {}
                 }
-                's' | 'S' => {
-                    game.move_player(0, 1);
-                    game.update_visibility();
+            }
+        }
+    }
+
+    fn check_for_combat(&mut self) {
+        if let Some(ref mut game) = self.game {
+            match game.game_state {
+                crate::game::GameState::Combat(enemy_pos) => {
+                    if !self.in_combat || game.combat_started {
+                        self.in_combat = true;
+                        self.combat_enemy_pos = Some(enemy_pos);
+                        // Get enemy name before setting combat_started to false
+                        let enemy_name = game
+                            .current_level()
+                            .get_enemy_at(&enemy_pos)
+                            .map(|e| e.name.clone())
+                            .unwrap_or_else(|| "Unknown Enemy".to_string());
+
+                        self.combat_messages.clear();
+                        self.combat_messages
+                            .push(format!("Combat started with {}!", enemy_name));
+                        game.combat_started = false;
+                    }
                 }
-                'a' | 'A' => {
-                    game.move_player(-1, 0);
-                    game.update_visibility();
+                _ => {
+                    if self.in_combat {
+                        self.in_combat = false;
+                        self.combat_enemy_pos = None;
+                    }
                 }
-                'd' | 'D' => {
-                    game.move_player(1, 0);
-                    game.update_visibility();
+            }
+        }
+    }
+
+    fn handle_combat_input(&mut self, key: char) {
+        if let Some(ref mut game) = self.game {
+            if let Some(enemy_pos) = self.combat_enemy_pos {
+                let action = match key {
+                    '1' => Some(crate::combat::CombatAction::Attack),
+                    '2' => {
+                        // Use first ability if available
+                        if !game.player.class.abilities.is_empty() {
+                            Some(crate::combat::CombatAction::UseAbility(0))
+                        } else {
+                            self.combat_messages
+                                .push("No abilities available!".to_string());
+                            None
+                        }
+                    }
+                    '3' => {
+                        // Use first consumable if available
+                        let consumables: Vec<_> = game
+                            .player
+                            .inventory
+                            .items
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, item)| matches!(item, crate::item::Item::Consumable(_)))
+                            .collect();
+                        if !consumables.is_empty() {
+                            Some(crate::combat::CombatAction::UseItem(consumables[0].0))
+                        } else {
+                            self.combat_messages
+                                .push("No consumables available!".to_string());
+                            None
+                        }
+                    }
+                    '4' => Some(crate::combat::CombatAction::Flee),
+                    _ => None,
+                };
+
+                if let Some(combat_action) = action {
+                    self.process_combat_action(combat_action, enemy_pos);
                 }
-                'i' | 'I' => {
-                    // Show inventory (simplified for GUI)
-                    self.ui_messages.push("Inventory opened".to_string());
+            }
+        }
+    }
+
+    fn process_combat_action(&mut self, action: crate::combat::CombatAction, enemy_pos: Position) {
+        if let Some(ref mut game) = self.game {
+            if let Some(enemy) = game.current_level().get_enemy_at(&enemy_pos) {
+                let mut enemy_clone = enemy.clone();
+                let mut player_clone = game.player.clone();
+                let result =
+                    crate::combat::process_combat_turn(&mut player_clone, &mut enemy_clone, action);
+
+                // Update game state
+                game.player = player_clone;
+                if !result.enemy_defeated && !result.player_fled {
+                    if let Some(enemy_ref) = game.current_level_mut().get_enemy_at_mut(&enemy_pos) {
+                        *enemy_ref = enemy_clone;
+                    }
                 }
-                'c' | 'C' => {
-                    // Show character screen (simplified for GUI)
-                    self.ui_messages.push("Character screen opened".to_string());
+
+                // Add combat messages
+                for message in &result.messages {
+                    self.combat_messages.push(message.clone());
                 }
-                'q' | 'Q' => {
-                    // Quit to main menu
-                    self.game_initialized = false;
-                    self.main_menu = true;
-                    self.show_main_menu();
+
+                // Check if combat is over
+                if result.enemy_defeated {
+                    game.current_level_mut().remove_enemy_at(&enemy_pos);
+                    game.game_state = crate::game::GameState::Playing;
+                    game.combat_started = false;
+                    self.in_combat = false;
+                    self.combat_enemy_pos = None;
+                    self.combat_messages
+                        .push("You were victorious!".to_string());
+                    // Move combat messages to main UI messages
+                    self.ui_messages.extend(self.combat_messages.drain(..));
+                } else if result.player_fled {
+                    game.game_state = crate::game::GameState::Playing;
+                    game.combat_started = false;
+                    self.in_combat = false;
+                    self.combat_enemy_pos = None;
+                    self.combat_messages
+                        .push("You fled from combat!".to_string());
+                    // Move combat messages to main UI messages
+                    self.ui_messages.extend(self.combat_messages.drain(..));
+                } else if !game.player.is_alive() {
+                    game.game_state = crate::game::GameState::GameOver;
+                    self.in_combat = false;
+                    self.combat_enemy_pos = None;
                 }
-                _ => {}
             }
         }
     }
@@ -511,6 +649,86 @@ impl EchoesApp {
         };
 
         self.handle_game_input(key_char);
+    }
+
+    fn render_combat_screen_safe(&mut self, game: &crate::game::Game) {
+        self.clear_screen();
+
+        // Draw combat UI
+        self.print_at(5, 3, "=== COMBAT ===", Some(Color32::from_rgb(255, 255, 0)));
+
+        if let Some(enemy_pos) = self.combat_enemy_pos {
+            if let Some(enemy) = game.current_level().get_enemy_at(&enemy_pos) {
+                // Display enemy info
+                self.print_at(
+                    5,
+                    5,
+                    &format!("Enemy: {}", enemy.name),
+                    Some(Color32::from_rgb(255, 100, 100)),
+                );
+                self.print_at(
+                    5,
+                    6,
+                    &format!("HP: {}/{}", enemy.health, enemy.max_health),
+                    None,
+                );
+
+                // Display player info
+                self.print_at(
+                    5,
+                    8,
+                    &format!("Player: {}", game.player.name),
+                    Some(Color32::from_rgb(100, 255, 100)),
+                );
+                self.print_at(
+                    5,
+                    9,
+                    &format!("HP: {}/{}", game.player.health, game.player.max_health),
+                    None,
+                );
+                self.print_at(
+                    5,
+                    10,
+                    &format!("MP: {}/{}", game.player.mana, game.player.max_mana),
+                    None,
+                );
+
+                // Display combat options
+                self.print_at(
+                    5,
+                    12,
+                    "Combat Actions:",
+                    Some(Color32::from_rgb(255, 255, 255)),
+                );
+                self.print_at(5, 13, "1 - Attack", None);
+                self.print_at(5, 14, "2 - Use Ability", None);
+                self.print_at(5, 15, "3 - Use Item", None);
+                self.print_at(5, 16, "4 - Flee", None);
+
+                // Display combat messages
+                self.print_at(5, 18, "Combat Log:", Some(Color32::from_rgb(255, 255, 255)));
+                let start_line = 19;
+                let max_messages = 10;
+                let message_start = if self.combat_messages.len() > max_messages {
+                    self.combat_messages.len() - max_messages
+                } else {
+                    0
+                };
+
+                // Clone the messages to avoid borrow checker issues
+                let messages_to_display: Vec<String> = self
+                    .combat_messages
+                    .iter()
+                    .skip(message_start)
+                    .cloned()
+                    .collect();
+                for (i, message) in messages_to_display.iter().enumerate() {
+                    if i < max_messages {
+                        self.print_at(5, start_line + i, message, None);
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -633,7 +851,11 @@ impl eframe::App for EchoesApp {
                     if self.game.is_some() {
                         // Clone the game data to avoid borrow checker issues
                         let game_clone = self.game.clone().unwrap();
-                        self.render_game_screen_safe(&game_clone);
+                        if self.in_combat {
+                            self.render_combat_screen_safe(&game_clone);
+                        } else {
+                            self.render_game_screen_safe(&game_clone);
+                        }
                     }
                 }
 
