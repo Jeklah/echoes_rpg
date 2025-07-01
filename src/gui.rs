@@ -339,7 +339,7 @@ impl EchoesApp {
                 {
                     let tile = &level.tiles[map_y as usize][map_x as usize];
                     if !tile.explored {
-                        (' ', None)
+                        (' ', Some(Color32::BLACK))
                     } else {
                         let pos = crate::world::Position::new(map_x, map_y);
 
@@ -382,7 +382,7 @@ impl EchoesApp {
                         }
                     }
                 } else {
-                    (' ', None)
+                    (' ', Some(Color32::BLACK))
                 };
 
                 self.print_at(
