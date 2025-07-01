@@ -41,8 +41,8 @@ impl Default for EchoesApp {
     fn default() -> Self {
         Self {
             game: None,
-            terminal_buffer: vec![String::new(); 30],
-            color_buffer: vec![vec![Color32::from_rgb(192, 192, 192); 80]; 30],
+            terminal_buffer: vec![String::new(); 25],
+            color_buffer: vec![vec![Color32::from_rgb(192, 192, 192); 80]; 25],
             input_buffer: String::new(),
             last_key: None,
             show_combat_tutorial: false,
@@ -51,7 +51,7 @@ impl Default for EchoesApp {
             char_width: 8.0,
             char_height: 16.0,
             cursor_pos: (0, 0),
-            terminal_size: (80, 30),
+            terminal_size: (80, 25),
             ui_messages: Vec::new(),
             game_initialized: false,
             character_name: String::new(),
@@ -561,7 +561,7 @@ impl eframe::App for EchoesApp {
             self.handle_input(&action);
         }
 
-        // Main UI with dark terminal theme
+        // Main UI with dark terminal theme - remove borders and center content
         egui::CentralPanel::default()
             .frame(egui::Frame::none().fill(Color32::BLACK))
             .show(ctx, |ui| {
@@ -573,93 +573,85 @@ impl eframe::App for EchoesApp {
                 // Set monospace font for terminal display
                 let font_id = FontId::new(self.font_size, FontFamily::Monospace);
 
-                // Center the content vertically and horizontally
-                ui.vertical_centered(|ui| {
-                    ui.heading(
-                        RichText::new("Echoes of the Forgotten Realm")
-                            .size(20.0)
-                            .color(Color32::YELLOW),
-                    );
-                    ui.separator();
+                // Calculate optimal terminal display size
+                let available_size = ui.available_size();
+                let char_width = self.font_size * 0.6; // Approximate character width
+                let char_height = self.font_size * 1.2; // Approximate character height
 
-                    // Add some spacing
-                    ui.add_space(20.0);
+                let max_cols = (available_size.x / char_width) as usize;
+                let max_rows = (available_size.y / char_height) as usize;
 
-                    // Terminal display area with dark background and centered content
-                    let available_width = ui.available_width();
-                    let terminal_width =
-                        (self.terminal_size.0 as f32 * 8.0).min(available_width - 40.0);
+                // Center the entire content vertically and horizontally
+                ui.centered_and_justified(|ui| {
+                    ui.vertical_centered(|ui| {
+                        // Title
+                        ui.heading(
+                            RichText::new("Echoes of the Forgotten Realm")
+                                .size(20.0)
+                                .color(Color32::YELLOW),
+                        );
 
-                    ui.allocate_ui_with_layout(
-                        egui::Vec2::new(terminal_width, ui.available_height() - 100.0),
-                        egui::Layout::top_down(egui::Align::Center),
-                        |ui| {
-                            egui::Frame::none()
-                                .fill(Color32::BLACK)
-                                .stroke(egui::Stroke::new(1.0, Color32::GRAY))
-                                .inner_margin(egui::Margin::same(10.0))
-                                .show(ui, |ui| {
-                                    egui::ScrollArea::vertical().id_source("terminal").show(
-                                        ui,
-                                        |ui| {
-                                            ui.style_mut().visuals.extreme_bg_color =
-                                                Color32::BLACK;
+                        ui.add_space(10.0);
 
-                                            for (y, line) in self.terminal_buffer.iter().enumerate()
-                                            {
-                                                ui.horizontal(|ui| {
-                                                    ui.spacing_mut().item_spacing.x = 0.0; // Remove horizontal spacing
+                        // Terminal content - no borders, no scrollbars, just centered text
+                        ui.vertical_centered(|ui| {
+                            for (y, line) in self.terminal_buffer.iter().enumerate() {
+                                if y >= max_rows.saturating_sub(5) {
+                                    break;
+                                } // Leave space for UI elements
 
-                                                    // Group consecutive characters with same color into segments
-                                                    let mut current_segment = String::new();
-                                                    let mut current_color =
-                                                        Color32::from_rgb(192, 192, 192);
-                                                    let mut segment_start = true;
+                                ui.horizontal(|ui| {
+                                    ui.spacing_mut().item_spacing.x = 0.0;
 
-                                                    for (x, ch) in line.chars().enumerate() {
-                                                        let color = if y < self.color_buffer.len()
-                                                            && x < self.color_buffer[y].len()
-                                                        {
-                                                            self.color_buffer[y][x]
-                                                        } else {
-                                                            Color32::from_rgb(192, 192, 192)
-                                                        };
+                                    // Group consecutive characters with same color into segments
+                                    let mut current_segment = String::new();
+                                    let mut current_color = Color32::from_rgb(192, 192, 192);
+                                    let mut segment_start = true;
 
-                                                        // If color changes or this is the first character, start new segment
-                                                        if segment_start || color != current_color {
-                                                            // Render previous segment if it exists
-                                                            if !current_segment.is_empty() {
-                                                                let text =
-                                                                    RichText::new(&current_segment)
-                                                                        .font(font_id.clone())
-                                                                        .color(current_color);
-                                                                ui.label(text);
-                                                            }
+                                    for (x, ch) in line.chars().enumerate() {
+                                        if x >= max_cols.saturating_sub(10) {
+                                            break;
+                                        } // Prevent overflow
 
-                                                            // Start new segment
-                                                            current_segment = ch.to_string();
-                                                            current_color = color;
-                                                            segment_start = false;
-                                                        } else {
-                                                            // Add to current segment
-                                                            current_segment.push(ch);
-                                                        }
-                                                    }
+                                        let color = if y < self.color_buffer.len()
+                                            && x < self.color_buffer[y].len()
+                                        {
+                                            self.color_buffer[y][x]
+                                        } else {
+                                            Color32::from_rgb(192, 192, 192)
+                                        };
 
-                                                    // Render final segment
-                                                    if !current_segment.is_empty() {
-                                                        let text = RichText::new(&current_segment)
-                                                            .font(font_id.clone())
-                                                            .color(current_color);
-                                                        ui.label(text);
-                                                    }
-                                                });
+                                        // If color changes or this is the first character, start new segment
+                                        if segment_start || color != current_color {
+                                            // Render previous segment if it exists
+                                            if !current_segment.is_empty() {
+                                                let text = RichText::new(&current_segment)
+                                                    .font(font_id.clone())
+                                                    .color(current_color);
+                                                ui.label(text);
                                             }
-                                        },
-                                    );
+
+                                            // Start new segment
+                                            current_segment = ch.to_string();
+                                            current_color = color;
+                                            segment_start = false;
+                                        } else {
+                                            // Add to current segment
+                                            current_segment.push(ch);
+                                        }
+                                    }
+
+                                    // Render final segment
+                                    if !current_segment.is_empty() {
+                                        let text = RichText::new(&current_segment)
+                                            .font(font_id.clone())
+                                            .color(current_color);
+                                        ui.label(text);
+                                    }
                                 });
-                        },
-                    );
+                            }
+                        });
+                    });
                 });
 
                 // Render game if active
@@ -671,62 +663,46 @@ impl eframe::App for EchoesApp {
                     }
                 }
 
-                // Status bar with dark theme
-                ui.separator();
-                egui::Frame::none()
-                    .fill(Color32::from_gray(20))
-                    .inner_margin(egui::Margin::same(5.0))
-                    .show(ui, |ui| {
-                        ui.horizontal(|ui| {
+                // Compact status bar at bottom - no separators or borders
+                ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
+                    // Messages area - compact and centered
+                    if !self.ui_messages.is_empty() {
+                        ui.horizontal_centered(|ui| {
                             ui.label(
-                                RichText::new("Status:").color(Color32::from_rgb(0, 255, 255)),
-                            );
-                            if self.main_menu {
-                                ui.label(RichText::new("Main Menu").color(Color32::YELLOW));
-                            } else if self.creating_character {
-                                ui.label(
-                                    RichText::new("Character Creation").color(Color32::YELLOW),
-                                );
-                            } else if self.show_combat_tutorial {
-                                ui.label(RichText::new("Combat Tutorial").color(Color32::YELLOW));
-                            } else if self.game_initialized {
-                                ui.label(RichText::new("In Game").color(Color32::GREEN));
-                            }
-
-                            ui.with_layout(
-                                egui::Layout::right_to_left(egui::Align::Center),
-                                |ui| {
-                                    if let Some(key) = self.last_key {
-                                        ui.label(
-                                            RichText::new(format!("Last key: {}", key))
-                                                .color(Color32::LIGHT_GRAY),
-                                        );
-                                    }
-                                },
-                            );
-                        });
-                    });
-
-                // Messages area with dark theme
-                if !self.ui_messages.is_empty() {
-                    ui.separator();
-                    egui::Frame::none()
-                        .fill(Color32::from_gray(15))
-                        .inner_margin(egui::Margin::same(5.0))
-                        .show(ui, |ui| {
-                            ui.label(
-                                RichText::new("Messages:").color(Color32::from_rgb(0, 255, 255)),
+                                RichText::new("Messages: ").color(Color32::from_rgb(0, 255, 255)),
                             );
                             for msg in &self.ui_messages {
-                                ui.label(RichText::new(format!("• {}", msg)).color(Color32::WHITE));
+                                ui.label(RichText::new(format!("{} ", msg)).color(Color32::WHITE));
                             }
                         });
 
-                    // Clear old messages
-                    if self.ui_messages.len() > 5 {
-                        self.ui_messages.remove(0);
+                        // Clear old messages
+                        if self.ui_messages.len() > 5 {
+                            self.ui_messages.remove(0);
+                        }
                     }
-                }
+
+                    // Status bar - compact and centered
+                    ui.horizontal_centered(|ui| {
+                        ui.label(RichText::new("Status: ").color(Color32::from_rgb(0, 255, 255)));
+                        if self.main_menu {
+                            ui.label(RichText::new("Main Menu").color(Color32::YELLOW));
+                        } else if self.creating_character {
+                            ui.label(RichText::new("Character Creation").color(Color32::YELLOW));
+                        } else if self.show_combat_tutorial {
+                            ui.label(RichText::new("Combat Tutorial").color(Color32::YELLOW));
+                        } else if self.game_initialized {
+                            ui.label(RichText::new("In Game").color(Color32::GREEN));
+                        }
+
+                        if let Some(key) = self.last_key {
+                            ui.label(
+                                RichText::new(format!(" | Last key: {}", key))
+                                    .color(Color32::LIGHT_GRAY),
+                            );
+                        }
+                    });
+                });
             });
 
         // Request repaint for smooth updates
@@ -738,8 +714,9 @@ impl eframe::App for EchoesApp {
 pub fn run_gui() -> Result<(), eframe::Error> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([1400.0, 1000.0])
-            .with_min_inner_size([1200.0, 800.0])
+            .with_inner_size([1000.0, 700.0])
+            .with_min_inner_size([800.0, 600.0])
+            .with_resizable(true)
             .with_title("Echoes of the Forgotten Realm"),
         ..Default::default()
     };
