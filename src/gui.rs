@@ -8,6 +8,8 @@ use crate::game::Game;
 #[cfg(feature = "gui")]
 use crate::input::{InputAction, InputHandler};
 #[cfg(feature = "gui")]
+use crate::world::{FogOfWar, FogOfWarConfig, Position};
+#[cfg(feature = "gui")]
 use eframe::egui;
 #[cfg(feature = "gui")]
 use egui::{Color32, FontFamily, FontId, RichText};
@@ -79,6 +81,16 @@ impl EchoesApp {
         let mut app = Self::default();
         app.init_terminal();
         app
+    }
+
+    fn create_fog_of_war() -> FogOfWar {
+        let config = FogOfWarConfig {
+            hide_unexplored: true,
+            show_explored_dimmed: true,
+            dimming_factor: 0.5,
+            unexplored_color: crate::world::fog_of_war::FogColor::BLACK,
+        };
+        FogOfWar::new(config)
     }
 
     fn init_terminal(&mut self) {
@@ -314,9 +326,10 @@ impl EchoesApp {
     fn render_game_screen_safe(&mut self, game: &Game) {
         self.clear_screen();
 
-        // Render game map
+        // Render game map using centralized fog of war system
         let level = game.current_level();
         let player_pos = level.player_position;
+        let fog_of_war = Self::create_fog_of_war();
 
         // Calculate view area (centered on player) - use larger screen
         let view_width = 90;
@@ -329,68 +342,22 @@ impl EchoesApp {
             for screen_x in 0..view_width {
                 let map_x = player_pos.x - view_width as i32 / 2 + screen_x as i32;
                 let map_y = player_pos.y - view_height as i32 / 2 + screen_y as i32;
+                let pos = Position::new(map_x, map_y);
 
-                let (char_to_draw, color) = if map_x == player_pos.x && map_y == player_pos.y {
-                    ('@', Some(Color32::YELLOW))
-                } else if map_x >= 0
-                    && map_x < level.width as i32
-                    && map_y >= 0
-                    && map_y < level.height as i32
-                {
-                    let tile = &level.tiles[map_y as usize][map_x as usize];
-                    if !tile.explored {
-                        (' ', Some(Color32::BLACK))
-                    } else {
-                        let pos = crate::world::Position::new(map_x, map_y);
+                // Use centralized fog of war processing
+                let fog_result = fog_of_war.process_position(level, pos, player_pos);
 
-                        // Check for enemies first
-                        let has_enemy = level.enemies.contains_key(&pos);
+                // Convert fog color to egui color
+                let egui_color = fog_result.color.map(|c| FogOfWar::to_egui_color(&c));
 
-                        // Check for items
-                        let has_item = level.items.contains_key(&pos);
-
-                        let (symbol, tile_color) = if has_enemy && tile.visible {
-                            ('E', Some(Color32::RED))
-                        } else if has_item && tile.visible {
-                            ('!', Some(Color32::from_rgb(0, 255, 255)))
-                        } else {
-                            let symbol = tile.tile_type.symbol();
-                            let color = match tile.tile_type.symbol() {
-                                '#' => Some(Color32::GRAY),                  // Wall
-                                '.' => Some(Color32::WHITE),                 // Floor
-                                '+' => Some(Color32::from_rgb(139, 69, 19)), // Door (brown)
-                                'C' => Some(Color32::from_rgb(255, 215, 0)), // Chest (gold)
-                                '>' => Some(Color32::GREEN),                 // Stairs
-                                _ => Some(Color32::WHITE),
-                            };
-                            (symbol, color)
-                        };
-
-                        if tile.visible {
-                            (symbol, tile_color)
-                        } else {
-                            // Explored but not visible - dimmed
-                            let dimmed_color = tile_color.map(|c| {
-                                Color32::from_rgba_unmultiplied(
-                                    (c.r() as f32 * 0.5) as u8,
-                                    (c.g() as f32 * 0.5) as u8,
-                                    (c.b() as f32 * 0.5) as u8,
-                                    255,
-                                )
-                            });
-                            (symbol, dimmed_color)
-                        }
-                    }
-                } else {
-                    (' ', Some(Color32::BLACK))
-                };
-
-                self.print_at(
-                    start_x + screen_x,
-                    start_y + screen_y,
-                    &char_to_draw.to_string(),
-                    color,
-                );
+                if fog_result.should_render {
+                    self.print_at(
+                        start_x + screen_x,
+                        start_y + screen_y,
+                        &fog_result.character.to_string(),
+                        egui_color,
+                    );
+                }
             }
         }
 
