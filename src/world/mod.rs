@@ -1,9 +1,11 @@
 pub mod enemy;
+pub mod fog_of_war;
 pub mod level;
 pub mod tile;
 
 // Re-exports
 pub use enemy::Enemy;
+pub use fog_of_war::{FogOfWar, FogOfWarConfig, VisibilityState};
 pub use level::{Level, Position};
 pub use tile::{Tile, TileType};
 
