@@ -2,10 +2,13 @@
 //! Provides a native Windows application with text-based gameplay
 
 #[cfg(feature = "gui")]
-#[cfg(feature = "gui")]
 use crate::character::Player;
 #[cfg(feature = "gui")]
 use crate::game::Game;
+#[cfg(feature = "gui")]
+use crate::input::{InputAction, InputHandler};
+#[cfg(feature = "gui")]
+use crate::world::{FogOfWar, FogOfWarConfig, Position};
 #[cfg(feature = "gui")]
 use eframe::egui;
 #[cfg(feature = "gui")]
@@ -13,13 +16,13 @@ use egui::{Color32, FontFamily, FontId, RichText};
 
 #[cfg(feature = "gui")]
 pub struct EchoesApp {
-    game: Option<Game>,
+    game: Option<crate::game::Game>,
     terminal_buffer: Vec<String>,
     color_buffer: Vec<Vec<Color32>>,
     input_buffer: String,
     last_key: Option<char>,
     show_combat_tutorial: bool,
-    window_size: (f32, f32),
+    window_size: (usize, usize),
     font_size: f32,
     char_width: f32,
     char_height: f32,
@@ -31,6 +34,11 @@ pub struct EchoesApp {
     character_class: Option<crate::character::ClassType>,
     creating_character: bool,
     main_menu: bool,
+    input_handler: crate::input::InputHandler,
+    frame_count: u64,
+    in_combat: bool,
+    combat_enemy_pos: Option<Position>,
+    combat_messages: Vec<String>,
 }
 
 #[cfg(feature = "gui")]
@@ -38,23 +46,28 @@ impl Default for EchoesApp {
     fn default() -> Self {
         Self {
             game: None,
-            terminal_buffer: vec![" ".repeat(140); 60],
-            color_buffer: vec![vec![Color32::from_rgb(192, 192, 192); 140]; 60],
+            terminal_buffer: vec![String::new(); 40],
+            color_buffer: vec![vec![Color32::from_rgb(192, 192, 192); 120]; 40],
             input_buffer: String::new(),
             last_key: None,
             show_combat_tutorial: false,
-            window_size: (1400.0, 1000.0),
-            font_size: 14.0,
-            char_width: 8.0,
-            char_height: 16.0,
+            window_size: (1200, 800),
+            font_size: 16.0,
+            char_width: 9.6,
+            char_height: 19.2,
             cursor_pos: (0, 0),
-            terminal_size: (140, 60),
+            terminal_size: (120, 40),
             ui_messages: Vec::new(),
             game_initialized: false,
             character_name: String::new(),
             character_class: None,
             creating_character: false,
             main_menu: true,
+            input_handler: crate::input::InputHandler::new(),
+            frame_count: 0,
+            in_combat: false,
+            combat_enemy_pos: None,
+            combat_messages: Vec::new(),
         }
     }
 }
@@ -76,8 +89,18 @@ impl EchoesApp {
         app
     }
 
+    fn create_fog_of_war() -> FogOfWar {
+        let config = FogOfWarConfig {
+            hide_unexplored: true,
+            show_explored_dimmed: true,
+            dimming_factor: 0.5,
+            unexplored_color: crate::world::fog_of_war::FogColor::BLACK,
+        };
+        FogOfWar::new(config)
+    }
+
     fn init_terminal(&mut self) {
-        // Initialize terminal buffer and color buffer
+        // Initialize terminal buffer and color buffer with larger size
         self.terminal_buffer = vec![" ".repeat(self.terminal_size.0); self.terminal_size.1];
         self.color_buffer = vec![
             vec![Color32::from_rgb(192, 192, 192); self.terminal_size.0];
@@ -122,7 +145,7 @@ impl EchoesApp {
         let title = "*** ECHOES OF THE FORGOTTEN REALM ***";
         let subtitle = "A Text-Based RPG Adventure";
 
-        let center_x = (self.terminal_size.0 - title.len()) / 2;
+        let center_x = (self.terminal_size.0.saturating_sub(title.len())) / 2;
         let center_y = self.terminal_size.1 / 2;
 
         self.print_at(center_x, center_y - 3, title, Some(Color32::YELLOW));
@@ -144,14 +167,16 @@ impl EchoesApp {
         );
     }
 
-    fn handle_main_menu_input(&mut self, key: char) {
-        match key {
-            '1' => {
+    fn handle_main_menu_input(&mut self, action: &crate::input::InputAction) {
+        match action {
+            crate::input::InputAction::MenuOption(1) => {
                 self.main_menu = false;
                 self.creating_character = true;
+                self.character_name.clear(); // Clear any residual input
+                self.input_handler.clear_state(); // Clear input state
                 self.show_character_creation();
             }
-            '2' => {
+            crate::input::InputAction::MenuOption(2) => {
                 // Exit application - will be handled by the framework
                 std::process::exit(0);
             }
@@ -190,48 +215,52 @@ impl EchoesApp {
         }
     }
 
-    fn handle_character_creation_input(&mut self, key: char) {
-        if self.character_name.is_empty() {
-            // Getting character name
-            if key.is_alphanumeric() || key == ' ' {
-                if self.character_name.len() < 20 {
-                    self.character_name.push(key);
-                    self.show_character_creation();
-                }
-            } else if key == '\u{8}' {
-                // Backspace - nothing to do if name is empty
-            } else if key == '\r' || key == '\n' {
-                // Enter pressed but name is empty - do nothing
-            }
-        } else if self.character_class.is_none() {
-            // Have name, now choosing class
-            match key {
-                '1' => {
-                    self.character_class = Some(crate::character::ClassType::Warrior);
-                    self.finish_character_creation();
-                }
-                '2' => {
-                    self.character_class = Some(crate::character::ClassType::Mage);
-                    self.finish_character_creation();
-                }
-                '3' => {
-                    self.character_class = Some(crate::character::ClassType::Ranger);
-                    self.finish_character_creation();
-                }
-                '4' => {
-                    self.character_class = Some(crate::character::ClassType::Cleric);
-                    self.finish_character_creation();
-                }
-                '\u{8}' => {
-                    // Backspace - go back to name entry
-                    self.character_name.clear();
-                    self.show_character_creation();
-                }
-                _ if key.is_alphanumeric() || key == ' ' => {
-                    // Add to name if still typing
-                    if self.character_name.len() < 20 {
-                        self.character_name.push(key);
+    fn handle_character_creation_input(&mut self, action: &crate::input::InputAction) {
+        if self.character_class.is_none() {
+            // Still in character creation phase
+            match action {
+                crate::input::InputAction::Character(c) => {
+                    // Add character to name if it's valid and we have space
+                    if (c.is_alphanumeric() || *c == ' ') && self.character_name.len() < 20 {
+                        self.character_name.push(*c);
                         self.show_character_creation();
+                    }
+                }
+                crate::input::InputAction::Backspace => {
+                    if !self.character_name.is_empty() {
+                        self.character_name.pop();
+                        self.show_character_creation();
+                    }
+                }
+                crate::input::InputAction::Enter => {
+                    // Can't proceed without a name
+                    if !self.character_name.is_empty() {
+                        // Move to class selection - show updated screen
+                        self.show_character_creation();
+                    }
+                }
+                crate::input::InputAction::MenuOption(1) => {
+                    if !self.character_name.is_empty() {
+                        self.character_class = Some(crate::character::ClassType::Warrior);
+                        self.finish_character_creation();
+                    }
+                }
+                crate::input::InputAction::MenuOption(2) => {
+                    if !self.character_name.is_empty() {
+                        self.character_class = Some(crate::character::ClassType::Mage);
+                        self.finish_character_creation();
+                    }
+                }
+                crate::input::InputAction::MenuOption(3) => {
+                    if !self.character_name.is_empty() {
+                        self.character_class = Some(crate::character::ClassType::Ranger);
+                        self.finish_character_creation();
+                    }
+                }
+                crate::input::InputAction::MenuOption(4) => {
+                    if !self.character_name.is_empty() {
+                        self.character_class = Some(crate::character::ClassType::Cleric);
+                        self.finish_character_creation();
                     }
                 }
                 _ => {}
@@ -303,83 +332,38 @@ impl EchoesApp {
     fn render_game_screen_safe(&mut self, game: &Game) {
         self.clear_screen();
 
-        // Render game map
+        // Render game map using centralized fog of war system
         let level = game.current_level();
         let player_pos = level.player_position;
+        let fog_of_war = Self::create_fog_of_war();
 
-        // Calculate view area (centered on player)
-        let view_width = 70;
-        let view_height = 25;
+        // Calculate view area (centered on player) - use larger screen
+        let view_width = 90;
+        let view_height = 35;
         let start_x = 5;
-        let start_y = 5;
+        let start_y = 3;
 
         // Draw map
         for screen_y in 0..view_height {
             for screen_x in 0..view_width {
                 let map_x = player_pos.x - view_width as i32 / 2 + screen_x as i32;
                 let map_y = player_pos.y - view_height as i32 / 2 + screen_y as i32;
+                let pos = Position::new(map_x, map_y);
 
-                let (char_to_draw, color) = if map_x == player_pos.x && map_y == player_pos.y {
-                    ('@', Some(Color32::YELLOW))
-                } else if map_x >= 0
-                    && map_x < level.width as i32
-                    && map_y >= 0
-                    && map_y < level.height as i32
-                {
-                    let tile = &level.tiles[map_y as usize][map_x as usize];
-                    if !tile.explored {
-                        (' ', None)
-                    } else {
-                        let pos = crate::world::Position::new(map_x, map_y);
+                // Use centralized fog of war processing
+                let fog_result = fog_of_war.process_position(level, pos, player_pos);
 
-                        // Check for enemies first
-                        let has_enemy = level.enemies.contains_key(&pos);
+                // Convert fog color to egui color
+                let egui_color = fog_result.color.map(|c| FogOfWar::to_egui_color(&c));
 
-                        // Check for items
-                        let has_item = level.items.contains_key(&pos);
-
-                        let (symbol, tile_color) = if has_enemy && tile.visible {
-                            ('E', Some(Color32::RED))
-                        } else if has_item && tile.visible {
-                            ('!', Some(Color32::from_rgb(0, 255, 255)))
-                        } else {
-                            let symbol = tile.tile_type.symbol();
-                            let color = match tile.tile_type.symbol() {
-                                '#' => Some(Color32::GRAY),                  // Wall
-                                '.' => Some(Color32::WHITE),                 // Floor
-                                '+' => Some(Color32::from_rgb(139, 69, 19)), // Door (brown)
-                                'C' => Some(Color32::from_rgb(255, 215, 0)), // Chest (gold)
-                                '>' => Some(Color32::GREEN),                 // Stairs
-                                _ => Some(Color32::WHITE),
-                            };
-                            (symbol, color)
-                        };
-
-                        if tile.visible {
-                            (symbol, tile_color)
-                        } else {
-                            // Explored but not visible - dimmed
-                            let dimmed_color = tile_color.map(|c| {
-                                Color32::from_rgba_unmultiplied(
-                                    (c.r() as f32 * 0.5) as u8,
-                                    (c.g() as f32 * 0.5) as u8,
-                                    (c.b() as f32 * 0.5) as u8,
-                                    255,
-                                )
-                            });
-                            (symbol, dimmed_color)
-                        }
-                    }
-                } else {
-                    (' ', None)
-                };
-
-                self.print_at(
-                    start_x + screen_x,
-                    start_y + screen_y,
-                    &char_to_draw.to_string(),
-                    color,
-                );
+                if fog_result.should_render {
+                    self.print_at(
+                        start_x + screen_x,
+                        start_y + screen_y,
+                        &fog_result.character.to_string(),
+                        egui_color,
+                    );
+                }
             }
         }
 
@@ -453,53 +437,297 @@ impl EchoesApp {
 
     fn handle_game_input(&mut self, key: char) {
         if let Some(ref mut game) = self.game {
-            match key {
-                'w' | 'W' => {
-                    game.move_player(0, -1);
-                    game.update_visibility();
+            if self.in_combat {
+                self.handle_combat_input(key);
+            } else {
+                match key {
+                    'w' | 'W' => {
+                        game.move_player(0, -1);
+                        game.update_visibility();
+                        self.check_for_combat();
+                    }
+                    's' | 'S' => {
+                        game.move_player(0, 1);
+                        game.update_visibility();
+                        self.check_for_combat();
+                    }
+                    'a' | 'A' => {
+                        game.move_player(-1, 0);
+                        game.update_visibility();
+                        self.check_for_combat();
+                    }
+                    'd' | 'D' => {
+                        game.move_player(1, 0);
+                        game.update_visibility();
+                        self.check_for_combat();
+                    }
+                    'i' | 'I' => {
+                        // Show inventory (simplified for GUI)
+                        self.ui_messages.push("Inventory opened".to_string());
+                    }
+                    'c' | 'C' => {
+                        // Show character screen (simplified for GUI)
+                        self.ui_messages.push("Character screen opened".to_string());
+                    }
+                    'q' | 'Q' => {
+                        // Quit to main menu
+                        self.game_initialized = false;
+                        self.main_menu = true;
+                        self.show_main_menu();
+                    }
+                    _ => {}
                 }
-                's' | 'S' => {
-                    game.move_player(0, 1);
-                    game.update_visibility();
-                }
-                'a' | 'A' => {
-                    game.move_player(-1, 0);
-                    game.update_visibility();
-                }
-                'd' | 'D' => {
-                    game.move_player(1, 0);
-                    game.update_visibility();
-                }
-                'i' | 'I' => {
-                    // Show inventory (simplified for GUI)
-                    self.ui_messages.push("Inventory opened".to_string());
-                }
-                'c' | 'C' => {
-                    // Show character screen (simplified for GUI)
-                    self.ui_messages.push("Character screen opened".to_string());
-                }
-                'q' | 'Q' => {
-                    // Quit to main menu
-                    self.game_initialized = false;
-                    self.main_menu = true;
-                    self.show_main_menu();
-                }
-                _ => {}
             }
         }
     }
 
-    fn handle_input(&mut self, key: char) {
-        self.last_key = Some(key);
+    fn check_for_combat(&mut self) {
+        if let Some(ref mut game) = self.game {
+            match game.game_state {
+                crate::game::GameState::Combat(enemy_pos) => {
+                    if !self.in_combat || game.combat_started {
+                        self.in_combat = true;
+                        self.combat_enemy_pos = Some(enemy_pos);
+                        // Get enemy name before setting combat_started to false
+                        let enemy_name = game
+                            .current_level()
+                            .get_enemy_at(&enemy_pos)
+                            .map(|e| e.name.clone())
+                            .unwrap_or_else(|| "Unknown Enemy".to_string());
+
+                        self.combat_messages.clear();
+                        self.combat_messages
+                            .push(format!("Combat started with {}!", enemy_name));
+                        game.combat_started = false;
+                    }
+                }
+                _ => {
+                    if self.in_combat {
+                        self.in_combat = false;
+                        self.combat_enemy_pos = None;
+                    }
+                }
+            }
+        }
+    }
+
+    fn handle_combat_input(&mut self, key: char) {
+        if let Some(ref mut game) = self.game {
+            if let Some(enemy_pos) = self.combat_enemy_pos {
+                let action = match key {
+                    '1' => Some(crate::combat::CombatAction::Attack),
+                    '2' => {
+                        // Use first ability if available
+                        if !game.player.class.abilities.is_empty() {
+                            Some(crate::combat::CombatAction::UseAbility(0))
+                        } else {
+                            self.combat_messages
+                                .push("No abilities available!".to_string());
+                            None
+                        }
+                    }
+                    '3' => {
+                        // Use first consumable if available
+                        let consumables: Vec<_> = game
+                            .player
+                            .inventory
+                            .items
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, item)| matches!(item, crate::item::Item::Consumable(_)))
+                            .collect();
+                        if !consumables.is_empty() {
+                            Some(crate::combat::CombatAction::UseItem(consumables[0].0))
+                        } else {
+                            self.combat_messages
+                                .push("No consumables available!".to_string());
+                            None
+                        }
+                    }
+                    '4' => Some(crate::combat::CombatAction::Flee),
+                    _ => None,
+                };
+
+                if let Some(combat_action) = action {
+                    self.process_combat_action(combat_action, enemy_pos);
+                }
+            }
+        }
+    }
+
+    fn process_combat_action(&mut self, action: crate::combat::CombatAction, enemy_pos: Position) {
+        if let Some(ref mut game) = self.game {
+            if let Some(enemy) = game.current_level().get_enemy_at(&enemy_pos) {
+                let mut enemy_clone = enemy.clone();
+                let mut player_clone = game.player.clone();
+                let result =
+                    crate::combat::process_combat_turn(&mut player_clone, &mut enemy_clone, action);
+
+                // Update game state
+                game.player = player_clone;
+                if !result.enemy_defeated && !result.player_fled {
+                    if let Some(enemy_ref) = game.current_level_mut().get_enemy_at_mut(&enemy_pos) {
+                        *enemy_ref = enemy_clone;
+                    }
+                }
+
+                // Add combat messages
+                for message in &result.messages {
+                    self.combat_messages.push(message.clone());
+                }
+
+                // Check if combat is over
+                if result.enemy_defeated {
+                    game.current_level_mut().remove_enemy_at(&enemy_pos);
+                    game.game_state = crate::game::GameState::Playing;
+                    game.combat_started = false;
+                    self.in_combat = false;
+                    self.combat_enemy_pos = None;
+                    self.combat_messages
+                        .push("You were victorious!".to_string());
+                    // Move combat messages to main UI messages
+                    self.ui_messages.extend(self.combat_messages.drain(..));
+                } else if result.player_fled {
+                    game.game_state = crate::game::GameState::Playing;
+                    game.combat_started = false;
+                    self.in_combat = false;
+                    self.combat_enemy_pos = None;
+                    self.combat_messages
+                        .push("You fled from combat!".to_string());
+                    // Move combat messages to main UI messages
+                    self.ui_messages.extend(self.combat_messages.drain(..));
+                } else if !game.player.is_alive() {
+                    game.game_state = crate::game::GameState::GameOver;
+                    self.in_combat = false;
+                    self.combat_enemy_pos = None;
+                }
+            }
+        }
+    }
+
+    fn handle_input(&mut self, action: &crate::input::InputAction) {
+        // Update last key for display purposes
+        if let Some(c) = crate::input::InputHandler::get_character(action) {
+            self.last_key = Some(c);
+        } else {
+            match action {
+                crate::input::InputAction::Enter => self.last_key = Some('\r'),
+                crate::input::InputAction::Backspace => self.last_key = Some('\u{8}'),
+                crate::input::InputAction::MenuOption(n) => {
+                    self.last_key = Some(char::from_digit(*n as u32, 10).unwrap_or('?'))
+                }
+                _ => {}
+            }
+        }
 
         if self.main_menu {
-            self.handle_main_menu_input(key);
+            self.handle_main_menu_input(action);
         } else if self.creating_character {
-            self.handle_character_creation_input(key);
+            self.handle_character_creation_input(action);
         } else if self.show_combat_tutorial {
-            self.start_game();
+            match action {
+                crate::input::InputAction::Enter | crate::input::InputAction::Character(' ') => {
+                    self.start_game();
+                }
+                _ => {}
+            }
         } else if self.game_initialized {
-            self.handle_game_input(key);
+            self.handle_game_input_legacy(action);
+        }
+    }
+
+    fn handle_game_input_legacy(&mut self, action: &crate::input::InputAction) {
+        // Convert action back to char for compatibility with existing game input
+        let key_char = match action {
+            crate::input::InputAction::Character(c) => *c,
+            crate::input::InputAction::Enter => '\r',
+            crate::input::InputAction::Backspace => '\u{8}',
+            crate::input::InputAction::MenuOption(n) => {
+                char::from_digit(*n as u32, 10).unwrap_or('0')
+            }
+            _ => return, // Ignore other actions for now
+        };
+
+        self.handle_game_input(key_char);
+    }
+
+    fn render_combat_screen_safe(&mut self, game: &crate::game::Game) {
+        self.clear_screen();
+
+        // Draw combat UI
+        self.print_at(5, 3, "=== COMBAT ===", Some(Color32::from_rgb(255, 255, 0)));
+
+        if let Some(enemy_pos) = self.combat_enemy_pos {
+            if let Some(enemy) = game.current_level().get_enemy_at(&enemy_pos) {
+                // Display enemy info
+                self.print_at(
+                    5,
+                    5,
+                    &format!("Enemy: {}", enemy.name),
+                    Some(Color32::from_rgb(255, 100, 100)),
+                );
+                self.print_at(
+                    5,
+                    6,
+                    &format!("HP: {}/{}", enemy.health, enemy.max_health),
+                    None,
+                );
+
+                // Display player info
+                self.print_at(
+                    5,
+                    8,
+                    &format!("Player: {}", game.player.name),
+                    Some(Color32::from_rgb(100, 255, 100)),
+                );
+                self.print_at(
+                    5,
+                    9,
+                    &format!("HP: {}/{}", game.player.health, game.player.max_health),
+                    None,
+                );
+                self.print_at(
+                    5,
+                    10,
+                    &format!("MP: {}/{}", game.player.mana, game.player.max_mana),
+                    None,
+                );
+
+                // Display combat options
+                self.print_at(
+                    5,
+                    12,
+                    "Combat Actions:",
+                    Some(Color32::from_rgb(255, 255, 255)),
+                );
+                self.print_at(5, 13, "1 - Attack", None);
+                self.print_at(5, 14, "2 - Use Ability", None);
+                self.print_at(5, 15, "3 - Use Item", None);
+                self.print_at(5, 16, "4 - Flee", None);
+
+                // Display combat messages
+                self.print_at(5, 18, "Combat Log:", Some(Color32::from_rgb(255, 255, 255)));
+                let start_line = 19;
+                let max_messages = 10;
+                let message_start = if self.combat_messages.len() > max_messages {
+                    self.combat_messages.len() - max_messages
+                } else {
+                    0
+                };
+
+                // Clone the messages to avoid borrow checker issues
+                let messages_to_display: Vec<String> = self
+                    .combat_messages
+                    .iter()
+                    .skip(message_start)
+                    .cloned()
+                    .collect();
+                for (i, message) in messages_to_display.iter().enumerate() {
+                    if i < max_messages {
+                        self.print_at(5, start_line + i, message, None);
+                    }
+                }
+            }
         }
     }
 }
@@ -507,84 +735,18 @@ impl EchoesApp {
 #[cfg(feature = "gui")]
 impl eframe::App for EchoesApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // Consolidated input handling - process each event only once
-        ctx.input(|i| {
-            for event in &i.events {
-                match event {
-                    // Handle text input for character name entry
-                    egui::Event::Text(text) => {
-                        if self.creating_character && self.character_name.is_empty() {
-                            for c in text.chars() {
-                                if c.is_alphanumeric() || c == ' ' {
-                                    self.handle_input(c);
-                                }
-                            }
-                        } else if self.creating_character
-                            && self.character_class.is_none()
-                            && !self.character_name.is_empty()
-                        {
-                            // Allow adding more characters to name
-                            for c in text.chars() {
-                                if c.is_alphanumeric() || c == ' ' {
-                                    self.handle_input(c);
-                                }
-                            }
-                        }
-                    }
-                    // Handle key presses
-                    egui::Event::Key {
-                        key, pressed: true, ..
-                    } => {
-                        // Handle key presses for all states including name entry
-                        match key {
-                            egui::Key::A => self.handle_input('a'),
-                            egui::Key::B => self.handle_input('b'),
-                            egui::Key::C => self.handle_input('c'),
-                            egui::Key::D => self.handle_input('d'),
-                            egui::Key::E => self.handle_input('e'),
-                            egui::Key::F => self.handle_input('f'),
-                            egui::Key::G => self.handle_input('g'),
-                            egui::Key::H => self.handle_input('h'),
-                            egui::Key::I => self.handle_input('i'),
-                            egui::Key::J => self.handle_input('j'),
-                            egui::Key::K => self.handle_input('k'),
-                            egui::Key::L => self.handle_input('l'),
-                            egui::Key::M => self.handle_input('m'),
-                            egui::Key::N => self.handle_input('n'),
-                            egui::Key::O => self.handle_input('o'),
-                            egui::Key::P => self.handle_input('p'),
-                            egui::Key::Q => self.handle_input('q'),
-                            egui::Key::R => self.handle_input('r'),
-                            egui::Key::S => self.handle_input('s'),
-                            egui::Key::T => self.handle_input('t'),
-                            egui::Key::U => self.handle_input('u'),
-                            egui::Key::V => self.handle_input('v'),
-                            egui::Key::W => self.handle_input('w'),
-                            egui::Key::X => self.handle_input('x'),
-                            egui::Key::Y => self.handle_input('y'),
-                            egui::Key::Z => self.handle_input('z'),
-                            egui::Key::Num1 => self.handle_input('1'),
-                            egui::Key::Num2 => self.handle_input('2'),
-                            egui::Key::Num3 => self.handle_input('3'),
-                            egui::Key::Num4 => self.handle_input('4'),
-                            egui::Key::Num5 => self.handle_input('5'),
-                            egui::Key::Num6 => self.handle_input('6'),
-                            egui::Key::Num7 => self.handle_input('7'),
-                            egui::Key::Num8 => self.handle_input('8'),
-                            egui::Key::Num9 => self.handle_input('9'),
-                            egui::Key::Num0 => self.handle_input('0'),
-                            egui::Key::Space => self.handle_input(' '),
-                            egui::Key::Enter => self.handle_input('\r'),
-                            egui::Key::Backspace => self.handle_input('\u{8}'),
-                            _ => {}
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        });
+        // Increment frame counter
+        self.frame_count += 1;
 
-        // Main UI with dark terminal theme
+        // Process input using centralized handler
+        let actions = self.input_handler.process_input(ctx, self.frame_count);
+
+        // Handle each action
+        for action in actions {
+            self.handle_input(&action);
+        }
+
+        // Main UI with dark terminal theme - remove borders and center content
         egui::CentralPanel::default()
             .frame(egui::Frame::none().fill(Color32::BLACK))
             .show(ctx, |ui| {
@@ -596,93 +758,92 @@ impl eframe::App for EchoesApp {
                 // Set monospace font for terminal display
                 let font_id = FontId::new(self.font_size, FontFamily::Monospace);
 
-                // Center the content vertically and horizontally
-                ui.vertical_centered(|ui| {
-                    ui.heading(
-                        RichText::new("Echoes of the Forgotten Realm")
-                            .size(20.0)
-                            .color(Color32::YELLOW),
-                    );
-                    ui.separator();
+                // Calculate responsive sizing
+                let available_size = ui.available_size();
+                let char_width = self.font_size * 0.6;
+                let char_height = self.font_size * 1.2;
 
-                    // Add some spacing
-                    ui.add_space(20.0);
+                let max_cols = ((available_size.x * 0.9) / char_width) as usize;
+                let max_rows = ((available_size.y * 0.9) / char_height) as usize;
 
-                    // Terminal display area with dark background and centered content
-                    let available_width = ui.available_width();
-                    let terminal_width =
-                        (self.terminal_size.0 as f32 * 8.0).min(available_width - 40.0);
+                // Calculate content dimensions for proper centering
+                let content_width = (max_cols as f32 * char_width).min(available_size.x * 0.8);
+                let left_padding = (available_size.x - content_width) / 2.0 + 150.0; // Align with window title
 
-                    ui.allocate_ui_with_layout(
-                        egui::Vec2::new(terminal_width, ui.available_height() - 100.0),
-                        egui::Layout::top_down(egui::Align::Center),
-                        |ui| {
-                            egui::Frame::none()
-                                .fill(Color32::BLACK)
-                                .stroke(egui::Stroke::new(1.0, Color32::GRAY))
-                                .inner_margin(egui::Margin::same(10.0))
-                                .show(ui, |ui| {
-                                    egui::ScrollArea::vertical().id_source("terminal").show(
-                                        ui,
-                                        |ui| {
-                                            ui.style_mut().visuals.extreme_bg_color =
-                                                Color32::BLACK;
+                // Add horizontal spacing to center content properly
+                ui.horizontal(|ui| {
+                    ui.add_space(left_padding);
 
-                                            for (y, line) in self.terminal_buffer.iter().enumerate()
-                                            {
-                                                ui.horizontal(|ui| {
-                                                    ui.spacing_mut().item_spacing.x = 0.0; // Remove horizontal spacing
+                    ui.vertical(|ui| {
+                        // Center the title
+                        ui.horizontal(|ui| {
+                            ui.add_space((content_width - 500.0) / 2.0); // Align game title with window title
+                            ui.heading(
+                                RichText::new("Echoes of the Forgotten Realm")
+                                    .size(24.0)
+                                    .color(Color32::YELLOW),
+                            );
+                        });
 
-                                                    // Group consecutive characters with same color into segments
-                                                    let mut current_segment = String::new();
-                                                    let mut current_color =
-                                                        Color32::from_rgb(192, 192, 192);
-                                                    let mut segment_start = true;
+                        ui.add_space(15.0);
 
-                                                    for (x, ch) in line.chars().enumerate() {
-                                                        let color = if y < self.color_buffer.len()
-                                                            && x < self.color_buffer[y].len()
-                                                        {
-                                                            self.color_buffer[y][x]
-                                                        } else {
-                                                            Color32::from_rgb(192, 192, 192)
-                                                        };
+                        // Terminal content with explicit centering
+                        for (y, line) in self.terminal_buffer.iter().enumerate() {
+                            if y >= max_rows.saturating_sub(3) {
+                                break;
+                            } // Leave space for UI elements
 
-                                                        // If color changes or this is the first character, start new segment
-                                                        if segment_start || color != current_color {
-                                                            // Render previous segment if it exists
-                                                            if !current_segment.is_empty() {
-                                                                let text =
-                                                                    RichText::new(&current_segment)
-                                                                        .font(font_id.clone())
-                                                                        .color(current_color);
-                                                                ui.label(text);
-                                                            }
+                            ui.horizontal(|ui| {
+                                ui.spacing_mut().item_spacing.x = 0.0;
 
-                                                            // Start new segment
-                                                            current_segment = ch.to_string();
-                                                            current_color = color;
-                                                            segment_start = false;
-                                                        } else {
-                                                            // Add to current segment
-                                                            current_segment.push(ch);
-                                                        }
-                                                    }
+                                // Group consecutive characters with same color into segments
+                                let mut current_segment = String::new();
+                                let mut current_color = Color32::from_rgb(192, 192, 192);
+                                let mut segment_start = true;
 
-                                                    // Render final segment
-                                                    if !current_segment.is_empty() {
-                                                        let text = RichText::new(&current_segment)
-                                                            .font(font_id.clone())
-                                                            .color(current_color);
-                                                        ui.label(text);
-                                                    }
-                                                });
-                                            }
-                                        },
-                                    );
-                                });
-                        },
-                    );
+                                for (x, ch) in line.chars().enumerate() {
+                                    if x >= max_cols.saturating_sub(5) {
+                                        break;
+                                    } // Prevent overflow with smaller margin
+
+                                    let color = if y < self.color_buffer.len()
+                                        && x < self.color_buffer[y].len()
+                                    {
+                                        self.color_buffer[y][x]
+                                    } else {
+                                        Color32::from_rgb(192, 192, 192)
+                                    };
+
+                                    // If color changes or this is the first character, start new segment
+                                    if segment_start || color != current_color {
+                                        // Render previous segment if it exists
+                                        if !current_segment.is_empty() {
+                                            let text = RichText::new(&current_segment)
+                                                .font(font_id.clone())
+                                                .color(current_color);
+                                            ui.label(text);
+                                        }
+
+                                        // Start new segment
+                                        current_segment = ch.to_string();
+                                        current_color = color;
+                                        segment_start = false;
+                                    } else {
+                                        // Add to current segment
+                                        current_segment.push(ch);
+                                    }
+                                }
+
+                                // Render final segment
+                                if !current_segment.is_empty() {
+                                    let text = RichText::new(&current_segment)
+                                        .font(font_id.clone())
+                                        .color(current_color);
+                                    ui.label(text);
+                                }
+                            });
+                        }
+                    });
                 });
 
                 // Render game if active
@@ -690,66 +851,54 @@ impl eframe::App for EchoesApp {
                     if self.game.is_some() {
                         // Clone the game data to avoid borrow checker issues
                         let game_clone = self.game.clone().unwrap();
-                        self.render_game_screen_safe(&game_clone);
+                        if self.in_combat {
+                            self.render_combat_screen_safe(&game_clone);
+                        } else {
+                            self.render_game_screen_safe(&game_clone);
+                        }
                     }
                 }
 
-                // Status bar with dark theme
-                ui.separator();
-                egui::Frame::none()
-                    .fill(Color32::from_gray(20))
-                    .inner_margin(egui::Margin::same(5.0))
-                    .show(ui, |ui| {
-                        ui.horizontal(|ui| {
+                // Compact status bar at bottom - no separators or borders
+                ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
+                    // Messages area - compact and centered
+                    if !self.ui_messages.is_empty() {
+                        ui.horizontal_centered(|ui| {
                             ui.label(
-                                RichText::new("Status:").color(Color32::from_rgb(0, 255, 255)),
-                            );
-                            if self.main_menu {
-                                ui.label(RichText::new("Main Menu").color(Color32::YELLOW));
-                            } else if self.creating_character {
-                                ui.label(
-                                    RichText::new("Character Creation").color(Color32::YELLOW),
-                                );
-                            } else if self.show_combat_tutorial {
-                                ui.label(RichText::new("Combat Tutorial").color(Color32::YELLOW));
-                            } else if self.game_initialized {
-                                ui.label(RichText::new("In Game").color(Color32::GREEN));
-                            }
-
-                            ui.with_layout(
-                                egui::Layout::right_to_left(egui::Align::Center),
-                                |ui| {
-                                    if let Some(key) = self.last_key {
-                                        ui.label(
-                                            RichText::new(format!("Last key: {}", key))
-                                                .color(Color32::LIGHT_GRAY),
-                                        );
-                                    }
-                                },
-                            );
-                        });
-                    });
-
-                // Messages area with dark theme
-                if !self.ui_messages.is_empty() {
-                    ui.separator();
-                    egui::Frame::none()
-                        .fill(Color32::from_gray(15))
-                        .inner_margin(egui::Margin::same(5.0))
-                        .show(ui, |ui| {
-                            ui.label(
-                                RichText::new("Messages:").color(Color32::from_rgb(0, 255, 255)),
+                                RichText::new("Messages: ").color(Color32::from_rgb(0, 255, 255)),
                             );
                             for msg in &self.ui_messages {
-                                ui.label(RichText::new(format!("• {}", msg)).color(Color32::WHITE));
+                                ui.label(RichText::new(format!("{} ", msg)).color(Color32::WHITE));
                             }
                         });
 
-                    // Clear old messages
-                    if self.ui_messages.len() > 5 {
-                        self.ui_messages.remove(0);
+                        // Clear old messages
+                        if self.ui_messages.len() > 5 {
+                            self.ui_messages.remove(0);
+                        }
                     }
-                }
+
+                    // Status bar - compact and centered
+                    ui.horizontal_centered(|ui| {
+                        ui.label(RichText::new("Status: ").color(Color32::from_rgb(0, 255, 255)));
+                        if self.main_menu {
+                            ui.label(RichText::new("Main Menu").color(Color32::YELLOW));
+                        } else if self.creating_character {
+                            ui.label(RichText::new("Character Creation").color(Color32::YELLOW));
+                        } else if self.show_combat_tutorial {
+                            ui.label(RichText::new("Combat Tutorial").color(Color32::YELLOW));
+                        } else if self.game_initialized {
+                            ui.label(RichText::new("In Game").color(Color32::GREEN));
+                        }
+
+                        if let Some(key) = self.last_key {
+                            ui.label(
+                                RichText::new(format!(" | Last key: {}", key))
+                                    .color(Color32::LIGHT_GRAY),
+                            );
+                        }
+                    });
+                });
             });
 
         // Request repaint for smooth updates
@@ -761,9 +910,11 @@ impl eframe::App for EchoesApp {
 pub fn run_gui() -> Result<(), eframe::Error> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([1400.0, 1000.0])
-            .with_min_inner_size([1200.0, 800.0])
-            .with_title("Echoes of the Forgotten Realm"),
+            .with_fullscreen(true)
+            .with_title("Echoes of the Forgotten Realm") // This still is not centered correctly.
+            .with_resizable(true)
+            .with_maximize_button(true)
+            .with_minimize_button(true),
         ..Default::default()
     };
 

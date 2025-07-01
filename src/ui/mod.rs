@@ -13,7 +13,7 @@ use crate::character::{ClassType, Player};
 use crate::combat::{CombatAction, CombatResult};
 use crate::item::{ConsumableType, Equipment, EquipmentSlot, Item};
 use crate::platform;
-use crate::world::{Dungeon, Enemy, Level, Position, Tile, TileType};
+use crate::world::{Dungeon, Enemy, FogOfWar, FogOfWarConfig, Level, Position, Tile, TileType};
 
 const SCREEN_WIDTH: usize = 100;
 const SCREEN_HEIGHT: usize = 35;
@@ -21,6 +21,17 @@ const MAP_WIDTH: usize = 70;
 const MAP_HEIGHT: usize = 25;
 const UI_PANEL_WIDTH: usize = 35; // Increased panel width for longer content
 const BORDER_PADDING: usize = 4; // Increased padding inside the border
+
+/// Create fog of war configuration for terminal rendering
+fn create_fog_of_war() -> FogOfWar {
+    let config = FogOfWarConfig {
+        hide_unexplored: true,
+        show_explored_dimmed: true,
+        dimming_factor: 0.5,
+        unexplored_color: crate::world::fog_of_war::FogColor::BLACK,
+    };
+    FogOfWar::new(config)
+}
 
 pub struct UI {
     messages: Vec<String>,
@@ -615,104 +626,37 @@ impl UI {
                     content_start_y,
                 )?;
             } else {
-                // Standard Windows Terminal/PowerShell rendering
+                // Standard Windows Terminal/PowerShell rendering with centralized fog of war
                 // Batch all rendering operations for better Windows performance
                 let mut render_buffer = Vec::new();
+                let fog_of_war = create_fog_of_war();
 
                 for screen_y in 0..MAP_HEIGHT {
                     for screen_x in 0..MAP_WIDTH {
                         // Calculate map coordinates by offsetting from player position
                         let map_x = level.player_position.x - center_x as i32 + screen_x as i32;
                         let map_y = level.player_position.y - center_y as i32 + screen_y as i32;
+                        let pos = Position::new(map_x, map_y);
 
-                        // Ensure we're within map bounds
-                        if map_x < 0
-                            || map_x >= level.width as i32
-                            || map_y < 0
-                            || map_y >= level.height as i32
-                        {
+                        // Use centralized fog of war processing
+                        let fog_result =
+                            fog_of_war.process_position(level, pos, level.player_position);
+
+                        // Convert fog color to terminal color
+                        let terminal_color = if let Some(fog_color) = fog_result.color {
+                            FogOfWar::to_terminal_color(&fog_color)
+                        } else {
+                            Color::Black
+                        };
+
+                        if fog_result.should_render {
                             render_buffer.push((
                                 (content_start_x + screen_x) as u16,
                                 (content_start_y + screen_y) as u16,
-                                Color::Black,
-                                ' ',
+                                terminal_color,
+                                fog_result.character,
                             ));
-                            continue;
                         }
-
-                        let pos = Position::new(map_x, map_y);
-                        let tile = &level.tiles[map_y as usize][map_x as usize];
-
-                        // Determine what character to draw
-                        let char_to_draw = if pos == level.player_position {
-                            '@'
-                        } else if !tile.explored {
-                            ' '
-                        } else if tile.visible && level.enemies.contains_key(&pos) {
-                            'E'
-                        } else if tile.visible && level.items.contains_key(&pos) {
-                            '!'
-                        } else if !tile.visible {
-                            ' ' // Complete fog of war on Windows
-                        } else {
-                            tile.render()
-                        };
-
-                        let color = match char_to_draw {
-                            '@' => Color::Yellow,
-                            'E' => Color::Red,
-                            '!' => Color::Green,
-                            '#' => {
-                                if tile.visible {
-                                    Color::White
-                                } else {
-                                    Color::Black
-                                }
-                            }
-                            '.' => {
-                                if tile.visible {
-                                    Color::DarkGrey
-                                } else {
-                                    Color::Black
-                                }
-                            }
-                            '+' => {
-                                if tile.visible {
-                                    Color::Magenta
-                                } else {
-                                    Color::Black
-                                }
-                            }
-                            'C' => {
-                                if tile.visible {
-                                    Color::Cyan
-                                } else {
-                                    Color::Black
-                                }
-                            }
-                            '>' | '<' => {
-                                if tile.visible {
-                                    Color::Blue
-                                } else {
-                                    Color::Black
-                                }
-                            }
-                            ' ' => Color::Black,
-                            _ => {
-                                if tile.visible {
-                                    Color::Grey
-                                } else {
-                                    Color::Black
-                                }
-                            }
-                        };
-
-                        render_buffer.push((
-                            (content_start_x + screen_x) as u16,
-                            (content_start_y + screen_y) as u16,
-                            color,
-                            char_to_draw,
-                        ));
                     }
                 }
 
@@ -731,107 +675,39 @@ impl UI {
         }
 
         // Non-Windows platforms use original rendering
+        // Non-Windows systems with full ANSI support using centralized fog of war
         #[cfg(not(windows))]
         {
+            let fog_of_war = create_fog_of_war();
+
             for screen_y in 0..MAP_HEIGHT {
                 for screen_x in 0..MAP_WIDTH {
                     // Calculate map coordinates by offsetting from player position
                     let map_x = level.player_position.x - center_x as i32 + screen_x as i32;
                     let map_y = level.player_position.y - center_y as i32 + screen_y as i32;
+                    let pos = Position::new(map_x, map_y);
 
-                    // Ensure we're within map bounds
-                    if map_x < 0
-                        || map_x >= level.width as i32
-                        || map_y < 0
-                        || map_y >= level.height as i32
-                    {
+                    // Use centralized fog of war processing
+                    let fog_result = fog_of_war.process_position(level, pos, level.player_position);
+
+                    if fog_result.should_render {
+                        // Convert fog color to terminal color
+                        let terminal_color = if let Some(fog_color) = fog_result.color {
+                            FogOfWar::to_terminal_color(&fog_color)
+                        } else {
+                            Color::Black
+                        };
+
                         execute!(
                             stdout(),
                             cursor::MoveTo(
                                 (content_start_x + screen_x) as u16,
                                 (content_start_y + screen_y) as u16
                             ),
-                            style::SetForegroundColor(Color::Black),
-                            style::Print(' ')
+                            style::SetForegroundColor(terminal_color),
+                            style::Print(fog_result.character)
                         )?;
-                        continue;
                     }
-
-                    let pos = Position::new(map_x, map_y);
-                    let tile = &level.tiles[map_y as usize][map_x as usize];
-
-                    let char_to_draw = if pos == level.player_position {
-                        '@'
-                    } else if !tile.explored {
-                        ' '
-                    } else if tile.visible && level.enemies.contains_key(&pos) {
-                        'E'
-                    } else if tile.visible && level.items.contains_key(&pos) {
-                        '!'
-                    } else if !tile.visible {
-                        tile.render() // Show dimmed tile character on non-Windows
-                    } else {
-                        tile.render()
-                    };
-
-                    let color = match char_to_draw {
-                        '@' => Color::Yellow,
-                        'E' => Color::Red,
-                        '!' => Color::Green,
-                        '#' => {
-                            if tile.visible {
-                                Color::White
-                            } else {
-                                Color::DarkGrey
-                            }
-                        }
-                        '.' => {
-                            if tile.visible {
-                                Color::DarkGrey
-                            } else {
-                                Color::Black
-                            }
-                        }
-                        '+' => {
-                            if tile.visible {
-                                Color::Magenta
-                            } else {
-                                Color::DarkGrey
-                            }
-                        }
-                        'C' => {
-                            if tile.visible {
-                                Color::Cyan
-                            } else {
-                                Color::DarkGrey
-                            }
-                        }
-                        '>' | '<' => {
-                            if tile.visible {
-                                Color::Blue
-                            } else {
-                                Color::DarkGrey
-                            }
-                        }
-                        ' ' => Color::Black,
-                        _ => {
-                            if tile.visible {
-                                Color::Grey
-                            } else {
-                                Color::DarkGrey
-                            }
-                        }
-                    };
-
-                    execute!(
-                        stdout(),
-                        cursor::MoveTo(
-                            (content_start_x + screen_x) as u16,
-                            (content_start_y + screen_y) as u16
-                        ),
-                        style::SetForegroundColor(color),
-                        style::Print(char_to_draw)
-                    )?;
                 }
             }
         }
