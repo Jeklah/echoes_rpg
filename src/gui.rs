@@ -15,14 +15,20 @@ use eframe::egui;
 use egui::{Color32, FontFamily, FontId, RichText};
 
 #[cfg(feature = "gui")]
+#[derive(Debug, Clone, PartialEq)]
+enum CharacterCreationState {
+    EnteringName,
+    SelectingClass,
+}
+
 pub struct EchoesApp {
-    game: Option<crate::game::Game>,
+    game: Option<Game>,
     terminal_buffer: Vec<String>,
     color_buffer: Vec<Vec<Color32>>,
     input_buffer: String,
     last_key: Option<char>,
     show_combat_tutorial: bool,
-    window_size: (usize, usize),
+    window_size: (u32, u32),
     font_size: f32,
     char_width: f32,
     char_height: f32,
@@ -33,6 +39,7 @@ pub struct EchoesApp {
     character_name: String,
     character_class: Option<crate::character::ClassType>,
     creating_character: bool,
+    character_creation_state: CharacterCreationState,
     main_menu: bool,
     input_handler: crate::input::InputHandler,
     frame_count: u64,
@@ -44,31 +51,34 @@ pub struct EchoesApp {
 #[cfg(feature = "gui")]
 impl Default for EchoesApp {
     fn default() -> Self {
-        Self {
+        let mut app = Self {
             game: None,
-            terminal_buffer: vec![String::new(); 40],
-            color_buffer: vec![vec![Color32::from_rgb(192, 192, 192); 120]; 40],
+            terminal_buffer: vec![String::new(); 50],
+            color_buffer: vec![vec![Color32::from_rgb(192, 192, 192); 150]; 50],
             input_buffer: String::new(),
             last_key: None,
             show_combat_tutorial: false,
             window_size: (1200, 800),
-            font_size: 16.0,
-            char_width: 9.6,
-            char_height: 19.2,
+            font_size: 14.0,
+            char_width: 8.0,
+            char_height: 16.0,
             cursor_pos: (0, 0),
-            terminal_size: (120, 40),
+            terminal_size: (150, 50),
             ui_messages: Vec::new(),
             game_initialized: false,
             character_name: String::new(),
             character_class: None,
-            creating_character: false,
+            creating_character: true,
+            character_creation_state: CharacterCreationState::EnteringName,
             main_menu: true,
             input_handler: crate::input::InputHandler::new(),
             frame_count: 0,
             in_combat: false,
             combat_enemy_pos: None,
             combat_messages: Vec::new(),
-        }
+        };
+        app.init_terminal();
+        app
     }
 }
 
@@ -167,6 +177,8 @@ impl EchoesApp {
                 self.main_menu = false;
                 self.creating_character = true;
                 self.character_name.clear(); // Clear any residual input
+                self.character_class = None; // Reset class selection
+                self.character_creation_state = CharacterCreationState::EnteringName; // Reset to name input
                 self.input_handler.clear_state(); // Clear input state
                 self.show_character_creation();
             }
@@ -186,78 +198,114 @@ impl EchoesApp {
 
         self.print_at(center_x, 5, title, Some(Color32::YELLOW));
 
-        if self.character_name.is_empty() {
-            self.print_at(10, 10, "Name: _", None);
-            self.print_at(
-                10,
-                13,
-                "Type your character name and press Enter",
-                Some(Color32::from_rgb(0, 255, 255)),
-            );
-        } else if self.character_class.is_none() {
-            self.print_at(10, 10, &format!("Name: {}", self.character_name), None);
-            self.print_at(
-                10,
-                13,
-                "Choose your class:",
-                Some(Color32::from_rgb(0, 255, 255)),
-            );
-            self.print_at(10, 15, "1. Warrior - Strong melee fighter", None);
-            self.print_at(10, 16, "2. Mage - Powerful spellcaster", None);
-            self.print_at(10, 17, "3. Ranger - Balanced archer", None);
-            self.print_at(10, 18, "4. Cleric - Healer and support", None);
+        match self.character_creation_state {
+            CharacterCreationState::EnteringName => {
+                let display_name = if self.character_name.is_empty() {
+                    "Name: _".to_string()
+                } else {
+                    format!("Name: {}_", self.character_name)
+                };
+                self.print_at(10, 10, &display_name, None);
+                self.print_at(
+                    10,
+                    13,
+                    "Type your character name and press Enter",
+                    Some(Color32::from_rgb(0, 255, 255)),
+                );
+                self.print_at(
+                    10,
+                    15,
+                    "(Use Backspace to delete, Esc to go back)",
+                    Some(Color32::DARK_GRAY),
+                );
+            }
+            CharacterCreationState::SelectingClass => {
+                self.print_at(10, 10, &format!("Name: {}", self.character_name), None);
+                self.print_at(
+                    10,
+                    13,
+                    "Choose your class:",
+                    Some(Color32::from_rgb(0, 255, 255)),
+                );
+                self.print_at(10, 15, "1. Warrior - Strong melee fighter", None);
+                self.print_at(10, 16, "2. Mage - Powerful spellcaster", None);
+                self.print_at(10, 17, "3. Ranger - Balanced archer", None);
+                self.print_at(10, 18, "4. Cleric - Healer and support", None);
+                self.print_at(
+                    10,
+                    20,
+                    "(Press number key to select class)",
+                    Some(Color32::DARK_GRAY),
+                );
+            }
         }
     }
 
     fn handle_character_creation_input(&mut self, action: &crate::input::InputAction) {
-        if self.character_class.is_none() {
-            // Still in character creation phase
-            match action {
-                crate::input::InputAction::Character(c) => {
-                    // Add character to name if it's valid and we have space
-                    if (c.is_alphanumeric() || *c == ' ') && self.character_name.len() < 20 {
-                        self.character_name.push(*c);
-                        self.show_character_creation();
+        match self.character_creation_state {
+            CharacterCreationState::EnteringName => {
+                match action {
+                    crate::input::InputAction::Character(c) => {
+                        // Add character to name if it's valid and we have space
+                        if (c.is_alphanumeric() || *c == ' ') && self.character_name.len() < 20 {
+                            self.character_name.push(*c);
+                            self.show_character_creation();
+                        }
                     }
-                }
-                crate::input::InputAction::Backspace => {
-                    if !self.character_name.is_empty() {
-                        self.character_name.pop();
-                        self.show_character_creation();
+                    crate::input::InputAction::Backspace => {
+                        if !self.character_name.is_empty() {
+                            self.character_name.pop();
+                            self.show_character_creation();
+                        }
                     }
-                }
-                crate::input::InputAction::Enter => {
-                    // Can't proceed without a name
-                    if !self.character_name.is_empty() {
-                        // Move to class selection - show updated screen
-                        self.show_character_creation();
+                    crate::input::InputAction::Enter => {
+                        // Proceed to class selection if we have a name
+                        if !self.character_name.is_empty() {
+                            self.character_creation_state = CharacterCreationState::SelectingClass;
+                            self.show_character_creation();
+                        } else {
+                            // Set default name if empty
+                            self.character_name = "Hero".to_string();
+                            self.character_creation_state = CharacterCreationState::SelectingClass;
+                            self.show_character_creation();
+                        }
                     }
+                    crate::input::InputAction::Exit => {
+                        // Go back to main menu
+                        self.main_menu = true;
+                        self.creating_character = false;
+                        self.character_name.clear();
+                        self.character_creation_state = CharacterCreationState::EnteringName;
+                        self.show_main_menu();
+                    }
+                    _ => {}
                 }
-                crate::input::InputAction::MenuOption(1) => {
-                    if !self.character_name.is_empty() {
+            }
+            CharacterCreationState::SelectingClass => {
+                match action {
+                    crate::input::InputAction::MenuOption(1) => {
                         self.character_class = Some(crate::character::ClassType::Warrior);
                         self.finish_character_creation();
                     }
-                }
-                crate::input::InputAction::MenuOption(2) => {
-                    if !self.character_name.is_empty() {
+                    crate::input::InputAction::MenuOption(2) => {
                         self.character_class = Some(crate::character::ClassType::Mage);
                         self.finish_character_creation();
                     }
-                }
-                crate::input::InputAction::MenuOption(3) => {
-                    if !self.character_name.is_empty() {
+                    crate::input::InputAction::MenuOption(3) => {
                         self.character_class = Some(crate::character::ClassType::Ranger);
                         self.finish_character_creation();
                     }
-                }
-                crate::input::InputAction::MenuOption(4) => {
-                    if !self.character_name.is_empty() {
+                    crate::input::InputAction::MenuOption(4) => {
                         self.character_class = Some(crate::character::ClassType::Cleric);
                         self.finish_character_creation();
                     }
+                    crate::input::InputAction::Backspace | crate::input::InputAction::Exit => {
+                        // Go back to name input
+                        self.character_creation_state = CharacterCreationState::EnteringName;
+                        self.show_character_creation();
+                    }
+                    _ => {}
                 }
-                _ => {}
             }
         }
     }
