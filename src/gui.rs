@@ -320,6 +320,10 @@ impl EchoesApp {
 
     fn start_game(&mut self) {
         self.show_combat_tutorial = false;
+        // Set game state to Playing so enemies can move
+        if let Some(ref mut game) = self.game {
+            game.game_state = crate::game::GameState::Playing;
+        }
         // Don't render here, will be handled in main update loop
     }
 
@@ -436,24 +440,40 @@ impl EchoesApp {
             } else {
                 match key {
                     'w' | 'W' => {
-                        game.move_player(0, -1);
-                        game.update_visibility();
-                        self.check_for_combat();
+                        if game.move_player(0, -1) {
+                            game.update_visibility();
+                            if !matches!(game.game_state, crate::game::GameState::Combat(_)) {
+                                game.process_turn();
+                            }
+                            self.check_for_combat();
+                        }
                     }
                     's' | 'S' => {
-                        game.move_player(0, 1);
-                        game.update_visibility();
-                        self.check_for_combat();
+                        if game.move_player(0, 1) {
+                            game.update_visibility();
+                            if !matches!(game.game_state, crate::game::GameState::Combat(_)) {
+                                game.process_turn();
+                            }
+                            self.check_for_combat();
+                        }
                     }
                     'a' | 'A' => {
-                        game.move_player(-1, 0);
-                        game.update_visibility();
-                        self.check_for_combat();
+                        if game.move_player(-1, 0) {
+                            game.update_visibility();
+                            if !matches!(game.game_state, crate::game::GameState::Combat(_)) {
+                                game.process_turn();
+                            }
+                            self.check_for_combat();
+                        }
                     }
                     'd' | 'D' => {
-                        game.move_player(1, 0);
-                        game.update_visibility();
-                        self.check_for_combat();
+                        if game.move_player(1, 0) {
+                            game.update_visibility();
+                            if !matches!(game.game_state, crate::game::GameState::Combat(_)) {
+                                game.process_turn();
+                            }
+                            self.check_for_combat();
+                        }
                     }
                     'i' | 'I' => {
                         // Show inventory (simplified for GUI)
@@ -638,6 +658,15 @@ impl EchoesApp {
             crate::input::InputAction::Backspace => '\u{8}',
             crate::input::InputAction::MenuOption(n) => {
                 char::from_digit(*n as u32, 10).unwrap_or('0')
+            }
+            crate::input::InputAction::Move(direction) => {
+                match direction {
+                    crate::input::Direction::North => 'w',
+                    crate::input::Direction::South => 's',
+                    crate::input::Direction::West => 'a',
+                    crate::input::Direction::East => 'd',
+                    _ => return, // Ignore Up/Down for now
+                }
             }
             _ => return, // Ignore other actions for now
         };
@@ -843,7 +872,7 @@ impl eframe::App for EchoesApp {
                 // Render game if active
                 if self.game_initialized && !self.show_combat_tutorial {
                     if self.game.is_some() {
-                        // Clone the game data to avoid borrow checker issues
+                        // Clone the game data only at render time to avoid stale state
                         let game_clone = self.game.clone().unwrap();
                         if self.in_combat {
                             self.render_combat_screen_safe(&game_clone);
