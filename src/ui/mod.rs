@@ -11,6 +11,7 @@ use std::time::Duration;
 
 use crate::character::{ClassType, Player};
 use crate::combat::{CombatAction, CombatResult};
+use crate::inventory::InventoryScreen;
 use crate::item::{ConsumableType, Equipment, EquipmentSlot, Item};
 use crate::platform;
 use crate::world::{Dungeon, Enemy, FogOfWar, FogOfWarConfig, Level, Position, Tile, TileType};
@@ -1187,52 +1188,40 @@ impl UI {
     pub fn draw_inventory_screen(&mut self, player: &Player) -> io::Result<()> {
         self.clear_screen()?;
 
+        // Get display data from inventory module
+        let display_data = InventoryScreen::get_display_data(player);
+
         execute!(
             stdout(),
             cursor::MoveTo(30, 1),
             style::SetForegroundColor(Color::Cyan),
-            style::Print("Inventory"),
+            style::Print(InventoryScreen::get_title()),
             style::SetForegroundColor(Color::White),
             cursor::MoveTo(10, 3),
-            style::Print(format!("Gold: {}", player.gold))
+            style::Print(display_data.gold_display())
         )?;
 
-        if player.inventory.items.is_empty() {
+        if display_data.is_empty {
             execute!(
                 stdout(),
                 cursor::MoveTo(10, 5),
-                style::Print("Your inventory is empty.")
+                style::Print(InventoryScreen::get_empty_message())
             )?;
         } else {
             execute!(
                 stdout(),
                 cursor::MoveTo(5, 5),
-                style::Print("Items:"),
+                style::Print(InventoryScreen::get_items_header()),
                 cursor::MoveTo(5, 6),
-                style::Print("------")
+                style::Print(InventoryScreen::get_items_separator())
             )?;
 
-            for (i, item) in player.inventory.items.iter().enumerate() {
-                let item_name = item.name();
-                let equipped_marker = match item {
-                    Item::Equipment(equipment) => {
-                        if let Some(Some(idx)) = player.inventory.equipped.get(&equipment.slot) {
-                            if *idx == i {
-                                " [E]"
-                            } else {
-                                ""
-                            }
-                        } else {
-                            ""
-                        }
-                    }
-                    _ => "",
-                };
-
+            for (display_index, item) in display_data.items_with_display_index() {
+                let item_line = InventoryScreen::format_item_line(item, display_index);
                 execute!(
                     stdout(),
-                    cursor::MoveTo(5, 7 + i as u16),
-                    style::Print(format!("{}. {}{}", i + 1, item_name, equipped_marker))
+                    cursor::MoveTo(5, 6 + display_index as u16),
+                    style::Print(item_line)
                 )?;
             }
         }
@@ -1240,7 +1229,7 @@ impl UI {
         execute!(
             stdout(),
             cursor::MoveTo(10, SCREEN_HEIGHT as u16 - 3),
-            style::Print("Press a number key to use/equip an item, E to exit...")
+            style::Print(InventoryScreen::get_help_text())
         )?;
 
         Ok(())

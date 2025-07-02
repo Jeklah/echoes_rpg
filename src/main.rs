@@ -1,6 +1,7 @@
 mod character;
 mod combat;
 mod game;
+mod inventory;
 mod item;
 mod platform;
 mod ui;

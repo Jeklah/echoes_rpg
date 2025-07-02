@@ -8,6 +8,8 @@ use crate::game::Game;
 #[cfg(feature = "gui")]
 use crate::input::{InputAction, InputHandler};
 #[cfg(feature = "gui")]
+use crate::inventory::InventoryScreen;
+#[cfg(feature = "gui")]
 use crate::world::{FogOfWar, FogOfWarConfig, Position};
 #[cfg(feature = "gui")]
 use eframe::egui;
@@ -19,6 +21,13 @@ use egui::{Color32, FontFamily, FontId, RichText};
 enum CharacterCreationState {
     EnteringName,
     SelectingClass,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum GuiScreenState {
+    Game,
+    Inventory,
+    Character,
 }
 
 pub struct EchoesApp {
@@ -46,6 +55,7 @@ pub struct EchoesApp {
     in_combat: bool,
     combat_enemy_pos: Option<Position>,
     combat_messages: Vec<String>,
+    gui_screen_state: GuiScreenState,
 }
 
 #[cfg(feature = "gui")]
@@ -76,6 +86,7 @@ impl Default for EchoesApp {
             in_combat: false,
             combat_enemy_pos: None,
             combat_messages: Vec::new(),
+            gui_screen_state: GuiScreenState::Game,
         };
         app.init_terminal();
         app
@@ -524,12 +535,12 @@ impl EchoesApp {
                         }
                     }
                     'i' | 'I' => {
-                        // Show inventory (simplified for GUI)
-                        self.ui_messages.push("Inventory opened".to_string());
+                        // Show inventory screen
+                        self.gui_screen_state = GuiScreenState::Inventory;
                     }
                     'c' | 'C' => {
-                        // Show character screen (simplified for GUI)
-                        self.ui_messages.push("Character screen opened".to_string());
+                        // Show character screen
+                        self.gui_screen_state = GuiScreenState::Character;
                     }
                     'q' | 'Q' => {
                         // Quit to main menu
@@ -694,7 +705,11 @@ impl EchoesApp {
                 _ => {}
             }
         } else if self.game_initialized {
-            self.handle_game_input_legacy(action);
+            match self.gui_screen_state {
+                GuiScreenState::Game => self.handle_game_input_legacy(action),
+                GuiScreenState::Inventory => self.handle_inventory_input(action),
+                GuiScreenState::Character => self.handle_character_screen_input(action),
+            }
         }
     }
 
@@ -799,6 +814,190 @@ impl EchoesApp {
                     }
                 }
             }
+        }
+    }
+
+    fn render_inventory_screen(&mut self, player: &crate::character::Player) {
+        self.clear_screen();
+
+        // Get display data from inventory module
+        let display_data = InventoryScreen::get_display_data(player);
+
+        // Title
+        self.print_at(
+            30,
+            1,
+            InventoryScreen::get_title(),
+            Some(Color32::from_rgb(0, 255, 255)),
+        );
+
+        // Gold
+        self.print_at(10, 3, &display_data.gold_display(), None);
+
+        if display_data.is_empty {
+            self.print_at(10, 5, InventoryScreen::get_empty_message(), None);
+        } else {
+            self.print_at(5, 5, InventoryScreen::get_items_header(), None);
+            self.print_at(5, 6, InventoryScreen::get_items_separator(), None);
+
+            for (display_index, item) in display_data.items_with_display_index() {
+                let item_line = InventoryScreen::format_item_line(item, display_index);
+                self.print_at(5, 6 + display_index, &item_line, None);
+            }
+        }
+
+        self.print_at(
+            10,
+            45,
+            InventoryScreen::get_help_text(),
+            Some(Color32::from_rgb(128, 128, 128)),
+        );
+    }
+
+    fn render_character_screen(&mut self, player: &crate::character::Player) {
+        self.clear_screen();
+
+        // Title
+        self.print_at(
+            30,
+            1,
+            "Character Sheet",
+            Some(Color32::from_rgb(0, 255, 255)),
+        );
+
+        // Basic info
+        self.print_at(10, 3, &format!("Name: {}", player.name), None);
+        self.print_at(10, 4, &format!("Class: {}", player.class.class_type), None);
+        self.print_at(10, 5, &format!("Level: {}", player.level), None);
+        self.print_at(
+            10,
+            6,
+            &format!("Experience: {}/{}", player.experience, player.level * 100),
+            None,
+        );
+        self.print_at(
+            10,
+            7,
+            &format!("Health: {}/{}", player.health, player.max_health),
+            None,
+        );
+        self.print_at(
+            10,
+            8,
+            &format!("Mana: {}/{}", player.mana, player.max_mana),
+            None,
+        );
+        self.print_at(10, 9, &format!("Gold: {}", player.gold), None);
+
+        // Stats
+        self.print_at(10, 11, "Stats:", Some(Color32::from_rgb(0, 255, 255)));
+        self.print_at(
+            10,
+            12,
+            &format!(
+                "Strength: {}",
+                player.stats.get_stat(crate::character::StatType::Strength)
+            ),
+            None,
+        );
+        self.print_at(
+            10,
+            13,
+            &format!(
+                "Intelligence: {}",
+                player
+                    .stats
+                    .get_stat(crate::character::StatType::Intelligence)
+            ),
+            None,
+        );
+        self.print_at(
+            10,
+            14,
+            &format!(
+                "Dexterity: {}",
+                player.stats.get_stat(crate::character::StatType::Dexterity)
+            ),
+            None,
+        );
+        self.print_at(
+            10,
+            15,
+            &format!(
+                "Constitution: {}",
+                player
+                    .stats
+                    .get_stat(crate::character::StatType::Constitution)
+            ),
+            None,
+        );
+        self.print_at(
+            10,
+            16,
+            &format!(
+                "Wisdom: {}",
+                player.stats.get_stat(crate::character::StatType::Wisdom)
+            ),
+            None,
+        );
+
+        // Abilities
+        self.print_at(40, 11, "Abilities:", Some(Color32::from_rgb(0, 255, 255)));
+        for (i, ability) in player.class.abilities.iter().enumerate() {
+            self.print_at(40, 12 + i, &format!("{}. {}", i + 1, ability), None);
+        }
+
+        // Combat stats
+        self.print_at(
+            40,
+            18,
+            "Combat Stats:",
+            Some(Color32::from_rgb(0, 255, 255)),
+        );
+        self.print_at(40, 19, &format!("Attack: {}", player.attack_damage()), None);
+        self.print_at(40, 20, &format!("Defense: {}", player.defense()), None);
+
+        self.print_at(
+            10,
+            45,
+            "Press any key to return...",
+            Some(Color32::from_rgb(128, 128, 128)),
+        );
+    }
+
+    fn handle_inventory_input(&mut self, action: &crate::input::InputAction) {
+        match action {
+            crate::input::InputAction::Character(c) => {
+                let inventory_action = InventoryScreen::process_input(*c);
+
+                if let Some(ref mut game) = self.game {
+                    match InventoryScreen::handle_action(&mut game.player, inventory_action) {
+                        Some(result) => {
+                            self.ui_messages.push(result.message);
+                        }
+                        None => {
+                            // Exit inventory
+                            self.gui_screen_state = GuiScreenState::Game;
+                        }
+                    }
+                }
+            }
+            crate::input::InputAction::Exit => {
+                self.gui_screen_state = GuiScreenState::Game;
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_character_screen_input(&mut self, action: &crate::input::InputAction) {
+        // Any key returns to game screen
+        match action {
+            crate::input::InputAction::Character(_)
+            | crate::input::InputAction::Enter
+            | crate::input::InputAction::Exit => {
+                self.gui_screen_state = GuiScreenState::Game;
+            }
+            _ => {}
         }
     }
 }
@@ -917,15 +1116,26 @@ impl eframe::App for EchoesApp {
                     });
                 });
 
-                // Render game if active
+                // Render appropriate screen based on state
                 if self.game_initialized && !self.show_combat_tutorial {
-                    if self.game.is_some() {
-                        // Clone the game data only at render time to avoid stale state
-                        let game_clone = self.game.clone().unwrap();
-                        if self.in_combat {
-                            self.render_combat_screen_safe(&game_clone);
-                        } else {
-                            self.render_game_screen_safe(&game_clone);
+                    if let Some(game) = &self.game {
+                        match self.gui_screen_state {
+                            GuiScreenState::Game => {
+                                let game_clone = game.clone();
+                                if self.in_combat {
+                                    self.render_combat_screen_safe(&game_clone);
+                                } else {
+                                    self.render_game_screen_safe(&game_clone);
+                                }
+                            }
+                            GuiScreenState::Inventory => {
+                                let player_clone = game.player.clone();
+                                self.render_inventory_screen(&player_clone);
+                            }
+                            GuiScreenState::Character => {
+                                let player_clone = game.player.clone();
+                                self.render_character_screen(&player_clone);
+                            }
                         }
                     }
                 }
