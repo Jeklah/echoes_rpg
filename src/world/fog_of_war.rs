@@ -110,6 +110,7 @@ impl FogOfWar {
     }
 
     /// Create a fog of war processor with default configuration
+    #[allow(dead_code)]
     pub fn with_defaults() -> Self {
         Self::new(FogOfWarConfig::default())
     }
@@ -301,11 +302,13 @@ impl FogOfWar {
     }
 
     /// Update the fog of war configuration
+    #[allow(dead_code)]
     pub fn set_config(&mut self, config: FogOfWarConfig) {
         self.config = config;
     }
 
     /// Get the current fog of war configuration
+    #[allow(dead_code)]
     pub fn get_config(&self) -> &FogOfWarConfig {
         &self.config
     }
@@ -315,6 +318,7 @@ impl FogOfWar {
 impl FogOfWar {
     /// Convert FogColor to egui Color32 for GUI rendering
     #[cfg(feature = "gui")]
+    #[allow(dead_code)]
     pub fn to_egui_color(color: &FogColor) -> egui::Color32 {
         egui::Color32::from_rgba_unmultiplied(color.r, color.g, color.b, color.a)
     }

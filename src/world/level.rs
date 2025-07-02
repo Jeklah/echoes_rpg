@@ -18,6 +18,7 @@ impl Position {
         Position { x, y }
     }
 
+    #[allow(dead_code)]
     pub fn distance(&self, other: &Position) -> f32 {
         let dx = (self.x - other.x) as f32;
         let dy = (self.y - other.y) as f32;
@@ -382,6 +383,7 @@ impl Level {
         x >= 0 && x < self.width as i32 && y >= 0 && y < self.height as i32
     }
 
+    #[allow(dead_code)]
     pub fn is_position_walkable(&self, pos: Position) -> bool {
         // Check if the position is valid and the tile type is walkable
         self.is_position_valid(pos.x, pos.y)
@@ -409,12 +411,14 @@ impl Level {
     }
 
     /// Gets a tile at the specified position
+    #[allow(dead_code)]
     pub fn get_tile_at(&self, pos: &Position) -> Option<&Tile> {
         self.get_tile(pos.x, pos.y)
     }
 
     // We already have is_tile_walkable method defined above
     // This is just a helper that uses get_tile_at
+    #[allow(dead_code)]
     pub fn is_position_walkable_by_ref(&self, pos: &Position) -> bool {
         if let Some(tile) = self.get_tile_at(pos) {
             tile.tile_type.is_walkable()

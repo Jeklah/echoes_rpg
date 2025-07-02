@@ -1,21 +1,18 @@
 use crossterm::{
     cursor,
-    event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
-    execute, queue,
-    style::{self, Color, Stylize},
-    terminal::{self, Clear, ClearType},
+    event::{self, Event, KeyCode, KeyEvent},
+    execute,
+    style::{self, Color},
+    terminal::{self},
 };
-use std::io::{self, stdout, Write};
-use std::thread;
-use std::time::Duration;
+use std::io::{self, stdout};
 
 use crate::character::{ClassType, Player};
 use crate::combat::{CombatAction, CombatResult};
-use crate::item::{ConsumableType, Equipment, EquipmentSlot, Item};
+use crate::item::Item;
 use crate::platform;
-use crate::world::{Dungeon, Enemy, FogOfWar, FogOfWarConfig, Level, Position, Tile, TileType};
+use crate::world::{Dungeon, Enemy, FogOfWar, Level, Position};
 
-const SCREEN_WIDTH: usize = 100;
 const SCREEN_HEIGHT: usize = 35;
 const MAP_WIDTH: usize = 70;
 const MAP_HEIGHT: usize = 25;
@@ -626,7 +623,7 @@ impl UI {
 
     pub fn draw_game_screen(
         &mut self,
-        player: &Player,
+        _player: &Player,
         level: &Level,
         dungeon: &Dungeon,
     ) -> io::Result<()> {
@@ -1507,7 +1504,7 @@ impl UI {
             ));
         }
 
-        for (i, (item_index, item)) in consumables.iter().enumerate() {
+        for (i, (_item_index, item)) in consumables.iter().enumerate() {
             execute!(
                 stdout(),
                 cursor::MoveTo(10, 5 + i as u16),

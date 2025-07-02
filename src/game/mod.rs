@@ -1,15 +1,11 @@
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use std::io;
-#[cfg(windows)]
-use std::time::Instant;
 
-use crate::character::{ClassType, Player};
-use crate::combat::{process_combat_turn, CombatAction, CombatResult};
+use crate::character::Player;
+use crate::combat::{process_combat_turn, CombatResult};
 use crate::item::Item;
-use crate::platform;
 use crate::ui::UI;
-use crate::world::{Dungeon, DungeonType, Level, Position, Tile, TileType};
+use crate::world::{Dungeon, Level, Position, Tile, TileType};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum GameState {
@@ -162,6 +158,7 @@ impl Game {
 
     // This method is kept for compatibility but is no longer used
     // Combat is now handled directly in the game loop
+    #[allow(dead_code)]
     pub fn handle_combat(&mut self, _enemy_pos: Position) -> CombatResult {
         let mut result = CombatResult::new();
         result.add_message("Combat handled in game loop now.");

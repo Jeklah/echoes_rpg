@@ -22,6 +22,7 @@ pub fn create_standard_fog_of_war() -> FogOfWar {
 
 /// Creates a fog-of-war instance with custom configuration
 /// for cases where non-standard settings are needed.
+#[allow(dead_code)]
 pub fn create_custom_fog_of_war(
     hide_unexplored: bool,
     show_explored_dimmed: bool,
@@ -43,7 +44,7 @@ mod tests {
 
     #[test]
     fn test_standard_fog_of_war_creation() {
-        let fog = create_standard_fog_of_war();
+        let _fog = create_standard_fog_of_war();
         // Test that the fog instance is created successfully
         // This is mainly to ensure the factory function doesn't panic
         assert!(true); // Placeholder - actual fog testing would depend on FogOfWar's public interface
@@ -51,7 +52,7 @@ mod tests {
 
     #[test]
     fn test_custom_fog_of_war_creation() {
-        let fog = create_custom_fog_of_war(false, true, 0.3, FogColor::BLACK);
+        let _fog = create_custom_fog_of_war(false, true, 0.3, FogColor::BLACK);
         // Test that custom fog instance is created successfully
         assert!(true); // Placeholder - actual fog testing would depend on FogOfWar's public interface
     }

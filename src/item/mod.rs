@@ -4,7 +4,7 @@ pub mod inventory;
 
 // Re-exports
 pub use consumable::{Consumable, ConsumableType};
-pub use equipment::{Equipment, EquipmentSlot, EquipmentType};
+pub use equipment::{Equipment, EquipmentSlot};
 pub use inventory::Inventory;
 
 use rand::Rng;
@@ -30,6 +30,7 @@ impl Item {
         }
     }
 
+    #[allow(dead_code)]
     pub fn description(&self) -> &str {
         match self {
             Item::Equipment(equipment) => &equipment.description,
@@ -38,6 +39,7 @@ impl Item {
         }
     }
 
+    #[allow(dead_code)]
     pub fn value(&self) -> u32 {
         match self {
             Item::Equipment(equipment) => equipment.value,

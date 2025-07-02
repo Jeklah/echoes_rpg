@@ -6,9 +6,9 @@ use crate::character::Player;
 #[cfg(feature = "gui")]
 use crate::game::Game;
 #[cfg(feature = "gui")]
-use crate::input::{InputAction, InputHandler};
+// Input handler removed as it's not directly used
 #[cfg(feature = "gui")]
-use crate::world::{FogOfWar, FogOfWarConfig, Position};
+use crate::world::{FogOfWar, Position};
 #[cfg(feature = "gui")]
 use eframe::egui;
 #[cfg(feature = "gui")]
@@ -16,11 +16,13 @@ use egui::{Color32, FontFamily, FontId, RichText};
 
 #[cfg(feature = "gui")]
 #[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)]
 enum CharacterCreationState {
     EnteringName,
     SelectingClass,
 }
 
+#[allow(dead_code)]
 pub struct EchoesApp {
     game: Option<Game>,
     terminal_buffer: Vec<String>,
@@ -83,6 +85,7 @@ impl Default for EchoesApp {
 }
 
 #[cfg(feature = "gui")]
+#[allow(dead_code)]
 impl EchoesApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         // Configure dark theme and colors for terminal appearance
@@ -312,7 +315,7 @@ impl EchoesApp {
 
     fn finish_character_creation(&mut self) {
         if let Some(class_type) = self.character_class {
-            let class = crate::character::Class::new(class_type);
+            let _class = crate::character::Class::new(class_type);
             let player = Player::new(self.character_name.clone(), class_type);
             self.game = Some(Game::new(player));
             self.creating_character = false;
@@ -978,6 +981,7 @@ impl eframe::App for EchoesApp {
 }
 
 #[cfg(feature = "gui")]
+#[allow(dead_code)]
 pub fn run_gui() -> Result<(), eframe::Error> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -1003,6 +1007,7 @@ pub fn run_gui() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[cfg(feature = "gui")]
+#[allow(dead_code)]
 impl EchoesApp {
     fn get_game_info(&self) -> Option<(String, i32, i32, i32, i32, i32, i32)> {
         if let Some(ref game) = self.game {

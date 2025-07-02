@@ -60,6 +60,7 @@ pub struct Equipment {
 }
 
 impl Equipment {
+    #[allow(dead_code)]
     pub fn new(
         name: String,
         description: String,
