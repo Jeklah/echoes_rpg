@@ -444,50 +444,104 @@ impl UI {
     }
 
     fn get_character_name(&mut self) -> io::Result<String> {
-        self.clear_screen()?;
-
-        // Get actual terminal size
-        let (term_width, term_height) = terminal::size()?;
-
-        // Create a centered box for name input
-        let border_width = 60;
-        let border_height = 10;
-        let start_x = ((term_width as i32 - border_width as i32) / 2).max(0) as u16;
-        let start_y = ((term_height as i32 - border_height as i32) / 2).max(0) as u16;
-
-        self.draw_game_border(
-            start_x as usize,
-            start_y as usize,
-            border_width as usize,
-            border_height as usize,
-        )?;
-
-        let title = "Character Creation";
-        let title_pos_x = start_x + (border_width - title.len() as u16) / 2;
-
-        execute!(
-            stdout(),
-            cursor::MoveTo(title_pos_x, start_y - 1),
-            style::SetForegroundColor(Color::Cyan),
-            style::Print(title),
-            cursor::MoveTo(start_x + 5, start_y + 3),
-            style::SetForegroundColor(Color::White),
-            style::Print("Enter your character's name: "),
-            cursor::MoveTo(start_x + 33, start_y + 3),
-            cursor::Show
-        )?;
-
-        terminal::disable_raw_mode()?;
         let mut name = String::new();
-        io::stdin().read_line(&mut name)?;
-        name = name.trim().to_string();
-        terminal::enable_raw_mode()?;
+        let max_name_length = 20;
 
-        if name.is_empty() {
-            name = "Hero".to_string();
+        loop {
+            self.clear_screen()?;
+
+            // Get actual terminal size
+            let (term_width, term_height) = terminal::size()?;
+
+            // Create a centered box for name input
+            let border_width = 60;
+            let border_height = 12;
+            let start_x = ((term_width as i32 - border_width as i32) / 2).max(0) as u16;
+            let start_y = ((term_height as i32 - border_height as i32) / 2).max(0) as u16;
+
+            self.draw_game_border(
+                start_x as usize,
+                start_y as usize,
+                border_width as usize,
+                border_height as usize,
+            )?;
+
+            let title = "Character Creation";
+            let title_pos_x = start_x + (border_width - title.len() as u16) / 2;
+
+            // Display current name with cursor
+            let display_name = if name.is_empty() {
+                "_".to_string()
+            } else {
+                format!("{}_", name)
+            };
+
+            execute!(
+                stdout(),
+                cursor::MoveTo(title_pos_x, start_y - 1),
+                style::SetForegroundColor(Color::Cyan),
+                style::Print(title),
+                cursor::MoveTo(start_x + 5, start_y + 3),
+                style::SetForegroundColor(Color::White),
+                style::Print("Enter your character's name:"),
+                cursor::MoveTo(start_x + 5, start_y + 5),
+                style::SetForegroundColor(Color::Yellow),
+                style::Print(&display_name),
+                cursor::MoveTo(start_x + 5, start_y + 8),
+                style::SetForegroundColor(Color::Green),
+                style::Print("Press ENTER to confirm"),
+                cursor::MoveTo(start_x + 5, start_y + 9),
+                style::SetForegroundColor(Color::DarkGrey),
+                style::Print("(or type a name and press ENTER)"),
+                cursor::Hide
+            )?;
+
+            // Read input in raw mode
+            if let Event::Key(key_event) = event::read()? {
+                // On Windows, only process key press events to avoid duplicates
+                #[cfg(windows)]
+                {
+                    if key_event.kind != KeyEventKind::Press {
+                        continue;
+                    }
+                }
+
+                match key_event.code {
+                    KeyCode::Enter => {
+                        // Confirm name entry
+                        if name.is_empty() {
+                            name = "Hero".to_string();
+                        }
+                        break;
+                    }
+                    KeyCode::Backspace => {
+                        // Remove last character
+                        name.pop();
+                    }
+                    KeyCode::Char(c) => {
+                        // Add character if name isn't too long and character is valid
+                        if name.len() < max_name_length && (c.is_alphanumeric() || c == ' ') {
+                            name.push(c);
+                        }
+                    }
+                    KeyCode::Esc => {
+                        // Exit character creation
+                        return Err(io::Error::new(
+                            io::ErrorKind::Interrupted,
+                            "Character creation cancelled",
+                        ));
+                    }
+                    _ => {
+                        // Ignore other keys
+                    }
+                }
+            }
         }
 
-        Ok(name)
+        // Flush any remaining input to prevent interference with next screen
+        self.flush_input_buffer()?;
+
+        Ok(name.trim().to_string())
     }
 
     fn choose_character_class(&mut self) -> io::Result<ClassType> {
@@ -551,7 +605,23 @@ impl UI {
             }
         };
 
+        // Flush any remaining input to prevent interference with main game
+        self.flush_input_buffer()?;
+
         Ok(class_type)
+    }
+
+    /// Flush any remaining input events from the buffer to prevent interference
+    fn flush_input_buffer(&mut self) -> io::Result<()> {
+        use crossterm::event::{poll, read};
+        use std::time::Duration;
+
+        // Read and discard any pending input events
+        while poll(Duration::from_millis(1))? {
+            let _ = read()?;
+        }
+
+        Ok(())
     }
 
     pub fn draw_game_screen(
