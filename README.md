@@ -33,150 +33,25 @@ Echoes of the Forgotten Realm is a cross-platform RPG featuring:
 
 ## 🚀 Quick Start
 
-### Windows (GUI Version - Recommended)
-```bash
-git clone https://github.com/yourusername/echoes_rpg.git
-cd echoes_rpg
-cargo build --features gui --release
-./target/release/echoes_rpg.exe
-```
+Download the appropriate version for your platform from the releases page and run the executable.
 
-### macOS/Linux
-```bash
-git clone https://github.com/yourusername/echoes_rpg.git
-cd echoes_rpg
-cargo run --release
-```
+## 📦 Installation
 
-### Prerequisites
-- **Rust** 1.70+ (see installation instructions below)
-- **Git** for cloning the repository
+Download the appropriate version for your platform from the [releases page](https://github.com/yourusername/echoes_rpg/releases):
 
-## 🔧 Installing Rust
+### Windows
+- Download `echoes_rpg-windows.exe`
+- Run the executable
 
-### Using Rustup (Recommended)
+### macOS
+- Download `echoes_rpg-macos`
+- Make executable: `chmod +x echoes_rpg-macos`
+- Run: `./echoes_rpg-macos`
 
-**Rustup** is the official Rust toolchain installer and version manager. It's the easiest way to install and manage Rust.
-
-#### Windows
-1. **Download and run the installer:**
-   - Visit [rustup.rs](https://rustup.rs/) 
-   - Download `rustup-init.exe`
-   - Run the installer and follow the prompts
-   - **OR** run this command in PowerShell:
-   ```powershell
-   Invoke-WebRequest -Uri "https://win.rustup.rs/" -OutFile "rustup-init.exe"; .\rustup-init.exe
-   ```
-
-2. **Follow the installation prompts:**
-   - Choose option 1 (default installation)
-   - Restart your terminal or run: `source $env:USERPROFILE\.cargo\env`
-
-3. **Verify installation:**
-   ```bash
-   rustc --version
-   cargo --version
-   ```
-
-#### macOS
-1. **Install via terminal:**
-   ```bash
-   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-   ```
-
-2. **Follow the installation prompts:**
-   - Choose option 1 (default installation)
-   - Restart your terminal or run: `source ~/.cargo/env`
-
-3. **Verify installation:**
-   ```bash
-   rustc --version
-   cargo --version
-   ```
-
-#### Linux
-1. **Install via terminal:**
-   ```bash
-   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-   ```
-
-2. **Follow the installation prompts:**
-   - Choose option 1 (default installation)
-   - Restart your terminal or run: `source ~/.cargo/env`
-
-3. **Verify installation:**
-   ```bash
-   rustc --version
-   cargo --version
-   ```
-
-#### Alternative Installation Methods
-
-**Package Managers (Not Recommended):**
-- **Windows**: `winget install Rustlang.Rust.MSVC` or `scoop install rust`
-- **macOS**: `brew install rust`
-- **Linux**: `sudo apt install rustc cargo` (Ubuntu/Debian) or `sudo pacman -S rust` (Arch)
-
-**Note**: Package manager versions may be outdated. Rustup is preferred for latest versions and easy updates.
-
-#### Updating Rust
-```bash
-rustup update
-```
-
-#### Troubleshooting
-- **Windows**: Ensure you have Visual Studio Build Tools or Visual Studio Community installed
-- **All platforms**: If `cargo` command not found, restart your terminal or add `~/.cargo/bin` to your PATH
-- **Permission issues**: Don't use `sudo` with rustup installations
-
-## 📦 Installation Guide
-
-### Prerequisites
-
-**Required:**
-- **Rust** 1.70+ (install from [rustup.rs](https://rustup.rs/))
-- **Git** for cloning the repository
-
-### Windows Installation
-
-1. Run the installation commands:
-   ```bash
-   git clone https://github.com/yourusername/echoes_rpg.git
-   cd echoes_rpg
-   cargo build --features gui --release
-   ./target/release/echoes_rpg.exe
-   ```
-
-### macOS Installation
-
-1. Install Rust if not already installed:
-   ```bash
-   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-   source ~/.cargo/env
-   ```
-2. Clone and build:
-   ```bash
-   git clone https://github.com/yourusername/echoes_rpg.git
-   cd echoes_rpg
-   cargo run --release
-   ```
-
-### Linux Installation
-
-1. Install Rust if not already installed:
-   ```bash
-   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-   source ~/.cargo/env
-   ```
-   
-   **Arch Linux**: `sudo pacman -S rustup && rustup default stable`
-
-2. Clone and build:
-   ```bash
-   git clone https://github.com/yourusername/echoes_rpg.git
-   cd echoes_rpg
-   cargo run --release
-   ```
+### Linux
+- Download `echoes_rpg-linux`
+- Make executable: `chmod +x echoes_rpg-linux`
+- Run: `./echoes_rpg-linux`
 
 ## 🎯 Game Controls
 
@@ -211,55 +86,7 @@ rustup update
 | `>` | Stairs down |
 | `<` | Stairs up |
 
-## 🛠️ Build Options
 
-### Development Build
-```bash
-cargo run
-```
-
-### Optimized Release Build
-```bash
-cargo run --release
-```
-
-### Cross-Platform Building
-```bash
-# Development build (faster compilation)
-cargo run
-
-# Release build (optimized performance)
-cargo run --release
-
-# GUI version (Windows only)
-cargo build --features gui --release
-```
-
-### Platform-Specific Builds
-
-#### Windows
-```bash
-# GUI version (recommended for Windows)
-cargo build --features gui --release --target x86_64-pc-windows-msvc
-```
-
-#### macOS
-```bash
-# For Intel Macs
-cargo build --release --target x86_64-apple-darwin
-
-# For Apple Silicon Macs
-cargo build --release --target aarch64-apple-darwin
-```
-
-#### Linux
-```bash
-# For x86_64 Linux
-cargo build --release --target x86_64-unknown-linux-gnu
-
-# For ARM64 Linux
-cargo build --release --target aarch64-unknown-linux-gnu
-```
 
 ## 🔧 Troubleshooting
 
@@ -271,34 +98,13 @@ cargo build --release --target aarch64-unknown-linux-gnu
 2. Check Windows Defender exclusions
 3. Ensure you have the GUI version: `cargo build --features gui --release`
 
-### macOS Issues
-
-**Problem**: Build issues
-**Solution**:
-1. Update Rust: `rustup update`
-2. Ensure you have Xcode command line tools: `xcode-select --install`
-
-### Linux Issues
-
-**Problem**: Build issues
-**Solution**:
-1. Install build essentials: `sudo apt install build-essential` (Ubuntu/Debian)
-2. Check locale settings: `export LANG=en_US.UTF-8`
-
 ### General Issues
-
-**Problem**: Compilation errors
-**Solution**:
-1. Update Rust: `rustup update`
-2. Clean build cache: `cargo clean`
-3. Check Rust version: `rustc --version` (should be 1.70+)
-4. Verify internet connection for dependency downloads
 
 **Problem**: Performance issues
 **Solution**:
-1. Use release build: `cargo build --release`
-2. Close other applications
-3. Ensure sufficient system resources
+1. Close other applications
+2. Ensure sufficient system resources
+3. Try running from a terminal if using the GUI becomes unresponsive
 
 ## 💾 Save Files
 
@@ -322,20 +128,7 @@ Game progress is saved automatically in platform-specific locations:
 - **Memory**: 8 MB RAM
 - **Storage**: 100 MB available space
 
-## 🔗 Dependencies
 
-The game uses these cross-platform Rust crates:
-
-### Core Dependencies
-- `rand` - Random number generation
-- `serde` - Serialization/deserialization
-- `dirs` - Cross-platform directory detection
-- `anyhow` - Error handling
-
-### GUI Dependencies (Windows)
-- `eframe` - Cross-platform GUI framework
-- `egui` - Immediate mode GUI library
-- `egui_extras` - Additional GUI components
 
 ## 🎯 Recent Improvements
 
@@ -368,25 +161,7 @@ For technical details, see [implementation documentation](implementation_readme/
 - Check your character stats regularly to track progress
 - Manage your inventory space efficiently
 
-## 🛠️ Development
 
-### Building from Source
-```bash
-# Development build (faster compilation)
-cargo run
-
-# Release build (optimized performance)
-cargo run --release
-
-# Run tests
-cargo test
-
-# Clean build cache
-cargo clean
-```
-
-### Cross-Compilation
-The project supports cross-compilation for all major platforms. See the GitHub Actions workflow for automated builds.
 
 ## 🤝 Contributing
 
@@ -415,14 +190,14 @@ If you encounter platform-specific issues:
 3. Create a new issue with:
    - Your operating system and version
    - Terminal type and version
-   - Rust version (`rustc --version`)
+   - Game version
    - Complete error message
    - Steps to reproduce
 
 ## 🔗 Links
 
 - [Issue Tracker](https://github.com/yourusername/echoes_rpg/issues)
-- [Rust Installation](https://rustup.rs/)
+
 - [Implementation Documentation](implementation_readme/)
 
 ---
