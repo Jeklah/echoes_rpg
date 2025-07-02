@@ -408,6 +408,21 @@ impl Level {
         }
     }
 
+    /// Gets a tile at the specified position
+    pub fn get_tile_at(&self, pos: &Position) -> Option<&Tile> {
+        self.get_tile(pos.x, pos.y)
+    }
+
+    // We already have is_tile_walkable method defined above
+    // This is just a helper that uses get_tile_at
+    pub fn is_position_walkable_by_ref(&self, pos: &Position) -> bool {
+        if let Some(tile) = self.get_tile_at(pos) {
+            tile.tile_type.is_walkable()
+        } else {
+            false
+        }
+    }
+
     pub fn get_tile_mut(&mut self, x: i32, y: i32) -> Option<&mut Tile> {
         if self.is_position_valid(x, y) {
             Some(&mut self.tiles[y as usize][x as usize])
