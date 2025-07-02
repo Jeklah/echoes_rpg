@@ -17,10 +17,10 @@ Echoes of the Forgotten Realm is a cross-platform RPG featuring:
 ## 🖥️ Interface Options
 
 ### GUI Version (Windows)
-- Native Windows application
+- Native Windows application using GNU toolchain
 - Improved input handling
 - Better visual integration
-- Optimized for Windows users
+- Self-contained executable (no Visual Studio dependencies)
 
 ## 🖥️ Platform Support
 
@@ -39,9 +39,13 @@ Download the appropriate version for your platform from the releases page and ru
 
 Download the appropriate version for your platform from the [releases page](https://github.com/yourusername/echoes_rpg/releases):
 
-### Windows
-- Download `echoes_rpg-windows.exe`
-- Run the executable
+### Windows (GUI Version - Recommended)
+- Download `echoes_rpg-windows-gui.exe` (compiled with GNU target)
+- Run the executable directly - no additional dependencies required
+
+### Windows (Terminal Version)
+- Download `echoes_rpg-windows-terminal.exe`
+- Run from Command Prompt or Windows Terminal
 
 ### macOS
 - Download `echoes_rpg-macos`
@@ -115,6 +119,38 @@ Game progress is saved automatically in platform-specific locations:
 - **Linux**: `~/.local/share/echoes_rpg/`
 
 
+
+## 🛠️ Building from Source
+
+### Prerequisites
+- [Rust](https://rustup.rs/) (latest stable version)
+
+### Quick Build Commands
+
+#### Linux/macOS Terminal Version
+```bash
+cargo build --release
+```
+
+#### Windows GUI Version (GNU Target - Recommended)
+```bash
+# Install target (one-time setup)
+rustup target add x86_64-pc-windows-gnu
+
+# Build GUI version
+cargo build --release --target x86_64-pc-windows-gnu --features gui
+```
+
+### Why GNU Target for Windows?
+This project uses the `x86_64-pc-windows-gnu` target for Windows builds because:
+- **Self-contained**: No Visual Studio dependencies required
+- **Cross-compilation friendly**: Can build Windows binaries from Linux/macOS
+- **Smaller toolchain**: Easier to set up in CI/CD environments
+- **Consistent experience**: Same GNU toolchain across all platforms
+
+### Build Output Locations
+- **Windows GUI**: `target/x86_64-pc-windows-gnu/release/echoes_rpg.exe`
+- **Linux/macOS**: `target/release/echoes_rpg`
 
 ## 📊 System Requirements
 
