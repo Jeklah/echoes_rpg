@@ -2,6 +2,7 @@ use rand::Rng;
 use serde::{Deserialize, Serialize};
 
 use crate::character::Player;
+use crate::inventory::InventoryManager;
 use crate::item::Item;
 use crate::world::Enemy;
 
@@ -122,15 +123,11 @@ pub fn process_combat_turn(
         }
         CombatAction::UseItem(item_index) => {
             // Player uses an item - get a clone of the item first
-            let item_message = if let Some(Item::Consumable(consumable)) =
-                player.inventory.items.get(item_index).cloned()
-            {
-                // Remove from inventory first
-                player.inventory.items.remove(item_index);
-                // Apply effect
-                consumable.use_effect(player)
+            let item_message = if item_index < InventoryManager::get_item_count(player) {
+                let result = InventoryManager::use_item(player, item_index);
+                result.message
             } else {
-                "That item can't be used".to_string()
+                "Invalid item or item cannot be used.".to_string()
             };
 
             // Add message about item use
@@ -185,15 +182,13 @@ fn handle_enemy_defeat(player: &mut Player, enemy: &Enemy, result: &mut CombatRe
 
     if let Some(item) = possible_item {
         // Try to add item to inventory
-        match player.inventory.add_item(item.clone()) {
-            Ok(()) => {
-                let item_name = item.name().to_string();
-                result.items_gained.push(item.clone());
-                result.add_message(format!("You found: {}", item_name));
-            }
-            Err(_) => {
-                result.add_message("You found an item but your inventory is full!".to_string());
-            }
+        let add_result = InventoryManager::add_item(player, item.clone());
+        if add_result.success {
+            let item_name = item.name().to_string();
+            result.items_gained.push(item.clone());
+            result.add_message(format!("You found: {}", item_name));
+        } else {
+            result.add_message("You found an item but your inventory is full!".to_string());
         }
     }
 
