@@ -189,7 +189,7 @@ impl Game {
                         let new_pos = Position::new(pos.x + dx, pos.y + dy);
 
                         // Only move if position is valid and not occupied
-                        if self.current_level().is_position_walkable(new_pos)
+                        if self.current_level().is_tile_walkable(new_pos)
                             && !self.current_level().enemies.contains_key(&new_pos)
                             && new_pos != self.player_position()
                         {

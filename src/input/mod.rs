@@ -34,16 +34,19 @@ pub enum Direction {
 }
 
 pub struct InputHandler {
-    // Track processed events to prevent duplicates
+    // Event queue for robust input handling
+    action_queue: std::collections::VecDeque<InputAction>,
+    // Track processed events to prevent duplicates within the same frame
+    processed_events: std::collections::HashSet<String>,
     last_processed_frame: u64,
-    processed_events: Vec<String>,
 }
 
 impl Default for InputHandler {
     fn default() -> Self {
         Self {
+            action_queue: std::collections::VecDeque::new(),
+            processed_events: std::collections::HashSet::new(),
             last_processed_frame: 0,
-            processed_events: Vec::new(),
         }
     }
 }
@@ -53,11 +56,9 @@ impl InputHandler {
         Self::default()
     }
 
-    /// Process egui input events and return a list of actions
+    /// Process egui input events and queue actions for retrieval
     /// This method prevents duplicate processing of the same input
     pub fn process_input(&mut self, ctx: &egui::Context, current_frame: u64) -> Vec<InputAction> {
-        let mut actions = Vec::new();
-
         // Clear processed events if we're on a new frame
         if current_frame != self.last_processed_frame {
             self.processed_events.clear();
@@ -78,16 +79,27 @@ impl InputHandler {
                         continue;
                     }
 
-                    self.processed_events.push(event_id);
+                    self.processed_events.insert(event_id);
 
                     let action = self.key_to_action(key);
                     if action != InputAction::Unknown {
-                        actions.push(action);
+                        self.action_queue.push_back(action);
                     }
                 }
             }
         });
 
+        // Return and drain all queued actions
+        self.drain_action_queue()
+    }
+
+    /// Drain all queued actions and return them
+    /// This provides a more robust way to handle input events
+    pub fn drain_action_queue(&mut self) -> Vec<InputAction> {
+        let mut actions = Vec::new();
+        while let Some(action) = self.action_queue.pop_front() {
+            actions.push(action);
+        }
         actions
     }
 

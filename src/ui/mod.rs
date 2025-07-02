@@ -24,13 +24,7 @@ const BORDER_PADDING: usize = 4; // Increased padding inside the border
 
 /// Create fog of war configuration for terminal rendering
 fn create_fog_of_war() -> FogOfWar {
-    let config = FogOfWarConfig {
-        hide_unexplored: true,
-        show_explored_dimmed: true,
-        dimming_factor: 0.5,
-        unexplored_color: crate::world::fog_of_war::FogColor::BLACK,
-    };
-    FogOfWar::new(config)
+    crate::world::create_standard_fog_of_war()
 }
 
 pub struct UI {

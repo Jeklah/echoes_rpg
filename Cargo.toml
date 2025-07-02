@@ -9,6 +9,11 @@ repository = "https://github.com/yourusername/echoes_rpg"
 keywords = ["game", "rpg", "terminal", "cross-platform"]
 categories = ["games"]
 
+# Build instructions:
+# - Linux/macOS terminal version: cargo build
+# - Windows GUI version (GNU target): cargo build --target x86_64-pc-windows-gnu --features gui
+# - Windows GUI version (release): cargo build --release --target x86_64-pc-windows-gnu --features gui
+
 [dependencies]
 rand = "0.8.5"
 crossterm = "0.27.0"

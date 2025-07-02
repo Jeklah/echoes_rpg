@@ -373,7 +373,7 @@ mod tests {
         let result = fog.process_tile(&unexplored_tile, '#', Some(FogColor::GREY));
         assert_eq!(result.character, ' ');
         assert_eq!(result.color.unwrap().r, 0); // Should be black
-        assert!(result.should_render);
+        assert!(!result.should_render); // Unexplored walls should not render
     }
 
     #[test]
