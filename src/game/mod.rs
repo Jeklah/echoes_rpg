@@ -6,6 +6,7 @@ use std::time::Instant;
 
 use crate::character::{ClassType, Player};
 use crate::combat::{process_combat_turn, CombatAction, CombatResult};
+use crate::inventory::{InventoryManager, InventoryScreen};
 use crate::item::Item;
 use crate::platform;
 use crate::ui::UI;
@@ -105,7 +106,8 @@ impl Game {
         if self.current_level().items.contains_key(&new_pos) {
             let item = self.current_level_mut().remove_item_at(&new_pos).unwrap();
             // Try to add to inventory
-            if let Err(_e) = self.player.inventory.add_item(item.clone()) {
+            let add_result = InventoryManager::add_item(&mut self.player, item.clone());
+            if !add_result.success {
                 // Put the item back if inventory is full
                 self.current_level_mut().items.insert(new_pos, item);
                 return false;
@@ -137,7 +139,8 @@ impl Game {
                     // Generate loot from chest
                     if let Some(item) = self.current_level().get_item_at(&new_pos) {
                         let item_clone = item.clone();
-                        if let Err(_) = self.player.inventory.add_item(item_clone) {
+                        let add_result = InventoryManager::add_item(&mut self.player, item_clone);
+                        if !add_result.success {
                             // Inventory full, can't loot the chest
                             return false;
                         }
@@ -270,14 +273,12 @@ impl Game {
         // First check if there's an item at the current position
         if let Some(item) = self.current_level().get_item_at(&player_pos) {
             let item_clone = item.clone();
-            match self.player.inventory.add_item(item_clone) {
-                Ok(()) => {
-                    self.current_level_mut().remove_item_at(&player_pos);
-                    return Some("You picked up an item.".to_string());
-                }
-                Err(msg) => {
-                    return Some(msg);
-                }
+            let add_result = InventoryManager::add_item(&mut self.player, item_clone);
+            if add_result.success {
+                self.current_level_mut().remove_item_at(&player_pos);
+                return Some("You picked up an item.".to_string());
+            } else {
+                return Some(add_result.message);
             }
         }
 
@@ -298,23 +299,18 @@ impl Game {
                     // Try to loot the chest
                     if let Some(item) = self.current_level().get_item_at(&adj_pos) {
                         let item_clone = item.clone();
-                        match self.player.inventory.add_item(item_clone) {
-                            Ok(()) => {
-                                self.current_level_mut().remove_item_at(&adj_pos);
-                                // Replace chest with floor
-                                if let Some(tile_mut) =
-                                    self.current_level_mut().get_tile_mut(adj_pos.x, adj_pos.y)
-                                {
-                                    *tile_mut = Tile::floor();
-                                }
-                                return Some("You looted the chest!".to_string());
+                        let add_result = InventoryManager::add_item(&mut self.player, item_clone);
+                        if add_result.success {
+                            self.current_level_mut().remove_item_at(&adj_pos);
+                            // Replace chest with floor
+                            if let Some(tile_mut) =
+                                self.current_level_mut().get_tile_mut(adj_pos.x, adj_pos.y)
+                            {
+                                *tile_mut = Tile::floor();
                             }
-                            Err(msg) => {
-                                return Some(format!(
-                                    "Chest is full of treasure, but {}.",
-                                    msg.to_lowercase()
-                                ));
-                            }
+                            return Some("You looted the chest!".to_string());
+                        } else {
+                            return Some(add_result.message);
                         }
                     } else {
                         return Some("The chest is empty.".to_string());
@@ -325,14 +321,12 @@ impl Game {
             // Check if there's an item at this adjacent position
             if let Some(item) = self.current_level().get_item_at(&adj_pos) {
                 let item_clone = item.clone();
-                match self.player.inventory.add_item(item_clone) {
-                    Ok(()) => {
-                        self.current_level_mut().remove_item_at(&adj_pos);
-                        return Some("You picked up an item.".to_string());
-                    }
-                    Err(msg) => {
-                        return Some(msg);
-                    }
+                let add_result = InventoryManager::add_item(&mut self.player, item_clone);
+                if add_result.success {
+                    self.current_level_mut().remove_item_at(&adj_pos);
+                    return Some("You picked up an item.".to_string());
+                } else {
+                    return Some(add_result.message);
                 }
             }
         }
@@ -599,39 +593,20 @@ pub fn run() {
 
                 match ui.wait_for_key() {
                     Ok(key_event) => match key_event.code {
-                        crossterm::event::KeyCode::Char(c) if c >= '1' && c <= '9' => {
-                            let index = c.to_digit(10).unwrap() as usize - 1;
-                            if index < game.player.inventory.items.len() {
-                                match game.player.inventory.items[index] {
-                                    Item::Equipment(_) => {
-                                        if let Err(e) = game.player.inventory.equip_item(index) {
-                                            ui.add_message(e);
-                                        } else {
-                                            ui.add_message(format!("Equipped item."));
-                                        }
-                                    }
-                                    Item::Consumable(_) => {
-                                        // Handle consumable use directly to avoid borrowing conflicts
-                                        if let Some(Item::Consumable(consumable)) =
-                                            game.player.inventory.items.get(index).cloned()
-                                        {
-                                            // Remove from inventory
-                                            game.player.inventory.items.remove(index);
-
-                                            // Apply effect and get message
-                                            let result = consumable.use_effect(&mut game.player);
-                                            ui.add_message(result);
-                                        } else {
-                                            ui.add_message("This item cannot be used".to_string());
-                                        }
-                                    }
-                                    Item::QuestItem { .. } => {
-                                        ui.add_message("This is a quest item.".to_string());
-                                    }
+                        crossterm::event::KeyCode::Char(c) => {
+                            let inventory_action = InventoryScreen::process_input(c);
+                            match InventoryScreen::handle_action(&mut game.player, inventory_action)
+                            {
+                                Some(result) => {
+                                    ui.add_message(result.message);
+                                }
+                                None => {
+                                    // Exit inventory
+                                    game.game_state = GameState::Playing;
                                 }
                             }
                         }
-                        crossterm::event::KeyCode::Char('e') | crossterm::event::KeyCode::Esc => {
+                        crossterm::event::KeyCode::Esc => {
                             game.game_state = GameState::Playing;
                         }
                         _ => {}
