@@ -1,9 +1,12 @@
 use rand::Rng;
 use serde::{Deserialize, Serialize};
+use std::time::Instant;
 
 use crate::character::Player;
 use crate::combat::{process_combat_turn, CombatResult};
 use crate::item::Item;
+#[cfg(feature = "gui")]
+use crate::platform;
 use crate::ui::UI;
 use crate::world::{Dungeon, Level, Position, Tile, TileType};
 
@@ -25,7 +28,6 @@ pub struct Game {
     pub current_dungeon_index: usize,
     pub game_state: GameState,
     pub combat_started: bool,
-    #[cfg(windows)]
     #[serde(skip)]
     pub last_render_time: Option<Instant>,
 }
@@ -41,7 +43,6 @@ impl Game {
             current_dungeon_index: 0,
             game_state: GameState::MainMenu,
             combat_started: false,
-            #[cfg(windows)]
             last_render_time: None,
         };
 
@@ -133,6 +134,8 @@ impl Game {
                     // Generate loot from chest
                     if let Some(item) = self.current_level().get_item_at(&new_pos) {
                         let item_clone = item.clone();
+                        #[cfg_attr(not(debug_assertions), allow(unused_variables))]
+                        let item_name = item_clone.name().to_string();
                         if let Err(_) = self.player.inventory.add_item(item_clone) {
                             // Inventory full, can't loot the chest
                             return false;
@@ -144,6 +147,15 @@ impl Game {
                         {
                             *tile = Tile::floor();
                         }
+
+                        // This is auto-looting by walking into a chest
+                        // We don't directly add a message here because the move_player method
+                        // doesn't return messages, but we'll add a hook for it
+                        #[cfg(debug_assertions)]
+                        println!(
+                            "DEBUG: Auto-looted chest at {:?}, found {}",
+                            new_pos, item_name
+                        );
                     }
                     return true;
                 }
@@ -261,6 +273,8 @@ impl Game {
         }
     }
 
+    /// Attempts to pick up an item at the player's position or loot a chest in an adjacent tile.
+    /// Returns a message describing the result of the action.
     pub fn try_get_item(&mut self) -> Option<String> {
         let player_pos = self.current_level().player_position;
 
@@ -295,8 +309,13 @@ impl Game {
                     // Try to loot the chest
                     if let Some(item) = self.current_level().get_item_at(&adj_pos) {
                         let item_clone = item.clone();
+                        // Get the item name before potentially moving item_clone
+                        let item_name = item_clone.name().to_string();
+                        // Also save the name for potential error message
+                        let item_name_for_err = item_clone.name().to_string();
                         match self.player.inventory.add_item(item_clone) {
                             Ok(()) => {
+                                // Item name is already saved
                                 self.current_level_mut().remove_item_at(&adj_pos);
                                 // Replace chest with floor
                                 if let Some(tile_mut) =
@@ -304,16 +323,32 @@ impl Game {
                                 {
                                     *tile_mut = Tile::floor();
                                 }
-                                return Some("You looted the chest!".to_string());
+                                return Some(format!(
+                                    "You looted the chest and found {}!",
+                                    item_name
+                                ));
                             }
                             Err(msg) => {
                                 return Some(format!(
-                                    "Chest is full of treasure, but {}.",
+                                    "Chest contains {}, but {}.",
+                                    item_name_for_err,
                                     msg.to_lowercase()
                                 ));
                             }
                         }
                     } else {
+                        // This could indicate an issue with chest item generation
+                        // Add more detailed debug information
+                        #[cfg(debug_assertions)]
+                        println!("DEBUG: Found empty chest at position {:?}", adj_pos);
+
+                        // Replace chest with floor since it's empty
+                        if let Some(tile_mut) =
+                            self.current_level_mut().get_tile_mut(adj_pos.x, adj_pos.y)
+                        {
+                            *tile_mut = Tile::floor();
+                        }
+
                         return Some("The chest is empty.".to_string());
                     }
                 }
@@ -411,7 +446,7 @@ pub fn run() {
         _ => true,
     } {
         // Windows-specific frame rate limiting for better performance
-        #[cfg(windows)]
+        #[cfg(all(windows, feature = "gui"))]
         {
             if platform::is_command_prompt() {
                 platform::cmd_frame_limit();
