@@ -132,15 +132,15 @@ cargo build --release
 ### Windows GUI Interface
 
 #### Game Screen
-![Game Screen](https://example.com/screenshots/game_screen.png)
+![Game Screen](https://github.com/Jeklah/echoes_rpg/blob/master/screenshots/game.png)
 *The main game screen with fog of war, player character, and enemies. The right panel shows player stats and controls.*
 
 #### Inventory Screen
-![Inventory Screen](https://example.com/screenshots/inventory_screen.png)
+![Inventory Screen](https://github.com/Jeklah/echoes_rpg/blob/master/screenshots/inventory.png)
 *The new interactive inventory screen allows equipping items with buttons or number keys (1-9). Equipped items are highlighted in green.*
 
 #### Character Screen
-![Character Screen](https://example.com/screenshots/character_screen.png)
+![Character Screen](https://github.com/Jeklah/echoes_rpg/blob/master/screenshots/character.png)
 *The detailed character screen displays all stats and equipped gear in each slot.*
 
 #### Message Log
@@ -223,34 +223,34 @@ cargo --version
 ## 🔧 Troubleshooting
 
 ### Windows Issues
-**Problem**: Game window doesn't respond properly  
+**Problem**: Game window doesn't respond properly
 **Solution**: Ensure you're using the GUI version built with `--features gui --target x86_64-pc-windows-gnu`
 
-**Problem**: Input lag or double key presses  
+**Problem**: Input lag or double key presses
 **Solution**: The recent input system overhaul fixed this. Update to the latest version.
 
-**Problem**: Cannot equip items in inventory screen  
+**Problem**: Cannot equip items in inventory screen
 **Solution**: This has been fixed in v0.3.0. Use number keys 1-9 or click the "Equip" button next to items.
 
 ### Linux/macOS Issues
-**Problem**: Terminal colors not displaying correctly  
-**Solution**: 
+**Problem**: Terminal colors not displaying correctly
+**Solution**:
 ```bash
 export TERM=xterm-256color
 # Add to ~/.bashrc or ~/.zshrc for persistence
 ```
 
-**Problem**: Character creation stuck after typing name  
+**Problem**: Character creation stuck after typing name
 **Solution**: Press Enter to confirm your name and proceed to class selection.
 
-**Problem**: Chests are empty or items don't appear in the message log  
+**Problem**: Chests are empty or items don't appear in the message log
 **Solution**: This has been fixed in v0.3.0. Chests now properly contain items across all platforms.
 
 ### General Issues
-**Problem**: Enemies moving too quickly  
+**Problem**: Enemies moving too quickly
 **Solution**: This was fixed in v0.2.0 with improved turn-based timing
 
-**Problem**: Can't progress past character name entry  
+**Problem**: Can't progress past character name entry
 **Solution**: Recent updates fixed this - ensure you press Enter after typing your name
 
 ## 💾 Save Files
@@ -363,7 +363,7 @@ Game progress is automatically saved in platform-specific locations:
 
 Contributions are welcome! Areas of focus:
 - **Platform Testing**: Ensure compatibility across different systems
-- **Feature Development**: New character classes, items, or dungeon types  
+- **Feature Development**: New character classes, items, or dungeon types
 - **Performance Optimization**: Especially for older hardware
 - **Documentation**: Improve guides and code documentation
 
@@ -419,7 +419,7 @@ Please include:
 
 *Adventure awaits in the Echoes of the Forgotten Realm!*
 
-**Windows users**: Experience the full GUI adventure!  
+**Windows users**: Experience the full GUI adventure!
 **Linux/macOS users**: Enjoy the classic terminal RPG experience!
 
 🎮 *Choose your platform, create your hero, and begin your quest!* ⚔️
