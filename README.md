@@ -137,10 +137,12 @@ cargo build --release
 
 #### Inventory Screen
 ![Inventory Screen](https://github.com/Jeklah/echoes_rpg/blob/master/screenshots/inventory.png)
+
 *The new interactive inventory screen allows equipping items with buttons or number keys (1-9). Equipped items are highlighted in green.*
 
 #### Character Screen
 ![Character Screen](https://github.com/Jeklah/echoes_rpg/blob/master/screenshots/character.png)
+
 *The detailed character screen displays all stats and equipped gear in each slot.*
 
 #### Message Log
