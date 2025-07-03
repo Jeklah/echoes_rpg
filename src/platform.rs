@@ -6,7 +6,8 @@
 
 use anyhow::{Context, Result};
 use crossterm::{
-    cursor, execute,
+    cursor, execute, queue,
+    style::Color,
     terminal::{self, Clear, ClearType},
 };
 use dirs;
