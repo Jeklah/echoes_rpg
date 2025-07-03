@@ -100,8 +100,18 @@ cargo build --release
 - **4** - Attempt to flee from combat
 
 ### Inventory Management
+#### Terminal Version
 - **1-9** - Use, equip, or consume items by number
 - **E/Esc** - Return to exploration
+
+#### GUI Version (Windows)
+- **I** - Toggle inventory screen
+- **1-9** - Quickly equip corresponding item
+- **Equip Button** - Equip selected equipment
+- **Use Button** - Use selected consumable
+- **ESC/I** - Close inventory screen
+- **M** - Toggle message log visibility
+- **C** - Open character screen to view equipped items and stats
 
 ## 🎨 Game Symbols & Legend
 
@@ -117,7 +127,39 @@ cargo build --release
 | `>` | Stairs down | Green |
 | `<` | Stairs up | Green |
 
+## 📸 Screenshots
+
+### Windows GUI Interface
+
+#### Game Screen
+![Game Screen](https://example.com/screenshots/game_screen.png)
+*The main game screen with fog of war, player character, and enemies. The right panel shows player stats and controls.*
+
+#### Inventory Screen
+![Inventory Screen](https://example.com/screenshots/inventory_screen.png)
+*The new interactive inventory screen allows equipping items with buttons or number keys (1-9). Equipped items are highlighted in green.*
+
+#### Character Screen
+![Character Screen](https://example.com/screenshots/character_screen.png)
+*The detailed character screen displays all stats and equipped gear in each slot.*
+
+#### Message Log
+![Message Log](https://example.com/screenshots/message_log.png)
+*The persistent message log shows game events with color coding for different types of information.*
+
 ## 🆕 Recent Updates & Improvements
+
+### v0.3.0 - Enhanced GUI Interface & Inventory System
+- **Redesigned Inventory Screen**: Interactive inventory management in Windows GUI version
+- **New Character Screen**: Detailed character stats and equipment display
+- **Item Equipping**: Equip items directly from inventory with buttons or number keys
+- **Consumable Usage**: Use potions and consumables directly from the inventory screen
+- **Message Log System**: Improved feedback system with history of important game events
+- **Visual Feedback**: Colored item text with equipped item highlighting
+- **Keyboard Shortcuts**: Quick inventory navigation with number keys (1-9)
+- **Bug Fixes**: Fixed items not appearing in chests on Linux and improved message feedback
+- **Technical Improvements**: Thread-safe UI state management and conditional compilation
+- **Responsive Design**: Dynamically sized windows and interface elements
 
 ### v0.2.0 - Input Handling & Character Creation Overhaul
 - **Fixed Character Creation**: Proper Enter key confirmation for both GUI and terminal versions
@@ -187,6 +229,9 @@ cargo --version
 **Problem**: Input lag or double key presses  
 **Solution**: The recent input system overhaul fixed this. Update to the latest version.
 
+**Problem**: Cannot equip items in inventory screen  
+**Solution**: This has been fixed in v0.3.0. Use number keys 1-9 or click the "Equip" button next to items.
+
 ### Linux/macOS Issues
 **Problem**: Terminal colors not displaying correctly  
 **Solution**: 
@@ -197,6 +242,9 @@ export TERM=xterm-256color
 
 **Problem**: Character creation stuck after typing name  
 **Solution**: Press Enter to confirm your name and proceed to class selection.
+
+**Problem**: Chests are empty or items don't appear in the message log  
+**Solution**: This has been fixed in v0.3.0. Chests now properly contain items across all platforms.
 
 ### General Issues
 **Problem**: Enemies moving too quickly  
@@ -239,12 +287,31 @@ Game progress is automatically saved in platform-specific locations:
 ### GUI Dependencies (Windows)
 - **`eframe`** - Cross-platform GUI framework
 - **`egui`** - Immediate mode GUI library
+- **`egui_extras`** - Additional UI components
+
+### UI Features (Windows GUI)
+- **Interactive inventory management** - Equipment and item management with visual feedback
+- **Character screen** - Detailed character stats and equipped items display
+- **Message log system** - Persistent message history with color-coded entries
+- **Modal windows** - Context-specific interfaces for different game systems
+
+### GUI Technical Implementation
+- **Immediate Mode GUI**: Utilizes egui's immediate mode architecture for responsive interfaces
+- **State Management**: Maintains UI state (showing_inventory, showing_character) separate from game state
+- **Keyboard + Mouse Input**: Dual input methods for all interactions
+- **Layer-based Rendering**: Game world renders first, UI elements overlay on top
+- **Message System**: Thread-safe message passing between game logic and UI
+- **Persistent Feedback**: Timed message display with automatic cleanup
+- **Safe Static Storage**: Thread-safe storage for UI persistence across frames
 
 ### Design Principles
 - **Separation of Concerns**: Distinct modules for game logic, rendering, and input
 - **Cross-Platform Compatibility**: Platform-specific optimizations without code duplication
 - **Performance**: Efficient rendering and input handling for smooth gameplay
 - **Maintainability**: Clean, documented Rust code following best practices
+- **User Experience**: Intuitive interfaces with visual feedback and keyboard shortcuts
+- **Conditional Compilation**: Feature flags (`--features gui`) for platform-specific code
+- **Safe Concurrency**: Thread-safe data sharing between UI and game logic
 
 ## 🎯 Game Guide
 
@@ -254,6 +321,28 @@ Game progress is automatically saved in platform-specific locations:
 3. **Explore Dungeons**: Navigate procedurally generated levels
 4. **Manage Resources**: Balance health, abilities, and inventory space
 5. **Progress**: Level up and find better equipment to tackle harder challenges
+
+### Using the GUI Interface (Windows)
+1. **Navigating the Inventory Screen**:
+   - Press `I` to open/close the inventory screen
+   - Use number keys `1-9` to quickly equip items
+   - Click the "Equip" button next to equipment items
+   - Click the "Use" button next to consumables
+   - Equipped items are highlighted in green with [Equipped] tag
+   - Close with `ESC`, `I`, or the "Close Inventory" button
+   - Hover over items for additional information (tooltip)
+
+2. **Using the Character Screen**:
+   - Press `C` to open/close the character screen
+   - View detailed character stats and attributes
+   - See all equipped items and their bonuses
+   - Close with `ESC`, `C`, or the "Close Character Screen" button
+
+3. **Message Log System**:
+   - Press `M` to toggle the full message log display
+   - Recent messages appear at the bottom of the screen
+   - Different message types use different colors
+   - Combat messages, item pickups, and game events are all recorded
 
 ### Character Classes
 - **Warrior**: High health and physical damage, defensive abilities
@@ -266,6 +355,9 @@ Game progress is automatically saved in platform-specific locations:
 - **Resource Management**: Don't waste healing items on minor damage
 - **Exploration**: Thoroughly explore each level before proceeding
 - **Combat Timing**: Use special abilities strategically in difficult fights
+- **Inventory Management**: Use the improved inventory screen to organize your gear
+- **Quick Equipping**: Use number keys (1-9) to quickly equip items during exploration
+- **Message History**: Check the message log (M key) for important information you might have missed
 
 ## 🤝 Contributing
 
@@ -301,6 +393,14 @@ This project is dual-licensed under the MIT OR Apache-2.0 license.
    - Game version (GUI or terminal)
    - Complete error message
    - Steps to reproduce
+   - Screenshots (for GUI issues)
+   - For inventory/character screen issues, mention which items were being interacted with
+
+### User Interface Tips
+- **Keyboard Navigation**: Most screens can be navigated with keyboard shortcuts
+- **Message History**: Press M to see what you might have missed
+- **Equipping Items**: Both number keys and buttons work for equipping
+- **Close Windows**: ESC works universally to close any open screen
 
 ### Reporting Bugs
 Please include:
