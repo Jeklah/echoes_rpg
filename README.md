@@ -51,7 +51,7 @@ Echoes of the Forgotten Realm is a modern take on classic text-based RPGs featur
 
 #### Windows GUI Version (Recommended)
 ```bash
-git clone https://github.com/yourusername/echoes_rpg.git
+git clone https://github.com/jeklah/echoes_rpg.git
 cd echoes_rpg
 
 # Install Windows GNU target (one-time setup)
@@ -63,7 +63,7 @@ cargo build --release --target x86_64-pc-windows-gnu --features gui
 
 #### Linux/macOS Terminal Version
 ```bash
-git clone https://github.com/yourusername/echoes_rpg.git
+git clone https://github.com/jeklah/echoes_rpg.git
 cd echoes_rpg
 cargo build --release
 ```
