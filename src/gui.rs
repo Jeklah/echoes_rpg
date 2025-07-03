@@ -7,7 +7,7 @@ use crate::character::{ClassType, Player};
 use crate::game::Game;
 #[cfg(feature = "gui")]
 use crate::input::InputHandler;
-use crate::inventory::InventoryManager;
+use crate::inventory::{InventoryManager, ItemType};
 use crate::item::{equipment, Item};
 #[cfg(feature = "gui")]
 use crate::world::{FogOfWar, Position};
@@ -958,15 +958,15 @@ impl EchoesApp {
                                 ui.label(text);
 
                                 // Add interaction buttons based on item type
-                                match item {
-                                    Item::Equipment(_) => {
+                                match item_info.item_type {
+                                    ItemType::Equipment => {
                                         if !is_equipped {
                                             if ui.button("Equip").clicked() {
                                                 equip_item_index = Some(i);
                                             }
                                         }
                                     }
-                                    Item::Consumable(_) => {
+                                    ItemType::Consumable => {
                                         if ui.button("Use").clicked() {
                                             use_item_index = Some(i);
                                         }
