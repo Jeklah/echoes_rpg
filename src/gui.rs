@@ -392,6 +392,11 @@ impl EchoesApp {
     }
 
     fn render_game_screen_safe(&mut self, game: &Game) {
+        // Request a repaint to keep UI responsive
+        if self.showing_inventory || self.showing_character {
+            eframe::egui::Context::request_repaint(&eframe::egui::Context::default());
+        }
+
         self.clear_screen();
 
         // Render game map using centralized fog of war system
@@ -556,7 +561,7 @@ impl EchoesApp {
                         self.showing_inventory = !self.showing_inventory;
                         if self.showing_inventory {
                             self.showing_character = false; // Close character screen if open
-                            self.add_message("🎒 Inventory opened".to_string());
+                            self.add_message("🎒 Inventory opened - Press number keys 1-9 to equip items or use the Equip buttons".to_string());
                         } else {
                             self.add_message("🎒 Inventory closed".to_string());
                         }
@@ -742,6 +747,30 @@ impl EchoesApp {
                 self.handle_game_input('c');
                 return;
             }
+
+            // Handle number keys for equipping items in inventory
+            if self.showing_inventory {
+                if let crate::input::InputAction::Character(c) = action {
+                    if c.is_digit(10) && *c != '0' {
+                        let index = c.to_digit(10).unwrap() as usize - 1;
+                        if let Some(game) = &mut self.game {
+                            if index < game.player.inventory.items.len() {
+                                // Check if it's equipment
+                                if let Some(Item::Equipment(_)) =
+                                    game.player.inventory.items.get(index)
+                                {
+                                    match game.player.inventory.equip_item(index) {
+                                        Ok(()) => self.add_message(
+                                            "🎒 Item equipped successfully!".to_string(),
+                                        ),
+                                        Err(e) => self.add_message(format!("🎒 Error: {}", e)),
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         // Update last key for display purposes
@@ -878,15 +907,21 @@ impl EchoesApp {
         }
     }
 
-    /// Displays the inventory screen with the player's items
     /// Displays the inventory screen with the player's items and equipment
+    /// Allows equipping items and using consumables
     fn show_inventory_screen(&mut self, ui: &mut egui::Ui) {
+        // Store indexes of items to equip or use
+        let mut equip_item_index: Option<usize> = None;
+        let mut use_item_index: Option<usize> = None;
+        // Static variable to persist across frames for feedback messages
+        static mut EQUIP_RESULT_MESSAGE: Option<(String, u64)> = None;
+
         if let Some(ref game) = self.game {
             let player = &game.player;
 
             // Create a window for the inventory
             let window = egui::Window::new("Inventory")
-                .fixed_size([400.0, 500.0])
+                .fixed_size([500.0, 500.0])
                 .collapsible(false)
                 .resizable(false);
 
@@ -902,34 +937,84 @@ impl EchoesApp {
                     ui.label("Your inventory is empty.");
                 } else {
                     egui::ScrollArea::vertical().show(ui, |ui| {
+                        // Add keyboard shortcut hint at the top of the inventory
+                        ui.label("Press 1-9 keys to quickly equip equipment items");
+                        ui.separator();
+
                         for (i, item) in player.inventory.items.iter().enumerate() {
                             ui.horizontal(|ui| {
+                                // Check if item is equipped
+                                let is_equipped = if let Item::Equipment(_) = item {
+                                    player.inventory.equipped.values().any(|idx| {
+                                        if let Some(eq_idx) = idx {
+                                            *eq_idx == i
+                                        } else {
+                                            false
+                                        }
+                                    })
+                                } else {
+                                    false
+                                };
+
                                 let item_name = item.name();
                                 let prefix = format!("{}. ", i + 1);
 
-                                let mut text = egui::RichText::new(prefix + item_name);
+                                // Create appropriate text with formatting
+                                let text = if is_equipped {
+                                    egui::RichText::new(prefix + item_name + " [Equipped]")
+                                        .color(Color32::from_rgb(0, 255, 0))
+                                        .strong()
+                                } else {
+                                    egui::RichText::new(prefix + item_name)
+                                };
 
-                                // Highlight equipped items
-                                if let Item::Equipment(_equipment) = item {
-                                    for (_slot, idx) in &player.inventory.equipped {
-                                        if let Some(eq_idx) = idx {
-                                            if *eq_idx == i {
-                                                text = text
-                                                    .color(Color32::from_rgb(0, 255, 0))
-                                                    .strong();
+                                // Show item name
+                                ui.label(text);
+
+                                // Add interaction buttons based on item type
+                                match item {
+                                    Item::Equipment(_) => {
+                                        if !is_equipped {
+                                            if ui.button("Equip").clicked() {
+                                                equip_item_index = Some(i);
                                             }
                                         }
                                     }
+                                    Item::Consumable(_) => {
+                                        if ui.button("Use").clicked() {
+                                            use_item_index = Some(i);
+                                        }
+                                    }
+                                    _ => {}
                                 }
-
-                                ui.label(text);
                             });
                         }
                     });
                 }
 
+                // Show keyboard shortcuts reminder
                 ui.separator();
-                ui.label("Press I or ESC to close inventory");
+                ui.label("Keyboard shortcuts:");
+                ui.label("• 1-9: Equip corresponding item");
+                ui.label("• I or ESC: Close inventory");
+
+                // Show feedback message if we have one
+                unsafe {
+                    // Use raw const to avoid shared reference to mutable static
+                    let equip_message_ptr =
+                        std::ptr::addr_of!(EQUIP_RESULT_MESSAGE) as *const Option<(String, u64)>;
+                    if let Some((message, frame_count)) = &*equip_message_ptr {
+                        ui.separator();
+                        ui.colored_label(Color32::from_rgb(0, 255, 0), message);
+
+                        // Clear message after 90 frames (~1.5 seconds at 60fps)
+                        if self.frame_count > *frame_count + 90 {
+                            EQUIP_RESULT_MESSAGE = None;
+                        }
+                    }
+                }
+
+                ui.separator();
 
                 // Add a close button at the bottom
                 ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
@@ -938,6 +1023,54 @@ impl EchoesApp {
                     }
                 });
             });
+        }
+
+        // Process equip/use actions outside the UI closure to avoid borrow issues
+        if let Some(index) = equip_item_index {
+            if let Some(game) = &mut self.game {
+                if index < game.player.inventory.items.len() {
+                    match game.player.inventory.equip_item(index) {
+                        Ok(()) => {
+                            // Store message with current frame count for timing
+                            unsafe {
+                                // Directly write to mutable static
+                                EQUIP_RESULT_MESSAGE = Some((
+                                    "Item equipped successfully!".to_string(),
+                                    self.frame_count,
+                                ));
+                            }
+                            self.add_message("🎒 Item equipped successfully!".to_string());
+                        }
+                        Err(error) => {
+                            // Store error message with current frame count for timing
+                            unsafe {
+                                // Directly write to mutable static
+                                EQUIP_RESULT_MESSAGE =
+                                    Some((format!("Error: {}", error), self.frame_count));
+                            }
+                            self.add_message(format!("🎒 Error equipping item: {}", error));
+                        }
+                    }
+                }
+            }
+        }
+
+        // Handle using consumable items
+        if let Some(index) = use_item_index {
+            if let Some(game) = &mut self.game {
+                if index < game.player.inventory.items.len() {
+                    if let Some(Item::Consumable(consumable)) =
+                        game.player.inventory.items.get(index).cloned()
+                    {
+                        // Remove the item from inventory
+                        game.player.inventory.items.remove(index);
+
+                        // Apply the effect
+                        let result = consumable.use_effect(&mut game.player);
+                        self.add_message(format!("🧪 {}", result));
+                    }
+                }
+            }
         }
     }
 
@@ -1179,6 +1312,9 @@ impl eframe::App for EchoesApp {
                     if !self.showing_inventory {
                         close_inventory = true;
                     }
+
+                    // Request repaint to ensure inventory updates properly
+                    ctx.request_repaint();
                 }
 
                 if self.showing_character && self.game_initialized {
