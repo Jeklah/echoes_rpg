@@ -21,11 +21,12 @@ fn main() {
             eprintln!("Failed to run GUI: {}", e);
             std::process::exit(1);
         }
-        return;
     }
-
-    // Fall back to terminal version
-    run_terminal_version();
+    #[cfg(not(all(feature = "gui", target_os = "windows")))]
+    {
+        // Fall back to terminal version
+        run_terminal_version();
+    }
 }
 
 fn run_terminal_version() {

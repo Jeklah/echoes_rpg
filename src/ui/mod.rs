@@ -5,6 +5,10 @@ use crossterm::{
     style::{self, Color},
     terminal::{self},
 };
+#[cfg(windows)]
+use crossterm::{event::KeyEventKind, queue};
+#[cfg(windows)]
+use std::io::Write;
 use std::io::{self, stdout};
 
 use crate::character::{ClassType, Player};
@@ -623,7 +627,7 @@ impl UI {
 
     pub fn draw_game_screen(
         &mut self,
-        _player: &Player,
+        player: &Player,
         level: &Level,
         dungeon: &Dungeon,
     ) -> io::Result<()> {
