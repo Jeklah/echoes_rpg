@@ -1,11 +1,9 @@
 pub mod consumable;
 pub mod equipment;
-pub mod inventory;
 
 // Re-exports
 pub use consumable::{Consumable, ConsumableType};
 pub use equipment::{Equipment, EquipmentSlot};
-pub use inventory::Inventory;
 
 use rand::Rng;
 use serde::{Deserialize, Serialize};

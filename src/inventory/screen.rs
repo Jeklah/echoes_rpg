@@ -242,20 +242,20 @@ mod tests {
     fn create_empty_player() -> Player {
         // This is a simplified version - in real tests you'd want proper player creation
         use crate::character::{Class, ClassType, Stats};
-        use crate::item::Inventory;
+        use crate::inventory::Inventory;
 
         Player {
             name: "Test".to_string(),
+            class: Class::new(ClassType::Warrior),
+            stats: Stats::new(),
             level: 1,
             experience: 0,
             health: 100,
             max_health: 100,
             mana: 50,
             max_mana: 50,
-            gold: 0,
-            stats: Stats::new(10, 10, 10, 10, 10),
-            class: Class::new(ClassType::Warrior),
             inventory: Inventory::new(20),
+            gold: 0,
         }
     }
 }

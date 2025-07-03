@@ -1,5 +1,5 @@
 use crate::character::{Class, ClassType, StatType, Stats};
-use crate::item::Inventory;
+use crate::inventory::Inventory;
 
 use serde::{Deserialize, Serialize};
 

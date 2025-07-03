@@ -54,7 +54,7 @@
 pub mod manager;
 pub mod screen;
 
-pub use manager::InventoryManager;
+pub use manager::{Inventory, InventoryManager};
 pub use screen::{InventoryAction, InventoryScreen};
 
 use crate::character::Player;

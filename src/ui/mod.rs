@@ -13,6 +13,7 @@ use std::io::{self, stdout};
 
 use crate::character::{ClassType, Player};
 use crate::combat::{CombatAction, CombatResult};
+use crate::inventory::InventoryManager;
 use crate::item::Item;
 use crate::platform;
 use crate::world::{Dungeon, Enemy, FogOfWar, Level, Position};
@@ -1198,7 +1199,7 @@ impl UI {
             style::Print(format!("Gold: {}", player.gold))
         )?;
 
-        if player.inventory.items.is_empty() {
+        if InventoryManager::is_empty(player) {
             execute!(
                 stdout(),
                 cursor::MoveTo(10, 5),
@@ -1213,27 +1214,14 @@ impl UI {
                 style::Print("------")
             )?;
 
-            for (i, item) in player.inventory.items.iter().enumerate() {
-                let item_name = item.name();
-                let equipped_marker = match item {
-                    Item::Equipment(equipment) => {
-                        if let Some(Some(idx)) = player.inventory.equipped.get(&equipment.slot) {
-                            if *idx == i {
-                                " [E]"
-                            } else {
-                                ""
-                            }
-                        } else {
-                            ""
-                        }
-                    }
-                    _ => "",
-                };
+            let items = InventoryManager::get_items(player);
+            for (i, item_info) in items.iter().enumerate() {
+                let equipped_marker = if item_info.is_equipped { " [E]" } else { "" };
 
                 execute!(
                     stdout(),
                     cursor::MoveTo(5, 7 + i as u16),
-                    style::Print(format!("{}. {}{}", i + 1, item_name, equipped_marker))
+                    style::Print(format!("{}. {}{}", i + 1, item_info.name, equipped_marker))
                 )?;
             }
         }

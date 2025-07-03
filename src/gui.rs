@@ -7,6 +7,7 @@ use crate::character::{ClassType, Player};
 use crate::game::Game;
 #[cfg(feature = "gui")]
 use crate::input::InputHandler;
+use crate::inventory::InventoryManager;
 use crate::item::{equipment, Item};
 #[cfg(feature = "gui")]
 use crate::world::{FogOfWar, Position};
@@ -754,17 +755,12 @@ impl EchoesApp {
                     if c.is_digit(10) && *c != '0' {
                         let index = c.to_digit(10).unwrap() as usize - 1;
                         if let Some(game) = &mut self.game {
-                            if index < game.player.inventory.items.len() {
-                                // Check if it's equipment
-                                if let Some(Item::Equipment(_)) =
-                                    game.player.inventory.items.get(index)
-                                {
-                                    match game.player.inventory.equip_item(index) {
-                                        Ok(()) => self.add_message(
-                                            "🎒 Item equipped successfully!".to_string(),
-                                        ),
-                                        Err(e) => self.add_message(format!("🎒 Error: {}", e)),
-                                    }
+                            if index < InventoryManager::get_item_count(&game.player) {
+                                let result = InventoryManager::use_item(&mut game.player, index);
+                                if result.success {
+                                    self.add_message("🎒 Item used successfully!".to_string());
+                                } else {
+                                    self.add_message(format!("🎒 Error: {}", result.message));
                                 }
                             }
                         }
@@ -933,7 +929,7 @@ impl EchoesApp {
                 ui.separator();
 
                 // List inventory items
-                if player.inventory.items.is_empty() {
+                if InventoryManager::is_empty(player) {
                     ui.label("Your inventory is empty.");
                 } else {
                     egui::ScrollArea::vertical().show(ui, |ui| {
@@ -941,22 +937,12 @@ impl EchoesApp {
                         ui.label("Press 1-9 keys to quickly equip equipment items");
                         ui.separator();
 
-                        for (i, item) in player.inventory.items.iter().enumerate() {
+                        let items = InventoryManager::get_items(player);
+                        for (i, item_info) in items.iter().enumerate() {
                             ui.horizontal(|ui| {
-                                // Check if item is equipped
-                                let is_equipped = if let Item::Equipment(_) = item {
-                                    player.inventory.equipped.values().any(|idx| {
-                                        if let Some(eq_idx) = idx {
-                                            *eq_idx == i
-                                        } else {
-                                            false
-                                        }
-                                    })
-                                } else {
-                                    false
-                                };
+                                let is_equipped = item_info.is_equipped;
 
-                                let item_name = item.name();
+                                let item_name = &item_info.name;
                                 let prefix = format!("{}. ", i + 1);
 
                                 // Create appropriate text with formatting
@@ -1057,17 +1043,14 @@ impl EchoesApp {
 
         // Handle using consumable items
         if let Some(index) = use_item_index {
+            // Handle consumable use for GUI
             if let Some(game) = &mut self.game {
-                if index < game.player.inventory.items.len() {
-                    if let Some(Item::Consumable(consumable)) =
-                        game.player.inventory.items.get(index).cloned()
-                    {
-                        // Remove the item from inventory
-                        game.player.inventory.items.remove(index);
-
-                        // Apply the effect
-                        let result = consumable.use_effect(&mut game.player);
-                        self.add_message(format!("🧪 {}", result));
+                if index < InventoryManager::get_item_count(&game.player) {
+                    if let Some(item) = InventoryManager::get_item(&game.player, index) {
+                        if let Item::Consumable(_) = item {
+                            let result = InventoryManager::use_item(&mut game.player, index);
+                            self.add_message(format!("🧪 {}", result.message));
+                        }
                     }
                 }
             }
@@ -1106,12 +1089,10 @@ impl EchoesApp {
                 // Equipment section
                 ui.heading("Equipment");
                 for slot in equipment::EquipmentSlot::iter() {
-                    let equipped = if let Some(Some(idx)) = player.inventory.equipped.get(&slot) {
-                        if let Some(Item::Equipment(equipment)) = player.inventory.items.get(*idx) {
-                            format!("{} (+{})", equipment.name, equipment.power)
-                        } else {
-                            "None".to_string()
-                        }
+                    let equipped = if let Some(item_info) =
+                        InventoryManager::get_equipped_item(player, slot)
+                    {
+                        format!("{} (+{})", item_info.name, item_info.value)
                     } else {
                         "None".to_string()
                     };
