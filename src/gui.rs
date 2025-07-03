@@ -2,15 +2,14 @@
 //! Provides a native Windows application with text-based gameplay
 
 #[cfg(feature = "gui")]
-use crate::character::Player;
+use crate::character::{ClassType, Player};
 #[cfg(feature = "gui")]
 use crate::game::Game;
 #[cfg(feature = "gui")]
-use crate::input::{InputAction, InputHandler};
+use crate::input::InputHandler;
+use crate::item::{equipment, Item};
 #[cfg(feature = "gui")]
-use crate::inventory::InventoryScreen;
-#[cfg(feature = "gui")]
-use crate::world::{FogOfWar, FogOfWarConfig, Position};
+use crate::world::{FogOfWar, Position};
 #[cfg(feature = "gui")]
 use eframe::egui;
 #[cfg(feature = "gui")]
@@ -18,44 +17,42 @@ use egui::{Color32, FontFamily, FontId, RichText};
 
 #[cfg(feature = "gui")]
 #[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)]
 enum CharacterCreationState {
     EnteringName,
     SelectingClass,
 }
 
-#[derive(Clone, Copy, PartialEq)]
-enum GuiScreenState {
-    Game,
-    Inventory,
-    Character,
-}
-
+#[allow(dead_code)]
 pub struct EchoesApp {
     game: Option<Game>,
-    terminal_buffer: Vec<String>,
-    color_buffer: Vec<Vec<Color32>>,
+    terminal_buffer: Vec<Vec<char>>,
+    color_buffer: Vec<Vec<Option<Color32>>>,
     input_buffer: String,
     last_key: Option<char>,
     show_combat_tutorial: bool,
-    window_size: (u32, u32),
+    window_size: (f32, f32),
     font_size: f32,
     char_width: f32,
     char_height: f32,
     cursor_pos: (usize, usize),
     terminal_size: (usize, usize),
     ui_messages: Vec<String>,
+    message_log: Vec<(String, f64)>, // Messages with timestamps for fading
+    message_log_visible: bool,       // Toggle for message log visibility
     game_initialized: bool,
     character_name: String,
-    character_class: Option<crate::character::ClassType>,
+    character_class: Option<ClassType>,
     creating_character: bool,
     character_creation_state: CharacterCreationState,
+    showing_inventory: bool, // Whether the inventory screen is shown
+    showing_character: bool, // Whether the character screen is shown
     main_menu: bool,
-    input_handler: crate::input::InputHandler,
+    input_handler: InputHandler,
     frame_count: u64,
     in_combat: bool,
     combat_enemy_pos: Option<Position>,
     combat_messages: Vec<String>,
-    gui_screen_state: GuiScreenState,
 }
 
 #[cfg(feature = "gui")]
@@ -63,30 +60,33 @@ impl Default for EchoesApp {
     fn default() -> Self {
         let mut app = Self {
             game: None,
-            terminal_buffer: vec![String::new(); 50],
-            color_buffer: vec![vec![Color32::from_rgb(192, 192, 192); 150]; 50],
+            terminal_buffer: vec![vec![' '; 150]; 50],
+            color_buffer: vec![vec![Some(Color32::from_rgb(192, 192, 192)); 150]; 50],
             input_buffer: String::new(),
             last_key: None,
             show_combat_tutorial: false,
-            window_size: (1200, 800),
+            window_size: (1200.0, 800.0),
             font_size: 14.0,
             char_width: 8.0,
             char_height: 16.0,
             cursor_pos: (0, 0),
             terminal_size: (150, 50),
-            ui_messages: Vec::new(),
+            ui_messages: Vec::with_capacity(25), // Pre-allocate more space for extended message history
+            message_log: Vec::with_capacity(50), // Larger capacity for dedicated message log
+            message_log_visible: true,           // Show message log by default
             game_initialized: false,
             character_name: String::new(),
             character_class: None,
-            creating_character: true,
+            creating_character: false,
             character_creation_state: CharacterCreationState::EnteringName,
+            showing_inventory: false,
+            showing_character: false,
             main_menu: true,
-            input_handler: crate::input::InputHandler::new(),
+            input_handler: InputHandler::new(),
             frame_count: 0,
             in_combat: false,
             combat_enemy_pos: None,
             combat_messages: Vec::new(),
-            gui_screen_state: GuiScreenState::Game,
         };
         app.init_terminal();
         app
@@ -94,6 +94,7 @@ impl Default for EchoesApp {
 }
 
 #[cfg(feature = "gui")]
+#[allow(dead_code)]
 impl EchoesApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         // Configure dark theme and colors for terminal appearance
@@ -116,9 +117,9 @@ impl EchoesApp {
 
     fn init_terminal(&mut self) {
         // Initialize terminal buffer and color buffer with larger size
-        self.terminal_buffer = vec![" ".repeat(self.terminal_size.0); self.terminal_size.1];
+        self.terminal_buffer = vec![vec![' '; self.terminal_size.0]; self.terminal_size.1];
         self.color_buffer = vec![
-            vec![Color32::from_rgb(192, 192, 192); self.terminal_size.0];
+            vec![Some(Color32::from_rgb(192, 192, 192)); self.terminal_size.0];
             self.terminal_size.1
         ];
         self.clear_screen();
@@ -127,11 +128,11 @@ impl EchoesApp {
 
     fn clear_screen(&mut self) {
         for line in &mut self.terminal_buffer {
-            *line = " ".repeat(self.terminal_size.0);
+            *line = vec![' '; self.terminal_size.0];
         }
         for line in &mut self.color_buffer {
             for color in line {
-                *color = Color32::from_rgb(192, 192, 192);
+                *color = Some(Color32::from_rgb(192, 192, 192));
             }
         }
         self.cursor_pos = (0, 0);
@@ -142,13 +143,17 @@ impl EchoesApp {
             let line = &mut self.terminal_buffer[y];
             let end_x = (x + text.len()).min(line.len());
             if x < line.len() {
-                line.replace_range(x..end_x, &text[..end_x - x]);
+                for (i, c) in text[..end_x - x].chars().enumerate() {
+                    if x + i < line.len() {
+                        line[x + i] = c;
+                    }
+                }
 
                 // Set colors for each character
                 let color_to_use = color.unwrap_or(Color32::from_rgb(192, 192, 192));
                 for i in x..end_x {
                     if i < self.color_buffer[y].len() {
-                        self.color_buffer[y][i] = color_to_use;
+                        self.color_buffer[y][i] = Some(color_to_use);
                     }
                 }
             }
@@ -323,7 +328,7 @@ impl EchoesApp {
 
     fn finish_character_creation(&mut self) {
         if let Some(class_type) = self.character_class {
-            let class = crate::character::Class::new(class_type);
+            let _class = crate::character::Class::new(class_type);
             let player = Player::new(self.character_name.clone(), class_type);
             self.game = Some(Game::new(player));
             self.creating_character = false;
@@ -469,8 +474,8 @@ impl EchoesApp {
             Some(Color32::from_rgb(0, 255, 255)),
         );
         self.print_at(ui_x, controls_y + 1, "WASD: Move", None);
-        self.print_at(ui_x, controls_y + 2, "I: Inventory", None);
-        self.print_at(ui_x, controls_y + 3, "C: Character", None);
+        self.print_at(ui_x, controls_y + 2, "I: Toggle Inventory", None);
+        self.print_at(ui_x, controls_y + 3, "C: Toggle Character", None);
         self.print_at(ui_x, controls_y + 4, "G: Get item", None);
         self.print_at(ui_x, controls_y + 5, "Q: Quit", None);
 
@@ -534,13 +539,49 @@ impl EchoesApp {
                             self.check_for_combat();
                         }
                     }
+                    'g' | 'G' => {
+                        // Try to get item at current position or adjacent chest
+                        if let Some(result) = game.try_get_item() {
+                            // Add a visual prefix for item/chest interactions with color coding
+                            let message = if result.contains("chest") {
+                                format!("📦 {}", result)
+                            } else {
+                                format!("🔍 {}", result)
+                            };
+                            self.add_message(message);
+                        }
+                    }
                     'i' | 'I' => {
-                        // Show inventory screen
-                        self.gui_screen_state = GuiScreenState::Inventory;
+                        // Toggle inventory screen
+                        self.showing_inventory = !self.showing_inventory;
+                        if self.showing_inventory {
+                            self.showing_character = false; // Close character screen if open
+                            self.add_message("🎒 Inventory opened".to_string());
+                        } else {
+                            self.add_message("🎒 Inventory closed".to_string());
+                        }
                     }
                     'c' | 'C' => {
-                        // Show character screen
-                        self.gui_screen_state = GuiScreenState::Character;
+                        // Toggle character screen
+                        self.showing_character = !self.showing_character;
+                        if self.showing_character {
+                            self.showing_inventory = false; // Close inventory screen if open
+                            self.add_message("👤 Character screen opened".to_string());
+                        } else {
+                            self.add_message("👤 Character screen closed".to_string());
+                        }
+                    }
+                    'm' | 'M' => {
+                        // Toggle message log visibility
+                        self.toggle_message_log();
+                        self.add_message(
+                            if self.message_log_visible {
+                                "📜 Message log visible (press M to hide)"
+                            } else {
+                                "📜 Message log hidden (press M to show)"
+                            }
+                            .to_string(),
+                        );
                     }
                     'q' | 'Q' => {
                         // Quit to main menu
@@ -656,19 +697,27 @@ impl EchoesApp {
                     game.combat_started = false;
                     self.in_combat = false;
                     self.combat_enemy_pos = None;
-                    self.combat_messages
-                        .push("You were victorious!".to_string());
-                    // Move combat messages to main UI messages
-                    self.ui_messages.extend(self.combat_messages.drain(..));
+                    // Add victory message directly to message log
+                    self.add_message("⚔️ You were victorious!".to_string());
+
+                    // Add any other combat messages to the message log
+                    let messages: Vec<String> = self.combat_messages.drain(..).collect();
+                    for msg in messages {
+                        self.add_message(msg);
+                    }
                 } else if result.player_fled {
                     game.game_state = crate::game::GameState::Playing;
                     game.combat_started = false;
                     self.in_combat = false;
                     self.combat_enemy_pos = None;
-                    self.combat_messages
-                        .push("You fled from combat!".to_string());
-                    // Move combat messages to main UI messages
-                    self.ui_messages.extend(self.combat_messages.drain(..));
+                    // Add fled message directly to message log
+                    self.add_message("🏃 You fled from combat!".to_string());
+
+                    // Add any other combat messages to the message log
+                    let messages: Vec<String> = self.combat_messages.drain(..).collect();
+                    for msg in messages {
+                        self.add_message(msg);
+                    }
                 } else if !game.player.is_alive() {
                     game.game_state = crate::game::GameState::GameOver;
                     self.in_combat = false;
@@ -679,6 +728,22 @@ impl EchoesApp {
     }
 
     fn handle_input(&mut self, action: &crate::input::InputAction) {
+        // Skip processing character/inventory keys if those screens are already open
+        if self.showing_inventory || self.showing_character {
+            if let crate::input::InputAction::Character('i')
+            | crate::input::InputAction::Character('I') = action
+            {
+                self.handle_game_input('i');
+                return;
+            }
+            if let crate::input::InputAction::Character('c')
+            | crate::input::InputAction::Character('C') = action
+            {
+                self.handle_game_input('c');
+                return;
+            }
+        }
+
         // Update last key for display purposes
         if let Some(c) = crate::input::InputHandler::get_character(action) {
             self.last_key = Some(c);
@@ -705,11 +770,7 @@ impl EchoesApp {
                 _ => {}
             }
         } else if self.game_initialized {
-            match self.gui_screen_state {
-                GuiScreenState::Game => self.handle_game_input_legacy(action),
-                GuiScreenState::Inventory => self.handle_inventory_input(action),
-                GuiScreenState::Character => self.handle_character_screen_input(action),
-            }
+            self.handle_game_input_legacy(action);
         }
     }
 
@@ -817,188 +878,154 @@ impl EchoesApp {
         }
     }
 
-    fn render_inventory_screen(&mut self, player: &crate::character::Player) {
-        self.clear_screen();
+    /// Displays the inventory screen with the player's items
+    /// Displays the inventory screen with the player's items and equipment
+    fn show_inventory_screen(&mut self, ui: &mut egui::Ui) {
+        if let Some(ref game) = self.game {
+            let player = &game.player;
 
-        // Get display data from inventory module
-        let display_data = InventoryScreen::get_display_data(player);
+            // Create a window for the inventory
+            let window = egui::Window::new("Inventory")
+                .fixed_size([400.0, 500.0])
+                .collapsible(false)
+                .resizable(false);
 
-        // Title
-        self.print_at(
-            30,
-            1,
-            InventoryScreen::get_title(),
-            Some(Color32::from_rgb(0, 255, 255)),
-        );
+            window.show(ui.ctx(), |ui| {
+                ui.heading("Inventory");
+                ui.add_space(10.0);
 
-        // Gold
-        self.print_at(10, 3, &display_data.gold_display(), None);
+                ui.label(format!("Gold: {}", player.gold));
+                ui.separator();
 
-        if display_data.is_empty {
-            self.print_at(10, 5, InventoryScreen::get_empty_message(), None);
-        } else {
-            self.print_at(5, 5, InventoryScreen::get_items_header(), None);
-            self.print_at(5, 6, InventoryScreen::get_items_separator(), None);
+                // List inventory items
+                if player.inventory.items.is_empty() {
+                    ui.label("Your inventory is empty.");
+                } else {
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        for (i, item) in player.inventory.items.iter().enumerate() {
+                            ui.horizontal(|ui| {
+                                let item_name = item.name();
+                                let prefix = format!("{}. ", i + 1);
 
-            for (display_index, item) in display_data.items_with_display_index() {
-                let item_line = InventoryScreen::format_item_line(item, display_index);
-                self.print_at(5, 6 + display_index, &item_line, None);
-            }
-        }
+                                let mut text = egui::RichText::new(prefix + item_name);
 
-        self.print_at(
-            10,
-            45,
-            InventoryScreen::get_help_text(),
-            Some(Color32::from_rgb(128, 128, 128)),
-        );
-    }
+                                // Highlight equipped items
+                                if let Item::Equipment(_equipment) = item {
+                                    for (_slot, idx) in &player.inventory.equipped {
+                                        if let Some(eq_idx) = idx {
+                                            if *eq_idx == i {
+                                                text = text
+                                                    .color(Color32::from_rgb(0, 255, 0))
+                                                    .strong();
+                                            }
+                                        }
+                                    }
+                                }
 
-    fn render_character_screen(&mut self, player: &crate::character::Player) {
-        self.clear_screen();
-
-        // Title
-        self.print_at(
-            30,
-            1,
-            "Character Sheet",
-            Some(Color32::from_rgb(0, 255, 255)),
-        );
-
-        // Basic info
-        self.print_at(10, 3, &format!("Name: {}", player.name), None);
-        self.print_at(10, 4, &format!("Class: {}", player.class.class_type), None);
-        self.print_at(10, 5, &format!("Level: {}", player.level), None);
-        self.print_at(
-            10,
-            6,
-            &format!("Experience: {}/{}", player.experience, player.level * 100),
-            None,
-        );
-        self.print_at(
-            10,
-            7,
-            &format!("Health: {}/{}", player.health, player.max_health),
-            None,
-        );
-        self.print_at(
-            10,
-            8,
-            &format!("Mana: {}/{}", player.mana, player.max_mana),
-            None,
-        );
-        self.print_at(10, 9, &format!("Gold: {}", player.gold), None);
-
-        // Stats
-        self.print_at(10, 11, "Stats:", Some(Color32::from_rgb(0, 255, 255)));
-        self.print_at(
-            10,
-            12,
-            &format!(
-                "Strength: {}",
-                player.stats.get_stat(crate::character::StatType::Strength)
-            ),
-            None,
-        );
-        self.print_at(
-            10,
-            13,
-            &format!(
-                "Intelligence: {}",
-                player
-                    .stats
-                    .get_stat(crate::character::StatType::Intelligence)
-            ),
-            None,
-        );
-        self.print_at(
-            10,
-            14,
-            &format!(
-                "Dexterity: {}",
-                player.stats.get_stat(crate::character::StatType::Dexterity)
-            ),
-            None,
-        );
-        self.print_at(
-            10,
-            15,
-            &format!(
-                "Constitution: {}",
-                player
-                    .stats
-                    .get_stat(crate::character::StatType::Constitution)
-            ),
-            None,
-        );
-        self.print_at(
-            10,
-            16,
-            &format!(
-                "Wisdom: {}",
-                player.stats.get_stat(crate::character::StatType::Wisdom)
-            ),
-            None,
-        );
-
-        // Abilities
-        self.print_at(40, 11, "Abilities:", Some(Color32::from_rgb(0, 255, 255)));
-        for (i, ability) in player.class.abilities.iter().enumerate() {
-            self.print_at(40, 12 + i, &format!("{}. {}", i + 1, ability), None);
-        }
-
-        // Combat stats
-        self.print_at(
-            40,
-            18,
-            "Combat Stats:",
-            Some(Color32::from_rgb(0, 255, 255)),
-        );
-        self.print_at(40, 19, &format!("Attack: {}", player.attack_damage()), None);
-        self.print_at(40, 20, &format!("Defense: {}", player.defense()), None);
-
-        self.print_at(
-            10,
-            45,
-            "Press any key to return...",
-            Some(Color32::from_rgb(128, 128, 128)),
-        );
-    }
-
-    fn handle_inventory_input(&mut self, action: &crate::input::InputAction) {
-        match action {
-            crate::input::InputAction::Character(c) => {
-                let inventory_action = InventoryScreen::process_input(*c);
-
-                if let Some(ref mut game) = self.game {
-                    match InventoryScreen::handle_action(&mut game.player, inventory_action) {
-                        Some(result) => {
-                            self.ui_messages.push(result.message);
+                                ui.label(text);
+                            });
                         }
-                        None => {
-                            // Exit inventory
-                            self.gui_screen_state = GuiScreenState::Game;
-                        }
-                    }
+                    });
                 }
-            }
-            crate::input::InputAction::Exit => {
-                self.gui_screen_state = GuiScreenState::Game;
-            }
-            _ => {}
+
+                ui.separator();
+                ui.label("Press I or ESC to close inventory");
+
+                // Add a close button at the bottom
+                ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
+                    if ui.button("Close Inventory").clicked() {
+                        self.showing_inventory = false;
+                    }
+                });
+            });
         }
     }
 
-    fn handle_character_screen_input(&mut self, action: &crate::input::InputAction) {
-        // Any key returns to game screen
-        match action {
-            crate::input::InputAction::Character(_)
-            | crate::input::InputAction::Enter
-            | crate::input::InputAction::Exit => {
-                self.gui_screen_state = GuiScreenState::Game;
-            }
-            _ => {}
+    /// Displays the character screen with player stats
+    fn show_character_screen(&mut self, ui: &mut egui::Ui) {
+        if let Some(ref game) = self.game {
+            let player = &game.player;
+
+            // Create a window for the character info
+            let window = egui::Window::new("Character")
+                .fixed_size([400.0, 500.0])
+                .collapsible(false)
+                .resizable(false);
+
+            window.show(ui.ctx(), |ui| {
+                ui.heading(format!("{} - Level {}", player.name, player.level));
+                ui.label(format!("Class: {}", player.class.class_type));
+                ui.add_space(10.0);
+
+                // Stats section
+                ui.heading("Stats");
+                ui.label(format!("Health: {}/{}", player.health, player.max_health));
+                ui.label(format!("Mana: {}/{}", player.mana, player.max_mana));
+                ui.label(format!(
+                    "Experience: {}/{}",
+                    player.experience,
+                    player.level * 100
+                ));
+                ui.label(format!("Gold: {}", player.gold));
+
+                ui.add_space(10.0);
+
+                // Equipment section
+                ui.heading("Equipment");
+                for slot in equipment::EquipmentSlot::iter() {
+                    let equipped = if let Some(Some(idx)) = player.inventory.equipped.get(&slot) {
+                        if let Some(Item::Equipment(equipment)) = player.inventory.items.get(*idx) {
+                            format!("{} (+{})", equipment.name, equipment.power)
+                        } else {
+                            "None".to_string()
+                        }
+                    } else {
+                        "None".to_string()
+                    };
+
+                    ui.label(format!("{}: {}", slot, equipped));
+                }
+
+                ui.separator();
+                ui.label("Press C or ESC to close character screen");
+
+                // Add a close button at the bottom
+                ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
+                    if ui.button("Close Character Screen").clicked() {
+                        self.showing_character = false;
+                    }
+                });
+            });
         }
+    }
+
+    /// Adds a message to both the UI messages list and the message log with timestamp
+    fn add_message(&mut self, message: String) {
+        // Add to UI messages (short-term display)
+        self.ui_messages.push(message.clone());
+
+        // Limit UI messages to 8 most recent for better history in status bar
+        if self.ui_messages.len() > 8 {
+            self.ui_messages.remove(0);
+        }
+
+        // Add to message log with current timestamp
+        let current_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs_f64();
+
+        self.message_log.push((message, current_time));
+
+        // Limit message log size
+        if self.message_log.len() > 100 {
+            self.message_log.remove(0);
+        }
+    }
+
+    /// Toggles visibility of the message log
+    fn toggle_message_log(&mut self) {
+        self.message_log_visible = !self.message_log_visible;
     }
 }
 
@@ -1010,6 +1037,18 @@ impl eframe::App for EchoesApp {
 
         // Process input using centralized handler
         let actions = self.input_handler.process_input(ctx, self.frame_count);
+
+        // Check if Escape key is pressed to close any open screens
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            if self.showing_inventory {
+                self.showing_inventory = false;
+                self.add_message("🎒 Inventory closed".to_string());
+            }
+            if self.showing_character {
+                self.showing_character = false;
+                self.add_message("👤 Character screen closed".to_string());
+            }
+        }
 
         // Handle each action
         for action in actions {
@@ -1071,7 +1110,7 @@ impl eframe::App for EchoesApp {
                                 let mut current_color = Color32::from_rgb(192, 192, 192);
                                 let mut segment_start = true;
 
-                                for (x, ch) in line.chars().enumerate() {
+                                for (x, &ch) in line.iter().enumerate() {
                                     if x >= max_cols.saturating_sub(5) {
                                         break;
                                     } // Prevent overflow with smaller margin
@@ -1081,11 +1120,11 @@ impl eframe::App for EchoesApp {
                                     {
                                         self.color_buffer[y][x]
                                     } else {
-                                        Color32::from_rgb(192, 192, 192)
+                                        Some(Color32::from_rgb(192, 192, 192))
                                     };
 
                                     // If color changes or this is the first character, start new segment
-                                    if segment_start || color != current_color {
+                                    if segment_start || color.unwrap_or(Color32::from_rgb(192, 192, 192)) != current_color {
                                         // Render previous segment if it exists
                                         if !current_segment.is_empty() {
                                             let text = RichText::new(&current_segment)
@@ -1096,7 +1135,7 @@ impl eframe::App for EchoesApp {
 
                                         // Start new segment
                                         current_segment = ch.to_string();
-                                        current_color = color;
+                                        current_color = color.unwrap_or(Color32::from_rgb(192, 192, 192));
                                         segment_start = false;
                                     } else {
                                         // Add to current segment
@@ -1116,47 +1155,118 @@ impl eframe::App for EchoesApp {
                     });
                 });
 
-                // Render appropriate screen based on state
+                // Render game if active
                 if self.game_initialized && !self.show_combat_tutorial {
-                    if let Some(game) = &self.game {
-                        match self.gui_screen_state {
-                            GuiScreenState::Game => {
-                                let game_clone = game.clone();
-                                if self.in_combat {
-                                    self.render_combat_screen_safe(&game_clone);
-                                } else {
-                                    self.render_game_screen_safe(&game_clone);
-                                }
-                            }
-                            GuiScreenState::Inventory => {
-                                let player_clone = game.player.clone();
-                                self.render_inventory_screen(&player_clone);
-                            }
-                            GuiScreenState::Character => {
-                                let player_clone = game.player.clone();
-                                self.render_character_screen(&player_clone);
-                            }
+                    if self.game.is_some() {
+                        // Clone the game data only at render time to avoid stale state
+                        let game_clone = self.game.clone().unwrap();
+                        if self.in_combat {
+                            self.render_combat_screen_safe(&game_clone);
+                        } else {
+                            self.render_game_screen_safe(&game_clone);
                         }
                     }
                 }
 
                 // Compact status bar at bottom - no separators or borders
+                // If inventory or character screen should be shown, render them on top of the game screen
+                let mut close_inventory = false;
+                let mut close_character = false;
+
+                if self.showing_inventory && self.game_initialized {
+                    self.show_inventory_screen(ui);
+                    // Check if inventory was closed via button
+                    if !self.showing_inventory {
+                        close_inventory = true;
+                    }
+                }
+
+                if self.showing_character && self.game_initialized {
+                    self.show_character_screen(ui);
+                    // Check if character screen was closed via button
+                    if !self.showing_character {
+                        close_character = true;
+                    }
+                }
+
+                // Handle screen closed events outside of the UI closures
+                if close_inventory {
+                    self.add_message("🎒 Inventory closed".to_string());
+                }
+                if close_character {
+                    self.add_message("👤 Character screen closed".to_string());
+                }
+
                 ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
-                    // Messages area - compact and centered
+                    // Compact message display at bottom
                     if !self.ui_messages.is_empty() {
                         ui.horizontal_centered(|ui| {
                             ui.label(
-                                RichText::new("Messages: ").color(Color32::from_rgb(0, 255, 255)),
+                                RichText::new("Recent: ").color(Color32::from_rgb(0, 255, 255)),
                             );
-                            for msg in &self.ui_messages {
-                                ui.label(RichText::new(format!("{} ", msg)).color(Color32::WHITE));
-                            }
+                            // Display recent messages in a horizontal bar
+                            ui.horizontal_wrapped(|ui| {
+                                for msg in &self.ui_messages {
+                                    ui.label(
+                                        RichText::new(format!("{} | ", msg)).color(Color32::WHITE),
+                                    );
+                                }
+                            });
                         });
+                    }
 
-                        // Clear old messages
-                        if self.ui_messages.len() > 5 {
-                            self.ui_messages.remove(0);
-                        }
+                    // Show help for message log and item pickup
+                    ui.horizontal_centered(|ui| {
+                        ui.label(
+                            RichText::new("Press M to toggle message log | Press G to pick up items or loot chests")
+                                .color(Color32::from_rgb(180, 180, 180))
+                                .small(),
+                        );
+                    });
+
+                    // Full message log (when visible)
+                    if self.message_log_visible && !self.message_log.is_empty() {
+                        // Calculate current time to fade old messages
+                        let current_time = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_secs_f64();
+
+                        // Create a scrollable message log area
+                        egui::ScrollArea::vertical()
+                            .max_height(150.0)
+                            .stick_to_bottom(true)
+                            .show(ui, |ui| {
+                                ui.push_id("message_log", |ui| {
+                                    ui.vertical_centered(|ui| {
+                                        ui.heading(RichText::new("Message Log").color(Color32::from_rgb(0, 255, 255)));
+                                    });
+
+                                    // Display message log with timestamps
+                                    ui.add_space(5.0);
+                                    for (i, (msg, time)) in self.message_log.iter().enumerate() {
+                                        // Fade older messages (30 seconds to full fade)
+                                        let age = current_time - time;
+                                        let alpha = (1.0 - (age / 30.0)).max(0.3).min(1.0);
+                                        let color = if msg.contains("chest") || msg.contains("item") {
+                                            Color32::from_rgba_premultiplied(200, 255, 200, (alpha * 255.0) as u8)
+                                        } else if msg.contains("combat") || msg.contains("attack") || msg.contains("damage") {
+                                            Color32::from_rgba_premultiplied(255, 200, 200, (alpha * 255.0) as u8)
+                                        } else {
+                                            Color32::from_rgba_premultiplied(255, 255, 255, (alpha * 255.0) as u8)
+                                        };
+
+                                        ui.horizontal(|ui| {
+                                            // Add small indicator for message type
+                                            let indicator = if i == self.message_log.len() - 1 { "➤ " } else { "• " };
+                                            ui.label(RichText::new(indicator).color(color));
+                                            ui.label(RichText::new(msg).color(color));
+                                        });
+                                    }
+                                });
+                            });
+
+                        ui.add_space(10.0);
                     }
 
                     // Status bar - compact and centered
@@ -1175,7 +1285,7 @@ impl eframe::App for EchoesApp {
                         if let Some(key) = self.last_key {
                             ui.label(
                                 RichText::new(format!(" | Last key: {}", key))
-                                    .color(Color32::LIGHT_GRAY),
+                                    .color(Color32::LIGHT_GRAY)
                             );
                         }
                     });
@@ -1188,6 +1298,7 @@ impl eframe::App for EchoesApp {
 }
 
 #[cfg(feature = "gui")]
+#[allow(dead_code)]
 pub fn run_gui() -> Result<(), eframe::Error> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -1213,6 +1324,7 @@ pub fn run_gui() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[cfg(feature = "gui")]
+#[allow(dead_code)]
 impl EchoesApp {
     fn get_game_info(&self) -> Option<(String, i32, i32, i32, i32, i32, i32)> {
         if let Some(ref game) = self.game {

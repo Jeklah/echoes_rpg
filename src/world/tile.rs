@@ -37,6 +37,7 @@ impl TileType {
         }
     }
 
+    #[allow(dead_code)]
     pub fn description(&self) -> &str {
         match self {
             TileType::Wall => "A solid wall blocks your path.",

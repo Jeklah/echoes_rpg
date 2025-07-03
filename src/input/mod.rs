@@ -6,6 +6,7 @@
 use egui::{Event, Key};
 
 #[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)]
 pub enum InputAction {
     // Character input for names, etc.
     Character(char),
@@ -24,6 +25,7 @@ pub enum InputAction {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)]
 pub enum Direction {
     North,
     South,
@@ -33,6 +35,7 @@ pub enum Direction {
     Down,
 }
 
+#[allow(dead_code)]
 pub struct InputHandler {
     // Event queue for robust input handling
     action_queue: std::collections::VecDeque<InputAction>,
@@ -51,6 +54,7 @@ impl Default for InputHandler {
     }
 }
 
+#[allow(dead_code)]
 impl InputHandler {
     pub fn new() -> Self {
         Self::default()
@@ -169,6 +173,7 @@ impl InputHandler {
 }
 
 /// Helper functions for common input patterns
+#[allow(dead_code)]
 impl InputHandler {
     /// Check if an action is a valid character for name entry
     pub fn is_name_character(action: &InputAction) -> bool {

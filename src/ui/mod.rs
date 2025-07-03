@@ -1,22 +1,22 @@
 use crossterm::{
     cursor,
-    event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
-    execute, queue,
-    style::{self, Color, Stylize},
-    terminal::{self, Clear, ClearType},
+    event::{self, Event, KeyCode, KeyEvent},
+    execute,
+    style::{self, Color},
+    terminal::{self},
 };
-use std::io::{self, stdout, Write};
-use std::thread;
-use std::time::Duration;
+#[cfg(windows)]
+use crossterm::{event::KeyEventKind, queue};
+#[cfg(windows)]
+use std::io::Write;
+use std::io::{self, stdout};
 
 use crate::character::{ClassType, Player};
 use crate::combat::{CombatAction, CombatResult};
-use crate::inventory::InventoryScreen;
-use crate::item::{ConsumableType, Equipment, EquipmentSlot, Item};
+use crate::item::Item;
 use crate::platform;
-use crate::world::{Dungeon, Enemy, FogOfWar, FogOfWarConfig, Level, Position, Tile, TileType};
+use crate::world::{Dungeon, Enemy, FogOfWar, Level, Position};
 
-const SCREEN_WIDTH: usize = 100;
 const SCREEN_HEIGHT: usize = 35;
 const MAP_WIDTH: usize = 70;
 const MAP_HEIGHT: usize = 25;
@@ -1188,40 +1188,52 @@ impl UI {
     pub fn draw_inventory_screen(&mut self, player: &Player) -> io::Result<()> {
         self.clear_screen()?;
 
-        // Get display data from inventory module
-        let display_data = InventoryScreen::get_display_data(player);
-
         execute!(
             stdout(),
             cursor::MoveTo(30, 1),
             style::SetForegroundColor(Color::Cyan),
-            style::Print(InventoryScreen::get_title()),
+            style::Print("Inventory"),
             style::SetForegroundColor(Color::White),
             cursor::MoveTo(10, 3),
-            style::Print(display_data.gold_display())
+            style::Print(format!("Gold: {}", player.gold))
         )?;
 
-        if display_data.is_empty {
+        if player.inventory.items.is_empty() {
             execute!(
                 stdout(),
                 cursor::MoveTo(10, 5),
-                style::Print(InventoryScreen::get_empty_message())
+                style::Print("Your inventory is empty.")
             )?;
         } else {
             execute!(
                 stdout(),
                 cursor::MoveTo(5, 5),
-                style::Print(InventoryScreen::get_items_header()),
+                style::Print("Items:"),
                 cursor::MoveTo(5, 6),
-                style::Print(InventoryScreen::get_items_separator())
+                style::Print("------")
             )?;
 
-            for (display_index, item) in display_data.items_with_display_index() {
-                let item_line = InventoryScreen::format_item_line(item, display_index);
+            for (i, item) in player.inventory.items.iter().enumerate() {
+                let item_name = item.name();
+                let equipped_marker = match item {
+                    Item::Equipment(equipment) => {
+                        if let Some(Some(idx)) = player.inventory.equipped.get(&equipment.slot) {
+                            if *idx == i {
+                                " [E]"
+                            } else {
+                                ""
+                            }
+                        } else {
+                            ""
+                        }
+                    }
+                    _ => "",
+                };
+
                 execute!(
                     stdout(),
-                    cursor::MoveTo(5, 6 + display_index as u16),
-                    style::Print(item_line)
+                    cursor::MoveTo(5, 7 + i as u16),
+                    style::Print(format!("{}. {}{}", i + 1, item_name, equipped_marker))
                 )?;
             }
         }
@@ -1229,7 +1241,7 @@ impl UI {
         execute!(
             stdout(),
             cursor::MoveTo(10, SCREEN_HEIGHT as u16 - 3),
-            style::Print(InventoryScreen::get_help_text())
+            style::Print("Press a number key to use/equip an item, E to exit...")
         )?;
 
         Ok(())
@@ -1496,7 +1508,7 @@ impl UI {
             ));
         }
 
-        for (i, (item_index, item)) in consumables.iter().enumerate() {
+        for (i, (_item_index, item)) in consumables.iter().enumerate() {
             execute!(
                 stdout(),
                 cursor::MoveTo(10, 5 + i as u16),

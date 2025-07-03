@@ -13,7 +13,7 @@ use crossterm::{
 use dirs;
 #[cfg(windows)]
 use std::env;
-use std::io::{stdout, Write};
+use std::io::stdout;
 #[cfg(windows)]
 use std::process::Command;
 #[cfg(windows)]
@@ -98,6 +98,7 @@ pub fn check_terminal_compatibility() -> Result<()> {
 }
 
 /// Get platform-appropriate game data directory
+#[allow(dead_code)]
 pub fn get_game_data_dir() -> Result<std::path::PathBuf> {
     let base_dir = dirs::data_dir().context("Could not determine user data directory")?;
 
@@ -112,6 +113,7 @@ pub fn get_game_data_dir() -> Result<std::path::PathBuf> {
 }
 
 /// Get platform-appropriate config directory
+#[allow(dead_code)]
 pub fn get_config_dir() -> Result<std::path::PathBuf> {
     let base_dir = dirs::config_dir().context("Could not determine user config directory")?;
 
@@ -267,6 +269,7 @@ pub fn windows_frame_limit() {
 
 /// No-op frame limit for non-Windows platforms
 #[cfg(not(windows))]
+#[allow(dead_code)]
 pub fn windows_frame_limit() {
     // Do nothing on non-Windows platforms
 }

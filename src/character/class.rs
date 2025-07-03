@@ -140,6 +140,7 @@ impl Class {
         }
     }
 
+    #[allow(dead_code)]
     pub fn get_description(&self) -> &str {
         match self.class_type {
             ClassType::Warrior => {
@@ -157,6 +158,7 @@ impl Class {
         }
     }
 
+    #[allow(dead_code)]
     pub fn learn_ability(&mut self, ability: String) {
         self.abilities.push(ability);
     }

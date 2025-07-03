@@ -28,6 +28,7 @@ pub struct Character {
 }
 
 impl Character {
+    #[allow(dead_code)]
     pub fn new(name: String, class: Class) -> Self {
         let base_stats = class.base_stats();
         let max_health = 10 + (base_stats.get_stat(StatType::Constitution) * 5);
@@ -54,6 +55,7 @@ impl Character {
         }
     }
 
+    #[allow(dead_code)]
     pub fn gain_experience(&mut self, exp: u32) -> bool {
         self.experience += exp;
         let level_up_threshold = self.level * 100;
@@ -66,6 +68,7 @@ impl Character {
         false
     }
 
+    #[allow(dead_code)]
     pub fn level_up(&mut self) {
         self.level += 1;
         self.class.level_up_stats(&mut self.stats);
@@ -79,6 +82,7 @@ impl Character {
         self.mana = self.max_mana;
     }
 
+    #[allow(dead_code)]
     pub fn equip(&mut self, item_index: usize) -> Result<(), String> {
         if item_index >= self.inventory.len() {
             return Err("Invalid item index".to_string());
@@ -120,6 +124,7 @@ impl Character {
         }
     }
 
+    #[allow(dead_code)]
     pub fn unequip(&mut self, slot: EquipmentSlot) -> Result<(), String> {
         if let Some(Some(equipment)) = self.equipment.get(&slot) {
             // Check if there's room in the inventory
@@ -148,6 +153,7 @@ impl Character {
         }
     }
 
+    #[allow(dead_code)]
     pub fn use_item(&mut self, item_index: usize) -> Result<String, String> {
         if item_index >= self.inventory.len() {
             return Err("Invalid item index".to_string());
@@ -212,6 +218,7 @@ impl Character {
         }
     }
 
+    #[allow(dead_code)]
     pub fn attack_damage(&self) -> i32 {
         let base_damage = match self.class.class_type {
             ClassType::Warrior => self.stats.get_stat(StatType::Strength),
@@ -230,6 +237,7 @@ impl Character {
         base_damage + weapon_damage
     }
 
+    #[allow(dead_code)]
     pub fn defense(&self) -> i32 {
         let base_defense = self.stats.get_stat(StatType::Constitution) / 2;
 
@@ -249,10 +257,12 @@ impl Character {
         base_defense + armor_defense
     }
 
+    #[allow(dead_code)]
     pub fn heal(&mut self, amount: i32) {
         self.health = (self.health + amount).min(self.max_health);
     }
 
+    #[allow(dead_code)]
     pub fn spend_mana(&mut self, amount: i32) -> bool {
         if self.mana >= amount {
             self.mana -= amount;
@@ -262,10 +272,12 @@ impl Character {
         }
     }
 
+    #[allow(dead_code)]
     pub fn is_alive(&self) -> bool {
         self.health > 0
     }
 
+    #[allow(dead_code)]
     pub fn add_item(&mut self, item: Item) -> Result<(), String> {
         if self.inventory.len() >= 20 {
             return Err("Inventory is full".to_string());

@@ -1,8 +1,7 @@
 use crate::character::{Class, ClassType, StatType, Stats};
-use crate::item::{Inventory, Item};
-use rand::Rng;
+use crate::item::Inventory;
+
 use serde::{Deserialize, Serialize};
-use std::fmt;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Player {
@@ -74,6 +73,7 @@ impl Player {
         self.health = (self.health + amount).min(self.max_health);
     }
 
+    #[allow(dead_code)]
     pub fn spend_mana(&mut self, amount: i32) -> bool {
         if self.mana >= amount {
             self.mana -= amount;
@@ -129,7 +129,7 @@ impl Player {
     }
 
     pub fn use_ability(&mut self, ability_index: usize) -> Result<String, String> {
-        let mut rng = rand::thread_rng();
+        let _rng = rand::thread_rng();
 
         if let Some(ability_name) = self.class.use_ability(ability_index) {
             match ability_name {

@@ -7,7 +7,7 @@ pub mod tile;
 // Re-exports
 pub use enemy::Enemy;
 pub use fog_factory::create_standard_fog_of_war;
-pub use fog_of_war::{FogOfWar, FogOfWarConfig, VisibilityState};
+pub use fog_of_war::FogOfWar;
 pub use level::{Level, Position};
 pub use tile::{Tile, TileType};
 
@@ -23,6 +23,7 @@ pub enum DungeonType {
 }
 
 impl DungeonType {
+    #[allow(dead_code)]
     pub fn description(&self) -> &str {
         match self {
             DungeonType::Ruins => {

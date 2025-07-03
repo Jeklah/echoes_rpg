@@ -32,6 +32,7 @@ impl Inventory {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn remove_item(&mut self, index: usize) -> Result<Item, String> {
         if index >= self.items.len() {
             return Err("Invalid item index".to_string());
@@ -65,6 +66,7 @@ impl Inventory {
         Ok(item)
     }
 
+    #[allow(dead_code)]
     pub fn get_item(&self, index: usize) -> Option<&Item> {
         self.items.get(index)
     }
@@ -83,7 +85,7 @@ impl Inventory {
             // For now, we'll skip this check
 
             // Unequip current item in that slot if any
-            if let Some(Some(current_equipped_idx)) = self.equipped.get(&slot) {
+            if let Some(Some(_current_equipped_idx)) = self.equipped.get(&slot) {
                 // Mark as unequipped
                 self.equipped.insert(slot, None);
             }
@@ -97,6 +99,7 @@ impl Inventory {
         }
     }
 
+    #[allow(dead_code)]
     pub fn unequip_item(&mut self, slot: EquipmentSlot) -> Result<(), String> {
         if let Some(Some(_)) = self.equipped.get(&slot) {
             // Mark as unequipped
@@ -107,6 +110,7 @@ impl Inventory {
         }
     }
 
+    #[allow(dead_code)]
     pub fn get_equipped(&self, slot: EquipmentSlot) -> Option<&Item> {
         if let Some(Some(index)) = self.equipped.get(&slot) {
             self.items.get(*index)
@@ -145,6 +149,7 @@ impl Inventory {
         total
     }
 
+    #[allow(dead_code)]
     pub fn use_item(
         &mut self,
         index: usize,

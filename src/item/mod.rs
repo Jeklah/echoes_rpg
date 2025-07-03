@@ -4,7 +4,7 @@ pub mod inventory;
 
 // Re-exports
 pub use consumable::{Consumable, ConsumableType};
-pub use equipment::{Equipment, EquipmentSlot, EquipmentType};
+pub use equipment::{Equipment, EquipmentSlot};
 pub use inventory::Inventory;
 
 use rand::Rng;
@@ -30,6 +30,7 @@ impl Item {
         }
     }
 
+    #[allow(dead_code)]
     pub fn description(&self) -> &str {
         match self {
             Item::Equipment(equipment) => &equipment.description,
@@ -38,6 +39,7 @@ impl Item {
         }
     }
 
+    #[allow(dead_code)]
     pub fn value(&self) -> u32 {
         match self {
             Item::Equipment(equipment) => equipment.value,
@@ -57,6 +59,24 @@ impl Item {
         } else {
             // Generate consumable
             Item::Consumable(Consumable::generate_random(level))
+        }
+    }
+
+    /// Generate an item specifically for a chest with guaranteed quality
+    /// This helps ensure consistent behavior across all platforms
+    pub fn generate_for_chest(level: u32) -> Self {
+        let mut rng = rand::thread_rng();
+
+        // For chests, slightly bias toward equipment (80%)
+        // and ensure higher quality items
+        let effective_level = level + 1; // Chests always contain better items
+
+        if rng.gen_bool(0.8) {
+            // Equipment with boosted stats for chests
+            Item::Equipment(Equipment::generate_random(effective_level))
+        } else {
+            // Valuable consumables for chests
+            Item::Consumable(Consumable::generate_random(effective_level))
         }
     }
 }
