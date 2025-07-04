@@ -190,7 +190,7 @@ impl Enemy {
             }
         }
 
-        let max_health = 10 + stats.get_stat(crate::character::StatType::Constitution) * 5;
+        let max_health = 10 + stats.constitution * 5;
 
         // Calculate rewards based on level and enemy type
         let experience_reward = level * 25
@@ -318,14 +318,10 @@ impl Enemy {
     }
 
     pub fn attack_damage(&self) -> i32 {
-        use crate::character::StatType;
-
         let base_damage = match self.enemy_type {
-            EnemyType::Goblin | EnemyType::Ghost => self.stats.get_stat(StatType::Dexterity),
-            EnemyType::DarkMage | EnemyType::Elemental => {
-                self.stats.get_stat(StatType::Intelligence)
-            }
-            _ => self.stats.get_stat(StatType::Strength),
+            EnemyType::Goblin | EnemyType::Ghost => self.stats.dexterity,
+            EnemyType::DarkMage | EnemyType::Elemental => self.stats.intelligence,
+            _ => self.stats.strength,
         };
 
         let level_bonus = self.level as i32 / 2;
@@ -334,9 +330,7 @@ impl Enemy {
     }
 
     pub fn defense(&self) -> i32 {
-        use crate::character::StatType;
-
-        let base_defense = self.stats.get_stat(StatType::Constitution) / 2;
+        let base_defense = self.stats.constitution / 2;
         let level_bonus = self.level as i32 / 3;
 
         base_defense + level_bonus

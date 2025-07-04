@@ -1267,34 +1267,15 @@ impl UI {
             style::Print("Stats:"),
             style::SetForegroundColor(Color::White),
             cursor::MoveTo(10, 12),
-            style::Print(format!(
-                "Strength: {}",
-                player.stats.get_stat(crate::character::StatType::Strength)
-            )),
+            style::Print(format!("Strength: {}", player.stats.strength)),
             cursor::MoveTo(10, 13),
-            style::Print(format!(
-                "Intelligence: {}",
-                player
-                    .stats
-                    .get_stat(crate::character::StatType::Intelligence)
-            )),
+            style::Print(format!("Intelligence: {}", player.stats.intelligence)),
             cursor::MoveTo(10, 14),
-            style::Print(format!(
-                "Dexterity: {}",
-                player.stats.get_stat(crate::character::StatType::Dexterity)
-            )),
+            style::Print(format!("Dexterity: {}", player.stats.dexterity)),
             cursor::MoveTo(10, 15),
-            style::Print(format!(
-                "Constitution: {}",
-                player
-                    .stats
-                    .get_stat(crate::character::StatType::Constitution)
-            )),
+            style::Print(format!("Constitution: {}", player.stats.constitution)),
             cursor::MoveTo(10, 16),
-            style::Print(format!(
-                "Wisdom: {}",
-                player.stats.get_stat(crate::character::StatType::Wisdom)
-            )),
+            style::Print(format!("Wisdom: {}", player.stats.wisdom)),
             cursor::MoveTo(40, 11),
             style::SetForegroundColor(Color::Cyan),
             style::Print("Abilities:"),

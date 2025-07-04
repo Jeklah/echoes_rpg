@@ -76,13 +76,13 @@ impl Consumable {
             ConsumableType::ConstitutionElixir => {
                 use crate::character::StatType;
                 player.stats.modify_stat(StatType::Constitution, 1);
-                player.max_health = 10 + (player.stats.get_stat(StatType::Constitution) * 5);
+                player.max_health = 10 + (player.stats.constitution * 5);
                 "Your constitution increases permanently by 1".to_string()
             }
             ConsumableType::WisdomElixir => {
                 use crate::character::StatType;
                 player.stats.modify_stat(StatType::Wisdom, 1);
-                player.max_mana = 5 + (player.stats.get_stat(StatType::Wisdom) * 3);
+                player.max_mana = 5 + (player.stats.wisdom * 3);
                 "Your wisdom increases permanently by 1".to_string()
             }
         }

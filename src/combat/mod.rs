@@ -144,8 +144,7 @@ pub fn process_combat_turn(
         }
         CombatAction::Flee => {
             // Player attempts to flee
-            let flee_chance =
-                0.3 + (player.stats.get_stat(crate::character::StatType::Dexterity) as f32 * 0.03);
+            let flee_chance = 0.3 + (player.stats.dexterity as f32 * 0.03);
 
             if rng.gen_bool(flee_chance as f64) {
                 result.player_fled = true;
