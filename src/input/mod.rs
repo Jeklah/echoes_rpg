@@ -257,4 +257,29 @@ mod tests {
             None
         );
     }
+
+    #[test]
+    fn test_inventory_hotkey_mapping() {
+        let handler = InputHandler::new();
+
+        // Test that number keys 1-9 map to MenuOption actions (for inventory hotkeys)
+        assert_eq!(
+            handler.key_to_action(&Key::Num1),
+            InputAction::MenuOption(1)
+        );
+        assert_eq!(
+            handler.key_to_action(&Key::Num5),
+            InputAction::MenuOption(5)
+        );
+        assert_eq!(
+            handler.key_to_action(&Key::Num9),
+            InputAction::MenuOption(9)
+        );
+
+        // Test that 0 still maps to Character action
+        assert_eq!(
+            handler.key_to_action(&Key::Num0),
+            InputAction::Character('0')
+        );
+    }
 }
