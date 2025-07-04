@@ -119,6 +119,9 @@ impl Game {
                         // Can't go further down
                         return false;
                     }
+                    // Move player to the starting position of the new level
+                    let new_level_start = self.current_level().player_position;
+                    self.current_level_mut().player_position = new_level_start;
                     return true;
                 }
                 TileType::StairsUp => {
@@ -130,6 +133,8 @@ impl Game {
                         // Victory condition - player reached the exit of the final level
                         self.game_state = GameState::Victory;
                     }
+                    // Allow player to move to the exit position
+                    self.current_level_mut().player_position = new_pos;
                     return true;
                 }
                 TileType::Chest => {

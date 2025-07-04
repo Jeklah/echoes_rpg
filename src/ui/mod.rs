@@ -1019,7 +1019,7 @@ impl UI {
                 ('!', "Item", Color::Green),
                 ('#', "Wall", Color::White),
                 ('.', "Floor", Color::White),
-                ('>', "Exit", Color::White),
+                ('E', "Exit", Color::Green),
             ]
         } else {
             vec![
@@ -1032,6 +1032,7 @@ impl UI {
                 ('C', "Chest", Color::Cyan),
                 ('>', "Stairs Down", Color::Blue),
                 ('<', "Stairs Up", Color::Blue),
+                ('E', "Exit", Color::Green),
             ]
         };
 
@@ -1046,6 +1047,7 @@ impl UI {
             ('C', "Chest", Color::Cyan),
             ('>', "Stairs Down", Color::Blue),
             ('<', "Stairs Up", Color::Blue),
+            ('E', "Exit", Color::Green),
         ];
 
         for (i, (symbol, meaning, color)) in symbols.iter().enumerate() {
