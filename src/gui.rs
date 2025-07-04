@@ -54,6 +54,8 @@ pub struct EchoesApp {
     in_combat: bool,
     combat_enemy_pos: Option<Position>,
     combat_messages: Vec<String>,
+    showing_ability_selection: bool, // Whether the ability selection screen is shown
+    showing_victory_screen: bool,    // Whether the victory screen is shown
 }
 
 #[cfg(feature = "gui")]
@@ -88,6 +90,8 @@ impl Default for EchoesApp {
             in_combat: false,
             combat_enemy_pos: None,
             combat_messages: Vec::new(),
+            showing_ability_selection: false,
+            showing_victory_screen: false,
         };
         app.init_terminal();
         app
@@ -502,6 +506,45 @@ impl EchoesApp {
         self.print_at(ui_x, legend_y + 7, "C - Chest", None);
         self.print_at(ui_x, legend_y + 8, "> - Stairs Down", None);
         self.print_at(ui_x, legend_y + 9, "< - Stairs Up", None);
+        self.print_at(ui_x, legend_y + 10, "E - Exit", None);
+    }
+
+    fn render_victory_screen(&mut self, game: &crate::game::Game) {
+        self.clear_screen();
+
+        // Draw victory screen
+        self.print_at(
+            5,
+            8,
+            "🎉 CONGRATULATIONS! 🎉",
+            Some(Color32::from_rgb(255, 255, 0)),
+        );
+
+        self.print_at(
+            5,
+            10,
+            "You have successfully completed the dungeon!",
+            Some(Color32::from_rgb(255, 255, 255)),
+        );
+
+        let completion_message = format!(
+            "{} completed the adventure at level {} and saved the realm!",
+            game.player.name, game.player.level
+        );
+
+        self.print_at(
+            5,
+            12,
+            &completion_message,
+            Some(Color32::from_rgb(0, 255, 0)),
+        );
+
+        self.print_at(
+            5,
+            15,
+            "Press any key to return to main menu...",
+            Some(Color32::from_rgb(200, 200, 200)),
+        );
     }
 
     fn handle_game_input(&mut self, key: char) {
@@ -630,6 +673,13 @@ impl EchoesApp {
                 }
             }
         }
+
+        // Check for victory state
+        if let Some(ref game) = self.game {
+            if matches!(game.game_state, crate::game::GameState::Victory) {
+                self.showing_victory_screen = true;
+            }
+        }
     }
 
     /// Handle inventory hotkey actions (1-9 keys for equipping/using items)
@@ -665,12 +715,35 @@ impl EchoesApp {
     fn handle_combat_input(&mut self, key: char) {
         if let Some(ref mut game) = self.game {
             if let Some(enemy_pos) = self.combat_enemy_pos {
+                // Handle ability selection screen
+                if self.showing_ability_selection {
+                    match key {
+                        '1'..='9' => {
+                            let index = key.to_digit(10).unwrap() as usize - 1;
+                            if index < game.player.class.abilities.len() {
+                                self.showing_ability_selection = false;
+                                self.process_combat_action(
+                                    crate::combat::CombatAction::UseAbility(index),
+                                    enemy_pos,
+                                );
+                            }
+                        }
+                        _ => {
+                            // Cancel ability selection on any other key
+                            self.showing_ability_selection = false;
+                        }
+                    }
+                    return;
+                }
+
+                // Handle main combat input
                 let action = match key {
                     '1' => Some(crate::combat::CombatAction::Attack),
                     '2' => {
-                        // Use first ability if available
+                        // Show ability selection screen
                         if !game.player.class.abilities.is_empty() {
-                            Some(crate::combat::CombatAction::UseAbility(0))
+                            self.showing_ability_selection = true;
+                            None
                         } else {
                             self.combat_messages
                                 .push("No abilities available!".to_string());
@@ -842,6 +915,12 @@ impl EchoesApp {
 
     fn render_combat_screen_safe(&mut self, game: &crate::game::Game) {
         self.clear_screen();
+
+        // Show ability selection screen if active
+        if self.showing_ability_selection {
+            self.render_ability_selection_screen(game);
+            return;
+        }
 
         // Draw combat UI
         self.print_at(5, 3, "=== COMBAT ===", Some(Color32::from_rgb(255, 255, 0)));
@@ -1158,6 +1237,38 @@ impl EchoesApp {
     fn toggle_message_log(&mut self) {
         self.message_log_visible = !self.message_log_visible;
     }
+
+    fn render_ability_selection_screen(&mut self, game: &crate::game::Game) {
+        self.clear_screen();
+
+        // Draw ability selection UI
+        self.print_at(
+            5,
+            3,
+            "=== SELECT ABILITY ===",
+            Some(Color32::from_rgb(255, 255, 0)),
+        );
+
+        // Display player abilities
+        self.print_at(
+            5,
+            5,
+            "Available Abilities:",
+            Some(Color32::from_rgb(255, 255, 255)),
+        );
+
+        for (i, ability) in game.player.class.abilities.iter().enumerate() {
+            self.print_at(5, 7 + i, &format!("{} - {}", i + 1, ability), None);
+        }
+
+        // Instructions
+        self.print_at(
+            5,
+            7 + game.player.class.abilities.len() + 2,
+            "Press the number key to select an ability, or ESC to cancel",
+            Some(Color32::from_rgb(200, 200, 200)),
+        );
+    }
 }
 
 #[cfg(feature = "gui")]
@@ -1171,6 +1282,17 @@ impl eframe::App for EchoesApp {
 
         // Check if Escape key is pressed to close any open screens
         if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            if self.showing_victory_screen {
+                self.showing_victory_screen = false;
+                self.game_initialized = false;
+                self.main_menu = true;
+                self.show_main_menu();
+            }
+            if self.showing_ability_selection {
+                self.showing_ability_selection = false;
+                self.combat_messages
+                    .push("Ability selection cancelled".to_string());
+            }
             if self.showing_inventory {
                 self.showing_inventory = false;
                 self.add_message("🎒 Inventory closed".to_string());
@@ -1183,6 +1305,15 @@ impl eframe::App for EchoesApp {
 
         // Handle each action
         for action in actions {
+            // If victory screen is shown, any key press returns to main menu
+            if self.showing_victory_screen {
+                self.showing_victory_screen = false;
+                self.game_initialized = false;
+                self.main_menu = true;
+                self.show_main_menu();
+                continue;
+            }
+
             self.handle_input(&action);
         }
 
@@ -1291,7 +1422,9 @@ impl eframe::App for EchoesApp {
                     if self.game.is_some() {
                         // Clone the game data only at render time to avoid stale state
                         let game_clone = self.game.clone().unwrap();
-                        if self.in_combat {
+                        if self.showing_victory_screen {
+                            self.render_victory_screen(&game_clone);
+                        } else if self.in_combat {
                             self.render_combat_screen_safe(&game_clone);
                         } else {
                             self.render_game_screen_safe(&game_clone);
