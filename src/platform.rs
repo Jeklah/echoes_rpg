@@ -5,8 +5,10 @@
 //! Windows, macOS, and Linux.
 
 use anyhow::{Context, Result};
+#[cfg(windows)]
+use crossterm::queue;
 use crossterm::{
-    cursor, execute, queue,
+    cursor, execute,
     style::Color,
     terminal::{self, Clear, ClearType},
 };
@@ -199,21 +201,21 @@ pub fn show_welcome_message() -> Result<()> {
         stdout(),
         // Title with decorative border
         cursor::MoveTo(separator_x, center_y.saturating_sub(3)),
-        crossterm::style::SetForegroundColor(crossterm::style::Color::Cyan),
+        crossterm::style::SetForegroundColor(Color::Cyan),
         crossterm::style::Print(&separator),
         cursor::MoveTo(title_x, center_y.saturating_sub(2)),
-        crossterm::style::SetForegroundColor(crossterm::style::Color::Yellow),
+        crossterm::style::SetForegroundColor(Color::Yellow),
         crossterm::style::Print(title),
         cursor::MoveTo(separator_x, center_y.saturating_sub(1)),
-        crossterm::style::SetForegroundColor(crossterm::style::Color::Cyan),
+        crossterm::style::SetForegroundColor(Color::Cyan),
         crossterm::style::Print(&separator),
         // Platform information
         cursor::MoveTo(subtitle_x, center_y + 1),
-        crossterm::style::SetForegroundColor(crossterm::style::Color::Green),
+        crossterm::style::SetForegroundColor(Color::Green),
         crossterm::style::Print(subtitle),
         // Continue prompt with spacing
         cursor::MoveTo(continue_x, center_y + 4),
-        crossterm::style::SetForegroundColor(crossterm::style::Color::Yellow),
+        crossterm::style::SetForegroundColor(Color::Yellow),
         crossterm::style::Print(continue_msg),
         crossterm::style::ResetColor,
     )?;
