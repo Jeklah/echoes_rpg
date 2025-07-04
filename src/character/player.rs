@@ -1,4 +1,4 @@
-use crate::character::{Class, ClassType, StatType, Stats};
+use crate::character::{Class, ClassType, Stats};
 use crate::inventory::Inventory;
 
 use serde::{Deserialize, Serialize};
@@ -22,8 +22,8 @@ impl Player {
     pub fn new(name: String, class_type: ClassType) -> Self {
         let class = Class::new(class_type);
         let stats = class.base_stats();
-        let max_health = 10 + (stats.get_stat(crate::character::StatType::Constitution) * 5);
-        let max_mana = 5 + (stats.get_stat(crate::character::StatType::Wisdom) * 3);
+        let max_health = 10 + (stats.constitution * 5);
+        let max_mana = 5 + (stats.wisdom * 3);
 
         Player {
             name,
@@ -57,12 +57,8 @@ impl Player {
         self.class.level_up_stats(&mut self.stats);
 
         // Recalculate max health and mana
-        self.max_health = 10
-            + (self
-                .stats
-                .get_stat(crate::character::StatType::Constitution)
-                * 5);
-        self.max_mana = 5 + (self.stats.get_stat(crate::character::StatType::Wisdom) * 3);
+        self.max_health = 10 + (self.stats.constitution * 5);
+        self.max_mana = 5 + (self.stats.wisdom * 3);
 
         // Restore health and mana on level up
         self.health = self.max_health;
@@ -89,14 +85,10 @@ impl Player {
 
     pub fn attack_damage(&self) -> i32 {
         let base_damage = match self.class.class_type {
-            ClassType::Warrior => self.stats.get_stat(crate::character::StatType::Strength),
-            ClassType::Mage => {
-                self.stats
-                    .get_stat(crate::character::StatType::Intelligence)
-                    / 2
-            }
-            ClassType::Ranger => self.stats.get_stat(crate::character::StatType::Dexterity),
-            ClassType::Cleric => self.stats.get_stat(crate::character::StatType::Wisdom) / 2,
+            ClassType::Warrior => self.stats.strength,
+            ClassType::Mage => self.stats.intelligence / 2,
+            ClassType::Ranger => self.stats.dexterity,
+            ClassType::Cleric => self.stats.wisdom / 2,
         };
 
         // Add weapon damage if equipped
@@ -110,10 +102,7 @@ impl Player {
     }
 
     pub fn defense(&self) -> i32 {
-        let base_defense = self
-            .stats
-            .get_stat(crate::character::StatType::Constitution)
-            / 2;
+        let base_defense = self.stats.constitution / 2;
 
         // Add armor defense
         let armor_defense = self.inventory.get_total_armor_defense();
@@ -134,7 +123,7 @@ impl Player {
         if let Some(ability_name) = self.class.use_ability(ability_index) {
             match ability_name {
                 "Heal" => {
-                    let heal_amount = self.stats.get_stat(StatType::Wisdom) * 2;
+                    let heal_amount = self.stats.wisdom * 2;
                     let mana_cost = 5;
 
                     if self.mana >= mana_cost {
@@ -146,7 +135,7 @@ impl Player {
                     }
                 }
                 "Fireball" => {
-                    let damage = self.stats.get_stat(StatType::Intelligence) * 3;
+                    let damage = self.stats.intelligence * 3;
                     let mana_cost = 8;
 
                     if self.mana >= mana_cost {

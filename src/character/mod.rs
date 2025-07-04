@@ -31,8 +31,8 @@ impl Character {
     #[allow(dead_code)]
     pub fn new(name: String, class: Class) -> Self {
         let base_stats = class.base_stats();
-        let max_health = 10 + (base_stats.get_stat(StatType::Constitution) * 5);
-        let max_mana = 5 + (base_stats.get_stat(StatType::Wisdom) * 3);
+        let max_health = 10 + (base_stats.constitution * 5);
+        let max_mana = 5 + (base_stats.wisdom * 3);
 
         let mut equipment = HashMap::new();
         for slot in EquipmentSlot::iter() {
@@ -74,8 +74,8 @@ impl Character {
         self.class.level_up_stats(&mut self.stats);
 
         // Recalculate max health and mana
-        self.max_health = 10 + (self.stats.get_stat(StatType::Constitution) * 5);
-        self.max_mana = 5 + (self.stats.get_stat(StatType::Wisdom) * 3);
+        self.max_health = 10 + (self.stats.constitution * 5);
+        self.max_mana = 5 + (self.stats.wisdom * 3);
 
         // Restore health and mana on level up
         self.health = self.max_health;
@@ -112,8 +112,8 @@ impl Character {
                     self.equipment.insert(slot, Some(equip));
 
                     // Recalculate derived stats
-                    self.max_health = 10 + (self.stats.get_stat(StatType::Constitution) * 5);
-                    self.max_mana = 5 + (self.stats.get_stat(StatType::Wisdom) * 3);
+                    self.max_health = 10 + (self.stats.constitution * 5);
+                    self.max_mana = 5 + (self.stats.wisdom * 3);
 
                     Ok(())
                 } else {
@@ -144,8 +144,8 @@ impl Character {
             self.equipment.insert(slot, None);
 
             // Recalculate derived stats
-            self.max_health = 10 + (self.stats.get_stat(StatType::Constitution) * 5);
-            self.max_mana = 5 + (self.stats.get_stat(StatType::Wisdom) * 3);
+            self.max_health = 10 + (self.stats.constitution * 5);
+            self.max_mana = 5 + (self.stats.wisdom * 3);
 
             Ok(())
         } else {
@@ -221,10 +221,10 @@ impl Character {
     #[allow(dead_code)]
     pub fn attack_damage(&self) -> i32 {
         let base_damage = match self.class.class_type {
-            ClassType::Warrior => self.stats.get_stat(StatType::Strength),
-            ClassType::Mage => self.stats.get_stat(StatType::Intelligence) / 2,
-            ClassType::Ranger => self.stats.get_stat(StatType::Dexterity),
-            ClassType::Cleric => self.stats.get_stat(StatType::Wisdom) / 2,
+            ClassType::Warrior => self.stats.strength,
+            ClassType::Mage => self.stats.intelligence / 2,
+            ClassType::Ranger => self.stats.dexterity,
+            ClassType::Cleric => self.stats.wisdom / 2,
         };
 
         // Add weapon damage if equipped
@@ -239,7 +239,7 @@ impl Character {
 
     #[allow(dead_code)]
     pub fn defense(&self) -> i32 {
-        let base_defense = self.stats.get_stat(StatType::Constitution) / 2;
+        let base_defense = self.stats.constitution / 2;
 
         // Add armor defense
         let mut armor_defense = 0;
