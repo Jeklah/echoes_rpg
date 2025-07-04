@@ -41,42 +41,7 @@ Echoes of the Forgotten Realm is a modern take on classic text-based RPGs featur
 3. Run: `./echoes_rpg-linux` (or `./echoes_rpg-macos`)
 4. Enjoy the classic terminal RPG experience!
 
-## 📦 Building from Source
 
-### Prerequisites
-- [Rust](https://rustup.rs/) (latest stable version)
-- Git for cloning the repository
-
-### Quick Build Commands
-
-#### Windows GUI Version (Recommended)
-```bash
-git clone https://github.com/jeklah/echoes_rpg.git
-cd echoes_rpg
-
-# Install Windows GNU target (one-time setup)
-rustup target add x86_64-pc-windows-gnu
-
-# Build GUI version
-cargo build --release --target x86_64-pc-windows-gnu --features gui
-```
-
-#### Linux/macOS Terminal Version
-```bash
-git clone https://github.com/jeklah/echoes_rpg.git
-cd echoes_rpg
-cargo build --release
-```
-
-### Why GNU Target for Windows?
-- **Self-contained**: No Visual Studio dependencies required
-- **Cross-compilation friendly**: Can build Windows binaries from Linux/macOS
-- **Consistent toolchain**: Same build environment across platforms
-- **Smaller distribution**: Easier deployment and distribution
-
-### Build Output Locations
-- **Windows GUI**: `target/x86_64-pc-windows-gnu/release/echoes_rpg.exe`
-- **Linux/macOS**: `target/release/echoes_rpg`
 
 ## 🎯 Game Controls
 
@@ -194,53 +159,14 @@ cargo build --release
 ### Platform-Specific Optimizations
 - **Windows**: Frame rate limiting for smooth GUI performance
 - **Linux/macOS**: Optimized terminal rendering and input handling
-- **Cross-Compilation**: GNU toolchain for consistent Windows builds
 
-## 🔧 Installing Rust (For Building from Source)
 
-### Quick Installation (All Platforms)
-```bash
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source ~/.cargo/env  # Linux/macOS
-# or restart your terminal
-```
-
-### Platform-Specific Instructions
-
-#### Windows
-1. Visit [rustup.rs](https://rustup.rs/) and download `rustup-init.exe`
-2. Run the installer and follow prompts
-3. Restart your terminal or Command Prompt
-
-#### macOS
-```bash
-# Using Rustup (recommended)
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
-# Or using Homebrew
-brew install rust
-```
-
-#### Linux
-```bash
-# Using Rustup (recommended)
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
-# Ubuntu/Debian
-sudo apt install build-essential
-```
-
-### Verify Installation
-```bash
-rustc --version
-cargo --version
-```
 
 ## 🔧 Troubleshooting
 
 ### Windows Issues
 **Problem**: Game window doesn't respond properly
-**Solution**: Ensure you're using the GUI version built with `--features gui --target x86_64-pc-windows-gnu`
+**Solution**: Ensure you're using the official GUI version from the releases page
 
 **Problem**: Input lag or double key presses
 **Solution**: The recent input system overhaul fixed this. Update to the latest version.
@@ -324,9 +250,9 @@ Game progress is automatically saved in platform-specific locations:
 - **Separation of Concerns**: Distinct modules for game logic, rendering, and input
 - **Cross-Platform Compatibility**: Platform-specific optimizations without code duplication
 - **Performance**: Efficient rendering and input handling for smooth gameplay
-- **Maintainability**: Clean, documented Rust code following best practices
+- **Maintainability**: Clean, well-structured codebase following best practices
 - **User Experience**: Intuitive interfaces with visual feedback and keyboard shortcuts
-- **Conditional Compilation**: Feature flags (`--features gui`) for platform-specific code
+- **Platform Optimization**: Tailored interfaces for each platform's strengths
 - **Safe Concurrency**: Thread-safe data sharing between UI and game logic
 
 ### Recent Architecture Improvements
@@ -396,17 +322,11 @@ Contributions are welcome! Areas of focus:
 - **Performance Optimization**: Especially for older hardware
 - **Documentation**: Improve guides and code documentation
 
-### Development Setup
+### How to Contribute
 1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/amazing-feature`
-3. Test on your target platform
+2. Create a feature branch for your improvement
+3. Test thoroughly on your target platform
 4. Submit a pull request with detailed description
-
-### Coding Standards
-- Follow Rust best practices and idioms
-- Maintain cross-platform compatibility
-- Document public APIs
-- Include tests for new functionality
 
 ## 📄 License
 
@@ -434,7 +354,7 @@ This project is dual-licensed under the MIT OR Apache-2.0 license.
 ### Reporting Bugs
 Please include:
 - Platform and version
-- Build type (GUI/terminal)
+- Interface type (GUI/terminal)
 - Expected vs actual behavior
 - Save file if relevant (remove personal info)
 
