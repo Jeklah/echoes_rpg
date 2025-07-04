@@ -55,10 +55,8 @@ pub mod manager;
 pub mod screen;
 
 pub use manager::{Inventory, InventoryManager};
-pub use screen::{InventoryAction, InventoryScreen};
 
-use crate::character::Player;
-use crate::item::{Consumable, Equipment, EquipmentSlot, Item};
+use crate::item::Item;
 
 /// Result type for inventory operations
 pub type InventoryResult<T> = Result<T, InventoryError>;

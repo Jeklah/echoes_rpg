@@ -500,7 +500,8 @@ impl EchoesApp {
         self.print_at(ui_x, legend_y + 5, ". - Floor", None);
         self.print_at(ui_x, legend_y + 6, "+ - Door", None);
         self.print_at(ui_x, legend_y + 7, "C - Chest", None);
-        self.print_at(ui_x, legend_y + 8, "> - Stairs", None);
+        self.print_at(ui_x, legend_y + 8, "> - Stairs Down", None);
+        self.print_at(ui_x, legend_y + 9, "< - Stairs Up", None);
     }
 
     fn handle_game_input(&mut self, key: char) {
@@ -631,6 +632,36 @@ impl EchoesApp {
         }
     }
 
+    /// Handle inventory hotkey actions (1-9 keys for equipping/using items)
+    fn handle_inventory_hotkey(&mut self, action: &crate::input::InputAction) {
+        use crate::input::InputAction;
+
+        let item_index = match action {
+            // Handle MenuOption actions (number keys 1-9)
+            InputAction::MenuOption(n) if *n >= 1 && *n <= 9 => Some(*n as usize - 1),
+            // Handle Character actions for backward compatibility
+            InputAction::Character(c) if c.is_ascii_digit() && *c != '0' => {
+                c.to_digit(10).map(|d| d as usize - 1)
+            }
+            _ => None,
+        };
+
+        if let Some(index) = item_index {
+            if let Some(game) = &mut self.game {
+                if index < InventoryManager::get_item_count(&game.player) {
+                    let result = InventoryManager::use_item(&mut game.player, index);
+                    if result.success {
+                        self.add_message("🎒 Item used successfully!".to_string());
+                    } else {
+                        self.add_message(format!("🎒 Error: {}", result.message));
+                    }
+                } else {
+                    self.add_message("🎒 Invalid item number".to_string());
+                }
+            }
+        }
+    }
+
     fn handle_combat_input(&mut self, key: char) {
         if let Some(ref mut game) = self.game {
             if let Some(enemy_pos) = self.combat_enemy_pos {
@@ -751,21 +782,7 @@ impl EchoesApp {
 
             // Handle number keys for equipping items in inventory
             if self.showing_inventory {
-                if let crate::input::InputAction::Character(c) = action {
-                    if c.is_digit(10) && *c != '0' {
-                        let index = c.to_digit(10).unwrap() as usize - 1;
-                        if let Some(game) = &mut self.game {
-                            if index < InventoryManager::get_item_count(&game.player) {
-                                let result = InventoryManager::use_item(&mut game.player, index);
-                                if result.success {
-                                    self.add_message("🎒 Item used successfully!".to_string());
-                                } else {
-                                    self.add_message(format!("🎒 Error: {}", result.message));
-                                }
-                            }
-                        }
-                    }
-                }
+                self.handle_inventory_hotkey(action);
             }
         }
 
