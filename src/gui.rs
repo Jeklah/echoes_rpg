@@ -500,7 +500,8 @@ impl EchoesApp {
         self.print_at(ui_x, legend_y + 5, ". - Floor", None);
         self.print_at(ui_x, legend_y + 6, "+ - Door", None);
         self.print_at(ui_x, legend_y + 7, "C - Chest", None);
-        self.print_at(ui_x, legend_y + 8, "> - Stairs", None);
+        self.print_at(ui_x, legend_y + 8, "> - Stairs Down", None);
+        self.print_at(ui_x, legend_y + 9, "< - Stairs Up", None);
     }
 
     fn handle_game_input(&mut self, key: char) {
