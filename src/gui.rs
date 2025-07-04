@@ -55,6 +55,7 @@ pub struct EchoesApp {
     combat_enemy_pos: Option<Position>,
     combat_messages: Vec<String>,
     showing_ability_selection: bool, // Whether the ability selection screen is shown
+    showing_victory_screen: bool,    // Whether the victory screen is shown
 }
 
 #[cfg(feature = "gui")]
@@ -90,6 +91,7 @@ impl Default for EchoesApp {
             combat_enemy_pos: None,
             combat_messages: Vec::new(),
             showing_ability_selection: false,
+            showing_victory_screen: false,
         };
         app.init_terminal();
         app
@@ -507,6 +509,44 @@ impl EchoesApp {
         self.print_at(ui_x, legend_y + 10, "E - Exit", None);
     }
 
+    fn render_victory_screen(&mut self, game: &crate::game::Game) {
+        self.clear_screen();
+
+        // Draw victory screen
+        self.print_at(
+            5,
+            8,
+            "🎉 CONGRATULATIONS! 🎉",
+            Some(Color32::from_rgb(255, 255, 0)),
+        );
+
+        self.print_at(
+            5,
+            10,
+            "You have successfully completed the dungeon!",
+            Some(Color32::from_rgb(255, 255, 255)),
+        );
+
+        let completion_message = format!(
+            "{} completed the adventure at level {} and saved the realm!",
+            game.player.name, game.player.level
+        );
+
+        self.print_at(
+            5,
+            12,
+            &completion_message,
+            Some(Color32::from_rgb(0, 255, 0)),
+        );
+
+        self.print_at(
+            5,
+            15,
+            "Press any key to return to main menu...",
+            Some(Color32::from_rgb(200, 200, 200)),
+        );
+    }
+
     fn handle_game_input(&mut self, key: char) {
         if let Some(ref mut game) = self.game {
             if self.in_combat {
@@ -631,6 +671,13 @@ impl EchoesApp {
                         self.combat_enemy_pos = None;
                     }
                 }
+            }
+        }
+
+        // Check for victory state
+        if let Some(ref game) = self.game {
+            if matches!(game.game_state, crate::game::GameState::Victory) {
+                self.showing_victory_screen = true;
             }
         }
     }
@@ -1235,6 +1282,12 @@ impl eframe::App for EchoesApp {
 
         // Check if Escape key is pressed to close any open screens
         if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            if self.showing_victory_screen {
+                self.showing_victory_screen = false;
+                self.game_initialized = false;
+                self.main_menu = true;
+                self.show_main_menu();
+            }
             if self.showing_ability_selection {
                 self.showing_ability_selection = false;
                 self.combat_messages
@@ -1252,6 +1305,15 @@ impl eframe::App for EchoesApp {
 
         // Handle each action
         for action in actions {
+            // If victory screen is shown, any key press returns to main menu
+            if self.showing_victory_screen {
+                self.showing_victory_screen = false;
+                self.game_initialized = false;
+                self.main_menu = true;
+                self.show_main_menu();
+                continue;
+            }
+
             self.handle_input(&action);
         }
 
@@ -1360,7 +1422,9 @@ impl eframe::App for EchoesApp {
                     if self.game.is_some() {
                         // Clone the game data only at render time to avoid stale state
                         let game_clone = self.game.clone().unwrap();
-                        if self.in_combat {
+                        if self.showing_victory_screen {
+                            self.render_victory_screen(&game_clone);
+                        } else if self.in_combat {
                             self.render_combat_screen_safe(&game_clone);
                         } else {
                             self.render_game_screen_safe(&game_clone);
