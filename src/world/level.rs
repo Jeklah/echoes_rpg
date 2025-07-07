@@ -367,8 +367,7 @@ impl Level {
                 if cfg!(debug_assertions) {
                     assert!(
                         self.items.contains_key(&chest_pos),
-                        "Failed to insert item at chest position: {:?}",
-                        chest_pos
+                        "Failed to insert item at chest position: {chest_pos:?}"
                     );
                 }
             }
@@ -470,8 +469,7 @@ impl Level {
                 if tile.tile_type == TileType::Chest && item.is_none() {
                     // This would indicate a bug - chest exists but has no item
                     eprintln!(
-                        "WARNING: Found chest at {:?} but no item associated with it",
-                        pos
+                        "WARNING: Found chest at {pos:?} but no item associated with it"
                     );
                 }
             }

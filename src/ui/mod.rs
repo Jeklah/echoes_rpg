@@ -367,7 +367,7 @@ impl UI {
     }
 
     pub fn clear_screen(&mut self) -> io::Result<()> {
-        platform::clear_screen().map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        platform::clear_screen().map_err(|e| io::Error::other(e))?;
         Ok(())
     }
 
@@ -459,7 +459,7 @@ impl UI {
             let border_width = 60;
             let border_height = 12;
             let start_x = ((term_width as i32 - border_width as i32) / 2).max(0) as u16;
-            let start_y = ((term_height as i32 - border_height as i32) / 2).max(0) as u16;
+            let start_y = ((term_height as i32 - border_height) / 2).max(0) as u16;
 
             self.draw_game_border(
                 start_x as usize,
@@ -475,7 +475,7 @@ impl UI {
             let display_name = if name.is_empty() {
                 "_".to_string()
             } else {
-                format!("{}_", name)
+                format!("{name}_")
             };
 
             execute!(
@@ -556,7 +556,7 @@ impl UI {
         let border_width = 70;
         let border_height = 14;
         let start_x = ((term_width as i32 - border_width as i32) / 2).max(0) as u16;
-        let start_y = ((term_height as i32 - border_height as i32) / 2).max(0) as u16;
+        let start_y = ((term_height as i32 - border_height) / 2).max(0) as u16;
 
         self.draw_game_border(
             start_x as usize,
@@ -880,63 +880,63 @@ impl UI {
                 )?;
                 stdout().flush()?;
             }
-            #[cfg(not(windows))]
-            {
-                execute!(
+        }
+        #[cfg(not(windows))]
+        {
+            execute!(
+                stdout(),
+                cursor::MoveTo(ui_text_x as u16, (content_start_y + 1) as u16),
+                style::SetForegroundColor(Color::Cyan),
+                style::Print(format!("{}", player.name)),
+                cursor::MoveTo(ui_text_x as u16, (content_start_y + 2) as u16),
+                style::SetForegroundColor(Color::White),
+                style::Print(format!(
+                    "Level {} {}",
+                    player.level, player.class.class_type
+                )),
+                cursor::MoveTo(ui_text_x as u16, (content_start_y + 3) as u16),
+                style::Print(format!("HP: {}/{}", player.health, player.max_health)),
+                cursor::MoveTo(ui_text_x as u16, (content_start_y + 4) as u16),
+                style::Print(format!("MP: {}/{}", player.mana, player.max_mana)),
+                cursor::MoveTo(ui_text_x as u16, (content_start_y + 5) as u16),
+                style::Print(format!("XP: {}/{}", player.experience, player.level * 100)),
+                cursor::MoveTo(ui_text_x as u16, (content_start_y + 6) as u16),
+                style::Print(format!("Gold: {}", player.gold))
+            )?;
+        }
+
+        // Location information with Windows optimization
+        #[cfg(windows)]
+        {
+            let is_cmd = platform::is_command_prompt();
+
+            if is_cmd {
+                // Simplified location info for Command Prompt
+                queue!(
                     stdout(),
-                    cursor::MoveTo(ui_text_x as u16, (content_start_y + 1) as u16),
+                    cursor::MoveTo(ui_text_x as u16, (content_start_y + 6) as u16),
+                    style::SetForegroundColor(Color::White),
+                    style::Print(format!("{} L{}", dungeon.name, dungeon.current_level + 1))
+                )?;
+                stdout().flush()?;
+            } else {
+                queue!(
+                    stdout(),
+                    cursor::MoveTo(ui_text_x as u16, (content_start_y + 8) as u16),
                     style::SetForegroundColor(Color::Cyan),
-                    style::Print(format!("{}", player.name)),
-                    cursor::MoveTo(ui_text_x as u16, (content_start_y + 2) as u16),
+                    style::Print("Location:")
+                )?;
+                queue!(
+                    stdout(),
+                    cursor::MoveTo(ui_text_x as u16, (content_start_y + 9) as u16),
                     style::SetForegroundColor(Color::White),
                     style::Print(format!(
-                        "Level {} {}",
-                        player.level, player.class.class_type
-                    )),
-                    cursor::MoveTo(ui_text_x as u16, (content_start_y + 3) as u16),
-                    style::Print(format!("HP: {}/{}", player.health, player.max_health)),
-                    cursor::MoveTo(ui_text_x as u16, (content_start_y + 4) as u16),
-                    style::Print(format!("MP: {}/{}", player.mana, player.max_mana)),
-                    cursor::MoveTo(ui_text_x as u16, (content_start_y + 5) as u16),
-                    style::Print(format!("XP: {}/{}", player.experience, player.level * 100)),
-                    cursor::MoveTo(ui_text_x as u16, (content_start_y + 6) as u16),
-                    style::Print(format!("Gold: {}", player.gold))
+                        "{} - Level {}",
+                        dungeon.name,
+                        dungeon.current_level + 1
+                    ))
                 )?;
-            }
-
-            // Location information with Windows optimization
-            #[cfg(windows)]
-            {
-                let is_cmd = platform::is_command_prompt();
-
-                if is_cmd {
-                    // Simplified location info for Command Prompt
-                    queue!(
-                        stdout(),
-                        cursor::MoveTo(ui_text_x as u16, (content_start_y + 6) as u16),
-                        style::SetForegroundColor(Color::White),
-                        style::Print(format!("{} L{}", dungeon.name, dungeon.current_level + 1))
-                    )?;
-                    stdout().flush()?;
-                } else {
-                    queue!(
-                        stdout(),
-                        cursor::MoveTo(ui_text_x as u16, (content_start_y + 8) as u16),
-                        style::SetForegroundColor(Color::Cyan),
-                        style::Print("Location:")
-                    )?;
-                    queue!(
-                        stdout(),
-                        cursor::MoveTo(ui_text_x as u16, (content_start_y + 9) as u16),
-                        style::SetForegroundColor(Color::White),
-                        style::Print(format!(
-                            "{} - Level {}",
-                            dungeon.name,
-                            dungeon.current_level + 1
-                        ))
-                    )?;
-                    stdout().flush()?;
-                }
+                stdout().flush()?;
             }
         }
         #[cfg(not(windows))]
@@ -1058,7 +1058,7 @@ impl UI {
                     style::SetForegroundColor(*color),
                     style::Print(*symbol),
                     style::SetForegroundColor(Color::White),
-                    style::Print(format!(" - {}", meaning))
+                    style::Print(format!(" - {meaning}"))
                 )?;
             }
         }
@@ -1394,10 +1394,7 @@ impl UI {
             )?;
 
             event::read()?;
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                "No abilities available",
-            ));
+            return Err(io::Error::other("No abilities available"));
         }
 
         for (i, ability) in player.class.abilities.iter().enumerate() {
@@ -1425,14 +1422,14 @@ impl UI {
                 }
 
                 match key_event.code {
-                    KeyCode::Char(c) if c >= '1' && c <= '9' => {
+                    KeyCode::Char(c) if ('1'..='9').contains(&c) => {
                         let index = c.to_digit(10).unwrap() as usize - 1;
                         if index < player.class.abilities.len() {
                             return Ok(index);
                         }
                     }
                     KeyCode::Esc => {
-                        return Err(io::Error::new(io::ErrorKind::Other, "Cancelled"));
+                        return Err(io::Error::other("Cancelled"));
                     }
                     _ => continue,
                 }
@@ -1473,10 +1470,7 @@ impl UI {
             )?;
 
             event::read()?;
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                "No usable items available",
-            ));
+            return Err(io::Error::other("No usable items available"));
         }
 
         for (i, (_item_index, item)) in consumables.iter().enumerate() {
@@ -1504,14 +1498,14 @@ impl UI {
                 }
 
                 match key_event.code {
-                    KeyCode::Char(c) if c >= '1' && c <= '9' => {
+                    KeyCode::Char(c) if ('1'..='9').contains(&c) => {
                         let index = c.to_digit(10).unwrap() as usize - 1;
                         if index < consumables.len() {
                             return Ok(consumables[index].0);
                         }
                     }
                     KeyCode::Esc => {
-                        return Err(io::Error::new(io::ErrorKind::Other, "Cancelled"));
+                        return Err(io::Error::other("Cancelled"));
                     }
                     _ => continue,
                 }
@@ -1685,7 +1679,7 @@ impl UI {
         let border_width = 60;
         let border_height = 10;
         let start_x = ((term_width as i32 - border_width as i32) / 2).max(0) as u16;
-        let start_y = ((term_height as i32 - border_height as i32) / 2).max(0) as u16;
+        let start_y = ((term_height as i32 - border_height) / 2).max(0) as u16;
 
         self.draw_game_border(
             start_x as usize,
@@ -1732,7 +1726,7 @@ impl UI {
         let border_width = 70;
         let border_height = 10;
         let start_x = ((term_width as i32 - border_width as i32) / 2).max(0) as u16;
-        let start_y = ((term_height as i32 - border_height as i32) / 2).max(0) as u16;
+        let start_y = ((term_height as i32 - border_height) / 2).max(0) as u16;
 
         self.draw_game_border(
             start_x as usize,

@@ -47,12 +47,12 @@ impl Consumable {
             ConsumableType::HealthPotion => {
                 let heal_amount = self.potency;
                 player.heal(heal_amount);
-                format!("You restored {} health points", heal_amount)
+                format!("You restored {heal_amount} health points")
             }
             ConsumableType::ManaPotion => {
                 let mana_amount = self.potency;
                 player.mana = (player.mana + mana_amount).min(player.max_mana);
-                format!("You restored {} mana points", mana_amount)
+                format!("You restored {mana_amount} mana points")
             }
             ConsumableType::Antidote => {
                 // In a more complex game, this would remove poison status
@@ -126,8 +126,8 @@ impl Consumable {
                 };
 
                 (
-                    format!("{} Health Potion", quality),
-                    format!("Restores {} health points when consumed", potency),
+                    format!("{quality} Health Potion"),
+                    format!("Restores {potency} health points when consumed"),
                 )
             }
             ConsumableType::ManaPotion => {
@@ -142,8 +142,8 @@ impl Consumable {
                 };
 
                 (
-                    format!("{} Mana Potion", quality),
-                    format!("Restores {} mana points when consumed", potency),
+                    format!("{quality} Mana Potion"),
+                    format!("Restores {potency} mana points when consumed"),
                 )
             }
             ConsumableType::Antidote => ("Antidote".to_string(), "Cures poison status".to_string()),

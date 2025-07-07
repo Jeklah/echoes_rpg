@@ -175,7 +175,7 @@ impl Equipment {
             },
         };
 
-        let name = format!("{} {}", prefix, item_type);
+        let name = format!("{prefix} {item_type}");
 
         // Generate power based on level
         let power_base = 2 + level;

@@ -1,6 +1,6 @@
 //! Inventory Manager - Core inventory data structure and operations
 
-use super::{ActionResult, InventoryError, InventoryResult, ItemInfo, ItemType};
+use super::{ActionResult, ItemInfo};
 use crate::character::Player;
 use crate::item::{Equipment, EquipmentSlot, Item};
 use serde::{Deserialize, Serialize};
@@ -37,39 +37,6 @@ impl Inventory {
         Ok(())
     }
 
-    pub fn remove_item(&mut self, index: usize) -> Result<Item, String> {
-        if index >= self.items.len() {
-            return Err("Invalid item index".to_string());
-        }
-
-        // Check if the item is equipped
-        for (_, equipped_index) in self.equipped.iter() {
-            if let Some(eq_idx) = equipped_index {
-                if *eq_idx == index {
-                    return Err("Cannot remove equipped item".to_string());
-                }
-            }
-        }
-
-        // Remove the item and return it
-        let item = self.items.remove(index);
-
-        // Update equipped indices after removal
-        for equipped_index in self.equipped.values_mut() {
-            if let Some(idx) = equipped_index {
-                if *idx > index {
-                    *idx -= 1;
-                }
-            }
-        }
-
-        Ok(item)
-    }
-
-    pub fn get_item(&self, index: usize) -> Option<&Item> {
-        self.items.get(index)
-    }
-
     pub fn equip_item(&mut self, index: usize) -> Result<(), String> {
         if index >= self.items.len() {
             return Err("Invalid item index".to_string());
@@ -91,24 +58,6 @@ impl Inventory {
             Ok(())
         } else {
             Err("This item cannot be equipped".to_string())
-        }
-    }
-
-    pub fn unequip_item(&mut self, slot: EquipmentSlot) -> Result<(), String> {
-        if let Some(Some(_)) = self.equipped.get(&slot) {
-            // Mark as unequipped
-            self.equipped.insert(slot, None);
-            Ok(())
-        } else {
-            Err("No item equipped in that slot".to_string())
-        }
-    }
-
-    pub fn get_equipped(&self, slot: EquipmentSlot) -> Option<&Item> {
-        if let Some(Some(index)) = self.equipped.get(&slot) {
-            self.items.get(*index)
-        } else {
-            None
         }
     }
 
@@ -141,36 +90,6 @@ impl Inventory {
 
         total
     }
-
-    pub fn use_item(
-        &mut self,
-        index: usize,
-        player: &mut crate::character::Player,
-    ) -> Result<String, String> {
-        if index >= self.items.len() {
-            return Err("Invalid item index".to_string());
-        }
-
-        match &self.items[index] {
-            Item::Consumable(consumable) => {
-                let result = consumable.use_effect(player);
-                // Remove the item after use
-                self.items.remove(index);
-
-                // Update equipped indices after removal
-                for equipped_index in self.equipped.values_mut() {
-                    if let Some(idx) = equipped_index {
-                        if *idx > index {
-                            *idx -= 1;
-                        }
-                    }
-                }
-
-                Ok(result)
-            }
-            _ => Err("This item cannot be used".to_string()),
-        }
-    }
 }
 
 /// High-level inventory manager that provides a clean interface
@@ -200,30 +119,16 @@ impl InventoryManager {
                 };
 
                 ItemInfo {
-                    index,
                     name: item.name().to_string(),
-                    description: item.description().to_string(),
                     is_equipped,
-                    item_type: ItemType::from(item),
-                    value: item.value(),
                 }
             })
             .collect()
     }
 
-    /// Get player's gold
-    pub fn get_gold(player: &Player) -> u32 {
-        player.gold
-    }
-
     /// Check if inventory is empty
     pub fn is_empty(player: &Player) -> bool {
         player.inventory.items.is_empty()
-    }
-
-    /// Get inventory size information
-    pub fn get_size_info(player: &Player) -> (usize, usize) {
-        (player.inventory.items.len(), player.inventory.max_size)
     }
 
     /// Use or equip an item by index
@@ -264,11 +169,9 @@ impl InventoryManager {
         player.inventory.items.remove(index);
 
         // Update equipped indices after removal
-        for equipped_index in player.inventory.equipped.values_mut() {
-            if let Some(idx) = equipped_index {
-                if *idx > index {
-                    *idx -= 1;
-                }
+        for idx in player.inventory.equipped.values_mut().flatten() {
+            if *idx > index {
+                *idx -= 1;
             }
         }
 
@@ -278,53 +181,17 @@ impl InventoryManager {
     }
 
     /// Get equipped item in a specific slot
+    #[cfg(feature = "gui")]
     pub fn get_equipped_item(player: &Player, slot: EquipmentSlot) -> Option<ItemInfo> {
         if let Some(Some(index)) = player.inventory.equipped.get(&slot) {
             if let Some(item) = player.inventory.items.get(*index) {
                 return Some(ItemInfo {
-                    index: *index,
                     name: item.name().to_string(),
-                    description: item.description().to_string(),
                     is_equipped: true,
-                    item_type: ItemType::from(item),
-                    value: item.value(),
                 });
             }
         }
         None
-    }
-
-    /// Get all equipped items
-    pub fn get_equipped_items(player: &Player) -> Vec<(EquipmentSlot, ItemInfo)> {
-        let mut equipped = Vec::new();
-
-        for (slot, maybe_index) in &player.inventory.equipped {
-            if let Some(index) = maybe_index {
-                if let Some(item) = player.inventory.items.get(*index) {
-                    equipped.push((
-                        *slot,
-                        ItemInfo {
-                            index: *index,
-                            name: item.name().to_string(),
-                            description: item.description().to_string(),
-                            is_equipped: true,
-                            item_type: ItemType::from(item),
-                            value: item.value(),
-                        },
-                    ));
-                }
-            }
-        }
-
-        equipped
-    }
-
-    /// Unequip an item from a specific slot
-    pub fn unequip_item(player: &mut Player, slot: EquipmentSlot) -> ActionResult {
-        match player.inventory.unequip_item(slot) {
-            Ok(()) => ActionResult::success(format!("Unequipped item from {:?} slot", slot)),
-            Err(err) => ActionResult::failure(err),
-        }
     }
 
     /// Add an item to inventory
@@ -332,36 +199,6 @@ impl InventoryManager {
         match player.inventory.add_item(item) {
             Ok(()) => ActionResult::success("Item added to inventory"),
             Err(err) => ActionResult::failure(err),
-        }
-    }
-
-    /// Remove an item from inventory by index
-    pub fn remove_item(player: &mut Player, index: usize) -> InventoryResult<Item> {
-        player
-            .inventory
-            .remove_item(index)
-            .map_err(|_| InventoryError::InvalidIndex)
-    }
-
-    /// Check if an item can be equipped
-    pub fn can_equip(player: &Player, index: usize) -> bool {
-        if let Some(Item::Equipment(_)) = player.inventory.items.get(index) {
-            true
-        } else {
-            false
-        }
-    }
-
-    /// Check if an item can be used
-    pub fn can_use(player: &Player, index: usize) -> bool {
-        if let Some(item) = player.inventory.items.get(index) {
-            match item {
-                Item::Consumable(_) => true,
-                Item::Equipment(_) => true,
-                Item::QuestItem { .. } => false,
-            }
-        } else {
-            false
         }
     }
 
@@ -373,18 +210,5 @@ impl InventoryManager {
     /// Get item count
     pub fn get_item_count(player: &Player) -> usize {
         player.inventory.items.len()
-    }
-
-    /// Check if inventory has space
-    pub fn has_space(player: &Player) -> bool {
-        player.inventory.items.len() < player.inventory.max_size
-    }
-
-    /// Get available space
-    pub fn get_available_space(player: &Player) -> usize {
-        player
-            .inventory
-            .max_size
-            .saturating_sub(player.inventory.items.len())
     }
 }

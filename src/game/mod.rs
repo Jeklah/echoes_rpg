@@ -1,12 +1,13 @@
 use rand::Rng;
 use serde::{Deserialize, Serialize};
+#[cfg(windows)]
 use std::time::Instant;
 
 use crate::character::Player;
 use crate::combat::{process_combat_turn, CombatResult};
 use crate::inventory::InventoryManager;
 use crate::item::Item;
-#[cfg(feature = "gui")]
+#[cfg(all(windows, feature = "gui"))]
 use crate::platform;
 use crate::ui::UI;
 use crate::world::{Dungeon, Level, Position, Tile, TileType};
@@ -30,6 +31,7 @@ pub struct Game {
     pub game_state: GameState,
     pub combat_started: bool,
     #[serde(skip)]
+    #[cfg(windows)]
     pub last_render_time: Option<Instant>,
 }
 
@@ -44,6 +46,7 @@ impl Game {
             current_dungeon_index: 0,
             game_state: GameState::MainMenu,
             combat_started: false,
+            #[cfg(windows)]
             last_render_time: None,
         };
 
@@ -115,7 +118,7 @@ impl Game {
         if let Some(tile) = self.current_level().get_tile(new_pos.x, new_pos.y) {
             match tile.tile_type {
                 TileType::StairsDown => {
-                    if let Err(_) = self.current_dungeon_mut().go_to_next_level() {
+                    if self.current_dungeon_mut().go_to_next_level().is_err() {
                         // Can't go further down
                         return false;
                     }
@@ -160,10 +163,7 @@ impl Game {
                         // We don't directly add a message here because the move_player method
                         // doesn't return messages, but we'll add a hook for it
                         #[cfg(debug_assertions)]
-                        println!(
-                            "DEBUG: Auto-looted chest at {:?}, found {}",
-                            new_pos, item_name
-                        );
+                        println!("DEBUG: Auto-looted chest at {new_pos:?}, found {item_name}");
                     }
                     return true;
                 }
@@ -187,37 +187,34 @@ impl Game {
 
     pub fn process_turn(&mut self) {
         // Update game state, process enemy movements, etc.
-        match self.game_state {
-            GameState::Playing => {
-                // Process enemy turns
-                // This is a simple implementation - more complex AI would be better
-                let mut rng = rand::thread_rng();
+        if let GameState::Playing = self.game_state {
+            // Process enemy turns
+            // This is a simple implementation - more complex AI would be better
+            let mut rng = rand::thread_rng();
 
-                // Clone enemy positions to avoid borrowing issues
-                let enemy_positions: Vec<Position> =
-                    self.current_level().enemies.keys().cloned().collect();
+            // Clone enemy positions to avoid borrowing issues
+            let enemy_positions: Vec<Position> =
+                self.current_level().enemies.keys().cloned().collect();
 
-                for pos in enemy_positions {
-                    // 50% chance enemy moves randomly
-                    if rng.gen_bool(0.5) {
-                        let dx = rng.gen_range(-1..=1);
-                        let dy = rng.gen_range(-1..=1);
+            for pos in enemy_positions {
+                // 50% chance enemy moves randomly
+                if rng.gen_bool(0.5) {
+                    let dx = rng.gen_range(-1..=1);
+                    let dy = rng.gen_range(-1..=1);
 
-                        let new_pos = Position::new(pos.x + dx, pos.y + dy);
+                    let new_pos = Position::new(pos.x + dx, pos.y + dy);
 
-                        // Only move if position is valid and not occupied
-                        if self.current_level().is_tile_walkable(new_pos)
-                            && !self.current_level().enemies.contains_key(&new_pos)
-                            && new_pos != self.player_position()
-                        {
-                            if let Some(enemy) = self.current_level_mut().remove_enemy_at(&pos) {
-                                self.current_level_mut().enemies.insert(new_pos, enemy);
-                            }
+                    // Only move if position is valid and not occupied
+                    if self.current_level().is_tile_walkable(new_pos)
+                        && !self.current_level().enemies.contains_key(&new_pos)
+                        && new_pos != self.player_position()
+                    {
+                        if let Some(enemy) = self.current_level_mut().remove_enemy_at(&pos) {
+                            self.current_level_mut().enemies.insert(new_pos, enemy);
                         }
                     }
                 }
             }
-            _ => {}
         }
     }
 
@@ -329,7 +326,7 @@ impl Game {
                             {
                                 *tile_mut = Tile::floor();
                             }
-                            return Some(format!("You looted the chest and found {}!", item_name));
+                            return Some(format!("You looted the chest and found {item_name}!"));
                         } else {
                             return Some(format!(
                                 "Chest contains {}, but {}.",
@@ -341,7 +338,7 @@ impl Game {
                         // This could indicate an issue with chest item generation
                         // Add more detailed debug information
                         #[cfg(debug_assertions)]
-                        println!("DEBUG: Found empty chest at position {:?}", adj_pos);
+                        println!("DEBUG: Found empty chest at position {adj_pos:?}");
 
                         // Replace chest with floor since it's empty
                         if let Some(tile_mut) =
@@ -376,13 +373,13 @@ pub fn run() {
     // Initialize UI
     let mut ui = UI::new();
     if let Err(e) = ui.initialize() {
-        eprintln!("Error initializing UI: {}", e);
+        eprintln!("Error initializing UI: {e}");
         return;
     }
 
     // Show title screen
     if let Err(e) = ui.draw_title_screen() {
-        eprintln!("Error drawing title screen: {}", e);
+        eprintln!("Error drawing title screen: {e}");
         return;
     }
 
@@ -397,16 +394,16 @@ pub fn run() {
                 crossterm::event::KeyCode::Char('2') => {
                     // Exit
                     if let Err(e) = ui.cleanup() {
-                        eprintln!("Error cleaning up UI: {}", e);
+                        eprintln!("Error cleaning up UI: {e}");
                     }
                     return;
                 }
                 _ => {}
             },
             Err(e) => {
-                eprintln!("Error reading key: {}", e);
+                eprintln!("Error reading key: {e}");
                 if let Err(e) = ui.cleanup() {
-                    eprintln!("Error cleaning up UI: {}", e);
+                    eprintln!("Error cleaning up UI: {e}");
                 }
                 return;
             }
@@ -417,9 +414,9 @@ pub fn run() {
     let player = match ui.character_creation() {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("Error during character creation: {}", e);
+            eprintln!("Error during character creation: {e}");
             if let Err(e) = ui.cleanup() {
-                eprintln!("Error cleaning up UI: {}", e);
+                eprintln!("Error cleaning up UI: {e}");
             }
             return;
         }
@@ -430,9 +427,9 @@ pub fn run() {
 
     // Show combat tutorial
     if let Err(e) = ui.show_combat_tutorial() {
-        eprintln!("Error showing combat tutorial: {}", e);
+        eprintln!("Error showing combat tutorial: {e}");
         if let Err(e) = ui.cleanup() {
-            eprintln!("Error cleaning up UI: {}", e);
+            eprintln!("Error cleaning up UI: {e}");
         }
         return;
     }
@@ -478,7 +475,7 @@ pub fn run() {
             if let Err(e) =
                 ui.draw_game_screen(&game.player, game.current_level(), game.current_dungeon())
             {
-                eprintln!("Error drawing game screen: {}", e);
+                eprintln!("Error drawing game screen: {e}");
                 break;
             }
         }
@@ -545,7 +542,7 @@ pub fn run() {
                     _ => {}
                 },
                 Err(e) => {
-                    eprintln!("Error reading key: {}", e);
+                    eprintln!("Error reading key: {e}");
                     break;
                 }
             },
@@ -562,7 +559,7 @@ pub fn run() {
                             .name
                             .clone();
                         ui.clear_messages();
-                        ui.add_message(format!("Combat started with {}!", enemy_name));
+                        ui.add_message(format!("Combat started with {enemy_name}!"));
                         game.combat_started = false;
                     }
 
@@ -571,7 +568,7 @@ pub fn run() {
 
                     // Draw the combat screen
                     if let Err(e) = ui.draw_combat_screen(&game.player, enemy) {
-                        eprintln!("Error drawing combat screen: {}", e);
+                        eprintln!("Error drawing combat screen: {e}");
                         break;
                     }
 
@@ -579,7 +576,7 @@ pub fn run() {
                     let action = match ui.handle_combat_action(&game.player) {
                         Ok(a) => a,
                         Err(e) => {
-                            eprintln!("Error handling combat action: {}", e);
+                            eprintln!("Error handling combat action: {e}");
                             break;
                         }
                     };
@@ -624,13 +621,13 @@ pub fn run() {
             }
             GameState::Inventory => {
                 if let Err(e) = ui.draw_inventory_screen(&game.player) {
-                    eprintln!("Error drawing inventory screen: {}", e);
+                    eprintln!("Error drawing inventory screen: {e}");
                     break;
                 }
 
                 match ui.wait_for_key() {
                     Ok(key_event) => match key_event.code {
-                        crossterm::event::KeyCode::Char(c) if c >= '1' && c <= '9' => {
+                        crossterm::event::KeyCode::Char(c) if ('1'..='9').contains(&c) => {
                             let index = c.to_digit(10).unwrap() as usize - 1;
                             if index < InventoryManager::get_item_count(&game.player) {
                                 if let Some(item) = InventoryManager::get_item(&game.player, index)
@@ -659,20 +656,20 @@ pub fn run() {
                         _ => {}
                     },
                     Err(e) => {
-                        eprintln!("Error reading key: {}", e);
+                        eprintln!("Error reading key: {e}");
                         break;
                     }
                 }
             }
             GameState::Character => {
                 if let Err(e) = ui.draw_character_screen(&game.player) {
-                    eprintln!("Error drawing character screen: {}", e);
+                    eprintln!("Error drawing character screen: {e}");
                     break;
                 }
 
                 // Any key returns to game
                 if let Err(e) = ui.wait_for_key() {
-                    eprintln!("Error reading key: {}", e);
+                    eprintln!("Error reading key: {e}");
                     break;
                 }
 
@@ -686,12 +683,12 @@ pub fn run() {
     match game.game_state {
         GameState::GameOver => {
             if let Err(e) = ui.draw_game_over(&game.player) {
-                eprintln!("Error drawing game over screen: {}", e);
+                eprintln!("Error drawing game over screen: {e}");
             }
         }
         GameState::Victory => {
             if let Err(e) = ui.draw_victory_screen(&game.player) {
-                eprintln!("Error drawing victory screen: {}", e);
+                eprintln!("Error drawing victory screen: {e}");
             }
         }
         _ => {}
@@ -699,6 +696,6 @@ pub fn run() {
 
     // Clean up
     if let Err(e) = ui.cleanup() {
-        eprintln!("Error cleaning up UI: {}", e);
+        eprintln!("Error cleaning up UI: {e}");
     }
 }

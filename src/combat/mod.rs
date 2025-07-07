@@ -185,7 +185,7 @@ fn handle_enemy_defeat(player: &mut Player, enemy: &Enemy, result: &mut CombatRe
         if add_result.success {
             let item_name = item.name().to_string();
             result.items_gained.push(item.clone());
-            result.add_message(format!("You found: {}", item_name));
+            result.add_message(format!("You found: {item_name}"));
         } else {
             result.add_message("You found an item but your inventory is full!".to_string());
         }
@@ -196,7 +196,7 @@ fn handle_enemy_defeat(player: &mut Player, enemy: &Enemy, result: &mut CombatRe
     result.player_level_up = leveled_up;
 
     result.add_message(format!("You defeated the {}!", enemy.name));
-    result.add_message(format!("You gained {} experience and {} gold.", exp, gold));
+    result.add_message(format!("You gained {exp} experience and {gold} gold."));
 
     if leveled_up {
         result.add_message(format!("You leveled up to level {}!", player.level));
