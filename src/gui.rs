@@ -7,7 +7,7 @@ use crate::character::{ClassType, Player};
 use crate::game::Game;
 #[cfg(feature = "gui")]
 use crate::input::InputHandler;
-use crate::inventory::{InventoryManager, ItemType};
+use crate::inventory::InventoryManager;
 use crate::item::{equipment, Item};
 #[cfg(feature = "gui")]
 use crate::world::{FogOfWar, Position};
@@ -975,20 +975,24 @@ impl EchoesApp {
                                 ui.label(text);
 
                                 // Add interaction buttons based on item type
-                                match item_info.item_type {
-                                    ItemType::Equipment => {
-                                        if !is_equipped {
-                                            if ui.button("Equip").clicked() {
-                                                equip_item_index = Some(i);
+                                if let Some(item) = InventoryManager::get_item(player, i) {
+                                    match item {
+                                        Item::Equipment(_) => {
+                                            if !is_equipped {
+                                                if ui.button("Equip").clicked() {
+                                                    equip_item_index = Some(i);
+                                                }
                                             }
                                         }
-                                    }
-                                    ItemType::Consumable => {
-                                        if ui.button("Use").clicked() {
-                                            use_item_index = Some(i);
+                                        Item::Consumable(_) => {
+                                            if ui.button("Use").clicked() {
+                                                use_item_index = Some(i);
+                                            }
+                                        }
+                                        Item::QuestItem { .. } => {
+                                            ui.label("Quest item");
                                         }
                                     }
-                                    _ => {}
                                 }
                             });
                         }
@@ -1109,7 +1113,7 @@ impl EchoesApp {
                     let equipped = if let Some(item_info) =
                         InventoryManager::get_equipped_item(player, slot)
                     {
-                        format!("{} (+{})", item_info.name, item_info.value)
+                        item_info.name
                     } else {
                         "None".to_string()
                     };
