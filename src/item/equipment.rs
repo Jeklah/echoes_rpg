@@ -60,29 +60,6 @@ pub struct Equipment {
 }
 
 impl Equipment {
-    #[allow(dead_code)]
-    pub fn new(
-        name: String,
-        description: String,
-        equipment_type: EquipmentType,
-        slot: EquipmentSlot,
-        power: i32,
-        value: u32,
-        stat_bonuses: HashMap<StatType, i32>,
-        level_requirement: u32,
-    ) -> Self {
-        Equipment {
-            name,
-            description,
-            equipment_type,
-            slot,
-            power,
-            value,
-            stat_bonuses,
-            level_requirement,
-        }
-    }
-
     pub fn generate_random(level: u32) -> Self {
         let mut rng = rand::thread_rng();
 

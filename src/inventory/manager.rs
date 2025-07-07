@@ -143,7 +143,7 @@ impl InventoryManager {
         match item {
             Item::Equipment(equipment) => Self::equip_item(player, index, equipment),
             Item::Consumable(consumable) => Self::use_consumable(player, index, consumable),
-            Item::QuestItem { .. } => ActionResult::failure("Quest items cannot be used"),
+            Item::Quest { .. } => ActionResult::failure("Quest items cannot be used"),
         }
     }
 

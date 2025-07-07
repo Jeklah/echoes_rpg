@@ -2,7 +2,7 @@ pub mod consumable;
 pub mod equipment;
 
 // Re-exports
-pub use consumable::{Consumable, ConsumableType};
+pub use consumable::Consumable;
 pub use equipment::{Equipment, EquipmentSlot};
 
 use rand::Rng;
@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 pub enum Item {
     Equipment(Equipment),
     Consumable(Consumable),
-    QuestItem {
+    Quest {
         id: String,
         name: String,
         description: String,
@@ -24,25 +24,7 @@ impl Item {
         match self {
             Item::Equipment(equipment) => &equipment.name,
             Item::Consumable(consumable) => &consumable.name,
-            Item::QuestItem { name, .. } => name,
-        }
-    }
-
-    #[allow(dead_code)]
-    pub fn description(&self) -> &str {
-        match self {
-            Item::Equipment(equipment) => &equipment.description,
-            Item::Consumable(consumable) => &consumable.description,
-            Item::QuestItem { description, .. } => description,
-        }
-    }
-
-    #[allow(dead_code)]
-    pub fn value(&self) -> u32 {
-        match self {
-            Item::Equipment(equipment) => equipment.value,
-            Item::Consumable(consumable) => consumable.value,
-            Item::QuestItem { .. } => 0, // Quest items have no sale value
+            Item::Quest { name, .. } => name,
         }
     }
 

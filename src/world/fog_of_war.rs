@@ -109,12 +109,6 @@ impl FogOfWar {
         Self { config }
     }
 
-    /// Create a fog of war processor with default configuration
-    #[allow(dead_code)]
-    pub fn with_defaults() -> Self {
-        Self::new(FogOfWarConfig::default())
-    }
-
     /// Determine the visibility state of a tile
     pub fn get_visibility_state(&self, tile: &Tile) -> VisibilityState {
         if !tile.explored {
@@ -300,25 +294,12 @@ impl FogOfWar {
             }, // Green
         }
     }
-
-    /// Update the fog of war configuration
-    #[allow(dead_code)]
-    pub fn set_config(&mut self, config: FogOfWarConfig) {
-        self.config = config;
-    }
-
-    /// Get the current fog of war configuration
-    #[allow(dead_code)]
-    pub fn get_config(&self) -> &FogOfWarConfig {
-        &self.config
-    }
 }
 
 /// Utility functions for different rendering backends
 impl FogOfWar {
     /// Convert FogColor to egui Color32 for GUI rendering
     #[cfg(feature = "gui")]
-    #[allow(dead_code)]
     pub fn to_egui_color(color: &FogColor) -> egui::Color32 {
         egui::Color32::from_rgba_unmultiplied(color.r, color.g, color.b, color.a)
     }
@@ -341,7 +322,7 @@ mod tests {
 
     #[test]
     fn test_visibility_states() {
-        let fog = FogOfWar::with_defaults();
+        let fog = FogOfWar::new(FogOfWarConfig::default());
 
         // Test unexplored tile
         let unexplored_tile = Tile::new(TileType::Floor);
@@ -371,7 +352,7 @@ mod tests {
 
     #[test]
     fn test_fog_processing() {
-        let fog = FogOfWar::with_defaults();
+        let fog = FogOfWar::new(FogOfWarConfig::default());
 
         // Test unexplored tile processing
         let unexplored_tile = Tile::new(TileType::Wall);

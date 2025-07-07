@@ -36,19 +36,6 @@ impl TileType {
             TileType::Exit => 'E',
         }
     }
-
-    #[allow(dead_code)]
-    pub fn description(&self) -> &str {
-        match self {
-            TileType::Wall => "A solid wall blocks your path.",
-            TileType::Floor => "A plain floor section.",
-            TileType::Door => "A door that can be opened.",
-            TileType::StairsDown => "Stairs leading down to the next level.",
-            TileType::StairsUp => "Stairs leading up to the previous level.",
-            TileType::Chest => "A treasure chest that might contain valuable items.",
-            TileType::Exit => "The exit from this dungeon.",
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

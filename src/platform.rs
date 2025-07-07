@@ -103,36 +103,6 @@ pub fn check_terminal_compatibility() -> Result<()> {
     Ok(())
 }
 
-/// Get platform-appropriate game data directory
-#[allow(dead_code)]
-pub fn get_game_data_dir() -> Result<std::path::PathBuf> {
-    let base_dir = dirs::data_dir().context("Could not determine user data directory")?;
-
-    let game_dir = base_dir.join("echoes_rpg");
-
-    // Create directory if it doesn't exist
-    if !game_dir.exists() {
-        std::fs::create_dir_all(&game_dir).context("Failed to create game data directory")?;
-    }
-
-    Ok(game_dir)
-}
-
-/// Get platform-appropriate config directory
-#[allow(dead_code)]
-pub fn get_config_dir() -> Result<std::path::PathBuf> {
-    let base_dir = dirs::config_dir().context("Could not determine user config directory")?;
-
-    let config_dir = base_dir.join("echoes_rpg");
-
-    // Create directory if it doesn't exist
-    if !config_dir.exists() {
-        std::fs::create_dir_all(&config_dir).context("Failed to create config directory")?;
-    }
-
-    Ok(config_dir)
-}
-
 /// Platform-specific error handling with helpful messages
 #[cfg(not(all(feature = "gui", target_os = "windows")))]
 pub fn handle_error(error: &anyhow::Error) -> String {
@@ -280,8 +250,7 @@ pub fn windows_frame_limit() {
 }
 
 /// No-op frame limit for non-Windows platforms
-#[cfg(not(windows))]
-#[allow(dead_code)]
+#[cfg(all(not(windows), not(all(feature = "gui", target_os = "windows"))))]
 pub fn windows_frame_limit() {
     // Do nothing on non-Windows platforms
 }

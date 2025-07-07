@@ -1,5 +1,5 @@
 use crate::character::{Class, ClassType, Stats};
-use crate::inventory::Inventory;
+use crate::inventory::manager::Inventory;
 
 use serde::{Deserialize, Serialize};
 
@@ -67,16 +67,6 @@ impl Player {
 
     pub fn heal(&mut self, amount: i32) {
         self.health = (self.health + amount).min(self.max_health);
-    }
-
-    #[allow(dead_code)]
-    pub fn spend_mana(&mut self, amount: i32) -> bool {
-        if self.mana >= amount {
-            self.mana -= amount;
-            true
-        } else {
-            false
-        }
     }
 
     pub fn is_alive(&self) -> bool {
@@ -150,9 +140,7 @@ impl Player {
 
                     if self.mana >= mana_cost {
                         self.mana -= mana_cost;
-                        Ok(format!(
-                            "You cast {ability_name} and increase your defense"
-                        ))
+                        Ok(format!("You cast {ability_name} and increase your defense"))
                     } else {
                         Err(format!("Not enough mana to cast {ability_name}"))
                     }

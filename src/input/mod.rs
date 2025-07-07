@@ -6,7 +6,6 @@
 use egui::{Event, Key};
 
 #[derive(Debug, Clone, PartialEq)]
-#[allow(dead_code)]
 pub enum InputAction {
     // Character input for names, etc.
     Character(char),
@@ -25,7 +24,6 @@ pub enum InputAction {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-#[allow(dead_code)]
 pub enum Direction {
     North,
     South,
@@ -35,7 +33,8 @@ pub enum Direction {
     Down,
 }
 
-#[allow(dead_code)]
+#[cfg(feature = "gui")]
+#[derive(Default)]
 pub struct InputHandler {
     // Event queue for robust input handling
     action_queue: std::collections::VecDeque<InputAction>,
@@ -44,17 +43,6 @@ pub struct InputHandler {
     last_processed_frame: u64,
 }
 
-impl Default for InputHandler {
-    fn default() -> Self {
-        Self {
-            action_queue: std::collections::VecDeque::new(),
-            processed_events: std::collections::HashSet::new(),
-            last_processed_frame: 0,
-        }
-    }
-}
-
-#[allow(dead_code)]
 impl InputHandler {
     pub fn new() -> Self {
         Self::default()
@@ -76,7 +64,7 @@ impl InputHandler {
                     key, pressed: true, ..
                 } = event
                 {
-                    let event_id = format!("{:?}", key);
+                    let event_id = format!("{key:?}");
 
                     // Skip if we already processed this event in this frame
                     if self.processed_events.contains(&event_id) {
@@ -173,7 +161,6 @@ impl InputHandler {
 }
 
 /// Helper functions for common input patterns
-#[allow(dead_code)]
 impl InputHandler {
     /// Check if an action is a valid character for name entry
     pub fn is_name_character(action: &InputAction) -> bool {

@@ -140,29 +140,6 @@ impl Class {
         }
     }
 
-    #[allow(dead_code)]
-    pub fn get_description(&self) -> &str {
-        match self.class_type {
-            ClassType::Warrior => {
-                "A powerful melee fighter specialized in direct combat with high health and defense."
-            }
-            ClassType::Mage => {
-                "A wielder of arcane energies with powerful spells but lower health."
-            }
-            ClassType::Ranger => {
-                "A skilled archer and tracker with balanced abilities and ranged attacks."
-            }
-            ClassType::Cleric => {
-                "A divine spellcaster with healing abilities and protective magic."
-            }
-        }
-    }
-
-    #[allow(dead_code)]
-    pub fn learn_ability(&mut self, ability: String) {
-        self.abilities.push(ability);
-    }
-
     pub fn use_ability(&self, ability_index: usize) -> Option<&str> {
         self.abilities.get(ability_index).map(|s| s.as_str())
     }

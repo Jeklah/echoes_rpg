@@ -5,7 +5,7 @@ use std::time::Instant;
 
 use crate::character::Player;
 #[cfg(not(all(feature = "gui", target_os = "windows")))]
-use crate::combat::{process_combat_turn, CombatResult};
+use crate::combat::process_combat_turn;
 use crate::inventory::InventoryManager;
 #[cfg(not(all(feature = "gui", target_os = "windows")))]
 use crate::item::Item;
@@ -177,16 +177,6 @@ impl Game {
         // Move the player
         self.current_level_mut().player_position = new_pos;
         true
-    }
-
-    // This method is kept for compatibility but is no longer used
-    // Combat is now handled directly in the game loop
-    #[allow(dead_code)]
-    #[cfg(not(all(feature = "gui", target_os = "windows")))]
-    pub fn handle_combat(&mut self, _enemy_pos: Position) -> CombatResult {
-        let mut result = CombatResult::new();
-        result.add_message("Combat handled in game loop now.");
-        result
     }
 
     pub fn process_turn(&mut self) {
@@ -442,12 +432,9 @@ pub fn run() {
     game.game_state = GameState::Playing;
 
     // Game loop
-    while match game.game_state {
-        GameState::GameOver | GameState::Victory => false,
-        _ => true,
-    } {
+    while !matches!(game.game_state, GameState::GameOver | GameState::Victory) {
         // Windows-specific frame rate limiting for better performance
-        #[cfg(all(windows, feature = "gui"))]
+        #[cfg(all(windows, not(all(feature = "gui", target_os = "windows"))))]
         {
             if platform::is_command_prompt() {
                 platform::cmd_frame_limit();
@@ -648,7 +635,7 @@ pub fn run() {
                                                 InventoryManager::use_item(&mut game.player, index);
                                             ui.add_message(result.message);
                                         }
-                                        Item::QuestItem { .. } => {
+                                        Item::Quest { .. } => {
                                             ui.add_message("This item cannot be used".to_string());
                                         }
                                     }

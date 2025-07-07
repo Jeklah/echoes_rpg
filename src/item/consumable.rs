@@ -25,23 +25,6 @@ pub struct Consumable {
 }
 
 impl Consumable {
-    #[allow(dead_code)]
-    pub fn new(
-        name: String,
-        description: String,
-        consumable_type: ConsumableType,
-        potency: i32,
-        value: u32,
-    ) -> Self {
-        Consumable {
-            name,
-            description,
-            consumable_type,
-            potency,
-            value,
-        }
-    }
-
     pub fn use_effect(&self, player: &mut Player) -> String {
         match self.consumable_type {
             ConsumableType::HealthPotion => {

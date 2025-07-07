@@ -53,7 +53,7 @@
 
 pub mod manager;
 
-pub use manager::{Inventory, InventoryManager};
+pub use manager::InventoryManager;
 
 /// Information about an inventory item for display purposes
 #[derive(Debug, Clone)]
