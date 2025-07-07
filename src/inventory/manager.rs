@@ -55,11 +55,9 @@ impl Inventory {
         let item = self.items.remove(index);
 
         // Update equipped indices after removal
-        for equipped_index in self.equipped.values_mut() {
-            if let Some(idx) = equipped_index {
-                if *idx > index {
-                    *idx -= 1;
-                }
+        for idx in self.equipped.values_mut().flatten() {
+            if *idx > index {
+                *idx -= 1;
             }
         }
 
@@ -158,11 +156,9 @@ impl Inventory {
                 self.items.remove(index);
 
                 // Update equipped indices after removal
-                for equipped_index in self.equipped.values_mut() {
-                    if let Some(idx) = equipped_index {
-                        if *idx > index {
-                            *idx -= 1;
-                        }
+                for idx in self.equipped.values_mut().flatten() {
+                    if *idx > index {
+                        *idx -= 1;
                     }
                 }
 
@@ -264,11 +260,9 @@ impl InventoryManager {
         player.inventory.items.remove(index);
 
         // Update equipped indices after removal
-        for equipped_index in player.inventory.equipped.values_mut() {
-            if let Some(idx) = equipped_index {
-                if *idx > index {
-                    *idx -= 1;
-                }
+        for idx in player.inventory.equipped.values_mut().flatten() {
+            if *idx > index {
+                *idx -= 1;
             }
         }
 
@@ -322,7 +316,7 @@ impl InventoryManager {
     /// Unequip an item from a specific slot
     pub fn unequip_item(player: &mut Player, slot: EquipmentSlot) -> ActionResult {
         match player.inventory.unequip_item(slot) {
-            Ok(()) => ActionResult::success(format!("Unequipped item from {:?} slot", slot)),
+            Ok(()) => ActionResult::success(format!("Unequipped item from {slot:?} slot")),
             Err(err) => ActionResult::failure(err),
         }
     }
