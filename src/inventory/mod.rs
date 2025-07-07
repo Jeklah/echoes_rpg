@@ -52,70 +52,15 @@
 //! ```
 
 pub mod manager;
-pub mod screen;
 
 pub use manager::{Inventory, InventoryManager};
-
-use crate::item::Item;
-
-/// Result type for inventory operations
-pub type InventoryResult<T> = Result<T, InventoryError>;
-
-/// Errors that can occur during inventory operations
-#[derive(Debug, Clone)]
-pub enum InventoryError {
-    InvalidIndex,
-    InventoryFull,
-    CannotEquip(String),
-    CannotUse(String),
-    ItemNotFound,
-    AlreadyEquipped,
-    NotEquipped,
-}
-
-impl std::fmt::Display for InventoryError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            InventoryError::InvalidIndex => write!(f, "Invalid item index"),
-            InventoryError::InventoryFull => write!(f, "Inventory is full"),
-            InventoryError::CannotEquip(msg) => write!(f, "Cannot equip item: {msg}"),
-            InventoryError::CannotUse(msg) => write!(f, "Cannot use item: {msg}"),
-            InventoryError::ItemNotFound => write!(f, "Item not found"),
-            InventoryError::AlreadyEquipped => write!(f, "Item is already equipped"),
-            InventoryError::NotEquipped => write!(f, "No item equipped in that slot"),
-        }
-    }
-}
-
-impl std::error::Error for InventoryError {}
 
 /// Information about an inventory item for display purposes
 #[derive(Debug, Clone)]
 pub struct ItemInfo {
-    pub index: usize,
     pub name: String,
-    pub description: String,
+
     pub is_equipped: bool,
-    pub item_type: ItemType,
-    pub value: u32,
-}
-
-/// Type of item for categorization
-#[derive(Debug, Clone, PartialEq)]
-pub enum ItemType {
-    Equipment,
-    Consumable,
-    Quest,
-}
-
-impl From<&Item> for ItemType {
-    fn from(item: &Item) -> Self {
-        match item {
-            Item::Equipment(_) => ItemType::Equipment,
-            Item::Consumable(_) => ItemType::Consumable,
-            Item::QuestItem { .. } => ItemType::Quest,
-        }
-    }
 }
 
 /// Action result from inventory operations
@@ -123,7 +68,6 @@ impl From<&Item> for ItemType {
 pub struct ActionResult {
     pub success: bool,
     pub message: String,
-    pub item_consumed: bool,
 }
 
 impl ActionResult {
@@ -131,7 +75,6 @@ impl ActionResult {
         Self {
             success: true,
             message: message.into(),
-            item_consumed: false,
         }
     }
 
@@ -139,7 +82,6 @@ impl ActionResult {
         Self {
             success: true,
             message: message.into(),
-            item_consumed: true,
         }
     }
 
@@ -147,7 +89,6 @@ impl ActionResult {
         Self {
             success: false,
             message: message.into(),
-            item_consumed: false,
         }
     }
 }
