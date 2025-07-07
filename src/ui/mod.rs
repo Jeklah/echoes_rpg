@@ -382,7 +382,7 @@ impl UI {
     }
 
     pub fn clear_screen(&mut self) -> io::Result<()> {
-        platform::clear_screen().map_err(|e| io::Error::other(e))?;
+        platform::clear_screen().map_err(io::Error::other)?;
         Ok(())
     }
 
@@ -902,7 +902,7 @@ impl UI {
                 stdout(),
                 cursor::MoveTo(ui_text_x as u16, (content_start_y + 1) as u16),
                 style::SetForegroundColor(Color::Cyan),
-                style::Print(format!("{}", player.name)),
+                style::Print(player.name.to_string()),
                 cursor::MoveTo(ui_text_x as u16, (content_start_y + 2) as u16),
                 style::SetForegroundColor(Color::White),
                 style::Print(format!(
