@@ -17,13 +17,6 @@ impl Position {
     pub fn new(x: i32, y: i32) -> Self {
         Position { x, y }
     }
-
-    #[allow(dead_code)]
-    pub fn distance(&self, other: &Position) -> f32 {
-        let dx = (self.x - other.x) as f32;
-        let dy = (self.y - other.y) as f32;
-        (dx * dx + dy * dy).sqrt()
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -396,17 +389,6 @@ impl Level {
         x >= 0 && x < self.width as i32 && y >= 0 && y < self.height as i32
     }
 
-    #[allow(dead_code)]
-    pub fn is_position_walkable(&self, pos: Position) -> bool {
-        // Check if the position is valid and the tile type is walkable
-        self.is_position_valid(pos.x, pos.y)
-            && self.tiles[pos.y as usize][pos.x as usize]
-                .tile_type
-                .is_walkable()
-            // Don't consider positions with enemies as walkable
-            && !self.enemies.contains_key(&pos)
-    }
-
     // This method only checks if the tile is walkable, ignoring enemies
     pub fn is_tile_walkable(&self, pos: Position) -> bool {
         self.is_position_valid(pos.x, pos.y)
@@ -420,23 +402,6 @@ impl Level {
             Some(&self.tiles[y as usize][x as usize])
         } else {
             None
-        }
-    }
-
-    /// Gets a tile at the specified position
-    #[allow(dead_code)]
-    pub fn get_tile_at(&self, pos: &Position) -> Option<&Tile> {
-        self.get_tile(pos.x, pos.y)
-    }
-
-    // We already have is_tile_walkable method defined above
-    // This is just a helper that uses get_tile_at
-    #[allow(dead_code)]
-    pub fn is_position_walkable_by_ref(&self, pos: &Position) -> bool {
-        if let Some(tile) = self.get_tile_at(pos) {
-            tile.tile_type.is_walkable()
-        } else {
-            false
         }
     }
 
@@ -468,9 +433,7 @@ impl Level {
             if let Some(tile) = self.get_tile(pos.x, pos.y) {
                 if tile.tile_type == TileType::Chest && item.is_none() {
                     // This would indicate a bug - chest exists but has no item
-                    eprintln!(
-                        "WARNING: Found chest at {pos:?} but no item associated with it"
-                    );
+                    eprintln!("WARNING: Found chest at {pos:?} but no item associated with it");
                 }
             }
         }

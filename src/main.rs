@@ -19,7 +19,7 @@ fn main() {
     {
         // Run GUI version on Windows when feature is enabled
         if let Err(e) = gui::run_gui() {
-            eprintln!("Failed to run GUI: {}", e);
+            eprintln!("Failed to run GUI: {e}");
             std::process::exit(1);
         }
     }

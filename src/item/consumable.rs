@@ -25,23 +25,6 @@ pub struct Consumable {
 }
 
 impl Consumable {
-    #[allow(dead_code)]
-    pub fn new(
-        name: String,
-        description: String,
-        consumable_type: ConsumableType,
-        potency: i32,
-        value: u32,
-    ) -> Self {
-        Consumable {
-            name,
-            description,
-            consumable_type,
-            potency,
-            value,
-        }
-    }
-
     pub fn use_effect(&self, player: &mut Player) -> String {
         match self.consumable_type {
             ConsumableType::HealthPotion => {
@@ -108,8 +91,8 @@ impl Consumable {
             ConsumableType::HealthPotion | ConsumableType::ManaPotion => {
                 20 + level as i32 * 10 + rng.gen_range(0..10)
             }
-            ConsumableType::Antidote => 1, // Antidotes don't have variable potency
-            _ => 1,                        // Stat elixirs always give +1 to the stat
+            // Antidotes don't have variable potency, stat elixirs always give +1
+            _ => 1,
         };
 
         // Set name and description based on type

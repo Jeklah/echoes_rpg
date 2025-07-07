@@ -20,24 +20,6 @@ pub fn create_standard_fog_of_war() -> FogOfWar {
     FogOfWar::new(config)
 }
 
-/// Creates a fog-of-war instance with custom configuration
-/// for cases where non-standard settings are needed.
-#[allow(dead_code)]
-pub fn create_custom_fog_of_war(
-    hide_unexplored: bool,
-    show_explored_dimmed: bool,
-    dimming_factor: f32,
-    unexplored_color: FogColor,
-) -> FogOfWar {
-    let config = FogOfWarConfig {
-        hide_unexplored,
-        show_explored_dimmed,
-        dimming_factor,
-        unexplored_color,
-    };
-    FogOfWar::new(config)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -47,13 +29,6 @@ mod tests {
         let _fog = create_standard_fog_of_war();
         // Test that the fog instance is created successfully
         // This is mainly to ensure the factory function doesn't panic
-        assert!(true); // Placeholder - actual fog testing would depend on FogOfWar's public interface
-    }
-
-    #[test]
-    fn test_custom_fog_of_war_creation() {
-        let _fog = create_custom_fog_of_war(false, true, 0.3, FogColor::BLACK);
-        // Test that custom fog instance is created successfully
         assert!(true); // Placeholder - actual fog testing would depend on FogOfWar's public interface
     }
 }

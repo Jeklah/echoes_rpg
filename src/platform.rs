@@ -4,6 +4,7 @@
 //! instead of platform-specific APIs, ensuring consistent behavior across
 //! Windows, macOS, and Linux.
 
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 use anyhow::{Context, Result};
 #[cfg(not(all(feature = "gui", target_os = "windows")))]
 use crossterm::{
@@ -101,36 +102,6 @@ pub fn check_terminal_compatibility() -> Result<()> {
     terminal::disable_raw_mode().context("Failed to disable raw mode after test")?;
 
     Ok(())
-}
-
-/// Get platform-appropriate game data directory
-#[allow(dead_code)]
-pub fn get_game_data_dir() -> Result<std::path::PathBuf> {
-    let base_dir = dirs::data_dir().context("Could not determine user data directory")?;
-
-    let game_dir = base_dir.join("echoes_rpg");
-
-    // Create directory if it doesn't exist
-    if !game_dir.exists() {
-        std::fs::create_dir_all(&game_dir).context("Failed to create game data directory")?;
-    }
-
-    Ok(game_dir)
-}
-
-/// Get platform-appropriate config directory
-#[allow(dead_code)]
-pub fn get_config_dir() -> Result<std::path::PathBuf> {
-    let base_dir = dirs::config_dir().context("Could not determine user config directory")?;
-
-    let config_dir = base_dir.join("echoes_rpg");
-
-    // Create directory if it doesn't exist
-    if !config_dir.exists() {
-        std::fs::create_dir_all(&config_dir).context("Failed to create config directory")?;
-    }
-
-    Ok(config_dir)
 }
 
 /// Platform-specific error handling with helpful messages
@@ -277,13 +248,6 @@ pub fn windows_frame_limit() {
 
         LAST_FRAME_TIME = Some(Instant::now());
     }
-}
-
-/// No-op frame limit for non-Windows platforms
-#[cfg(not(windows))]
-#[allow(dead_code)]
-pub fn windows_frame_limit() {
-    // Do nothing on non-Windows platforms
 }
 
 /// Set Command Prompt to full screen mode
@@ -451,18 +415,6 @@ mod tests {
         let info = get_platform_info();
         assert!(!info.is_empty());
         assert!(info.contains(std::env::consts::OS));
-    }
-
-    #[test]
-    fn test_game_data_dir() {
-        let dir = get_game_data_dir();
-        assert!(dir.is_ok());
-    }
-
-    #[test]
-    fn test_config_dir() {
-        let dir = get_config_dir();
-        assert!(dir.is_ok());
     }
 
     #[test]

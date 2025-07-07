@@ -3,10 +3,11 @@
 //! This module centralizes all input processing to avoid duplicate key handling
 //! and provides a clean interface for different game states.
 
+#[cfg(all(feature = "gui", target_os = "windows"))]
 use egui::{Event, Key};
 
 #[derive(Debug, Clone, PartialEq)]
-#[allow(dead_code)]
+#[cfg(all(feature = "gui", target_os = "windows"))]
 pub enum InputAction {
     // Character input for names, etc.
     Character(char),
@@ -17,25 +18,21 @@ pub enum InputAction {
     MenuOption(u8), // 1-9 for menu options
     // Game actions
     Move(Direction),
-    Interact,
-    Inventory,
-    // Special actions
     Exit,
-    Unknown,
+    Invalid,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-#[allow(dead_code)]
+#[cfg(all(feature = "gui", target_os = "windows"))]
 pub enum Direction {
     North,
     South,
     East,
     West,
-    Up,
-    Down,
 }
 
-#[allow(dead_code)]
+#[cfg(all(feature = "gui", target_os = "windows"))]
+#[derive(Default)]
 pub struct InputHandler {
     // Event queue for robust input handling
     action_queue: std::collections::VecDeque<InputAction>,
@@ -44,17 +41,7 @@ pub struct InputHandler {
     last_processed_frame: u64,
 }
 
-impl Default for InputHandler {
-    fn default() -> Self {
-        Self {
-            action_queue: std::collections::VecDeque::new(),
-            processed_events: std::collections::HashSet::new(),
-            last_processed_frame: 0,
-        }
-    }
-}
-
-#[allow(dead_code)]
+#[cfg(all(feature = "gui", target_os = "windows"))]
 impl InputHandler {
     pub fn new() -> Self {
         Self::default()
@@ -76,7 +63,7 @@ impl InputHandler {
                     key, pressed: true, ..
                 } = event
                 {
-                    let event_id = format!("{:?}", key);
+                    let event_id = format!("{key:?}");
 
                     // Skip if we already processed this event in this frame
                     if self.processed_events.contains(&event_id) {
@@ -86,7 +73,7 @@ impl InputHandler {
                     self.processed_events.insert(event_id);
 
                     let action = self.key_to_action(key);
-                    if action != InputAction::Unknown {
+                    if action != InputAction::Invalid {
                         self.action_queue.push_back(action);
                     }
                 }
@@ -162,7 +149,7 @@ impl InputHandler {
             Key::ArrowLeft => InputAction::Move(Direction::West),
             Key::ArrowRight => InputAction::Move(Direction::East),
 
-            _ => InputAction::Unknown,
+            _ => InputAction::Invalid,
         }
     }
 
@@ -173,33 +160,12 @@ impl InputHandler {
 }
 
 /// Helper functions for common input patterns
-#[allow(dead_code)]
+#[cfg(all(feature = "gui", target_os = "windows"))]
 impl InputHandler {
-    /// Check if an action is a valid character for name entry
-    pub fn is_name_character(action: &InputAction) -> bool {
-        match action {
-            InputAction::Character(c) => c.is_alphanumeric() || *c == ' ',
-            _ => false,
-        }
-    }
-
     /// Extract character from action if it's a character action
     pub fn get_character(action: &InputAction) -> Option<char> {
         match action {
             InputAction::Character(c) => Some(*c),
-            _ => None,
-        }
-    }
-
-    /// Check if action is a menu selection
-    pub fn is_menu_option(action: &InputAction) -> bool {
-        matches!(action, InputAction::MenuOption(_))
-    }
-
-    /// Get menu option number
-    pub fn get_menu_option(action: &InputAction) -> Option<u8> {
-        match action {
-            InputAction::MenuOption(n) => Some(*n),
             _ => None,
         }
     }

@@ -1,41 +1,38 @@
 //! GUI module for Windows graphical interface using egui
 //! Provides a native Windows application with text-based gameplay
 
-#[cfg(feature = "gui")]
+#[cfg(all(feature = "gui", target_os = "windows"))]
 use crate::character::{ClassType, Player};
-#[cfg(feature = "gui")]
+#[cfg(all(feature = "gui", target_os = "windows"))]
 use crate::game::Game;
-#[cfg(feature = "gui")]
+#[cfg(all(feature = "gui", target_os = "windows"))]
 use crate::input::InputHandler;
+#[cfg(all(feature = "gui", target_os = "windows"))]
 use crate::inventory::InventoryManager;
+#[cfg(all(feature = "gui", target_os = "windows"))]
 use crate::item::{equipment, Item};
-#[cfg(feature = "gui")]
+#[cfg(all(feature = "gui", target_os = "windows"))]
 use crate::world::{FogOfWar, Position};
-#[cfg(feature = "gui")]
+#[cfg(all(feature = "gui", target_os = "windows"))]
 use eframe::egui;
-#[cfg(feature = "gui")]
+#[cfg(all(feature = "gui", target_os = "windows"))]
 use egui::{Color32, FontFamily, FontId, RichText};
 
-#[cfg(feature = "gui")]
+#[cfg(all(feature = "gui", target_os = "windows"))]
 #[derive(Debug, Clone, PartialEq)]
-#[allow(dead_code)]
 enum CharacterCreationState {
     EnteringName,
     SelectingClass,
 }
 
-#[allow(dead_code)]
+#[cfg(all(feature = "gui", target_os = "windows"))]
 pub struct EchoesApp {
     game: Option<Game>,
     terminal_buffer: Vec<Vec<char>>,
     color_buffer: Vec<Vec<Option<Color32>>>,
-    input_buffer: String,
     last_key: Option<char>,
     show_combat_tutorial: bool,
-    window_size: (f32, f32),
     font_size: f32,
-    char_width: f32,
-    char_height: f32,
     cursor_pos: (usize, usize),
     terminal_size: (usize, usize),
     ui_messages: Vec<String>,
@@ -58,20 +55,16 @@ pub struct EchoesApp {
     showing_victory_screen: bool,    // Whether the victory screen is shown
 }
 
-#[cfg(feature = "gui")]
+#[cfg(all(feature = "gui", target_os = "windows"))]
 impl Default for EchoesApp {
     fn default() -> Self {
         let mut app = Self {
             game: None,
-            terminal_buffer: vec![vec![' '; 150]; 50],
-            color_buffer: vec![vec![Some(Color32::from_rgb(192, 192, 192)); 150]; 50],
-            input_buffer: String::new(),
+            terminal_buffer: vec![vec![' '; 80]; 25],
+            color_buffer: vec![vec![None; 80]; 25],
             last_key: None,
-            show_combat_tutorial: false,
-            window_size: (1200.0, 800.0),
+            show_combat_tutorial: true,
             font_size: 14.0,
-            char_width: 8.0,
-            char_height: 16.0,
             cursor_pos: (0, 0),
             terminal_size: (150, 50),
             ui_messages: Vec::with_capacity(25), // Pre-allocate more space for extended message history
@@ -98,8 +91,7 @@ impl Default for EchoesApp {
     }
 }
 
-#[cfg(feature = "gui")]
-#[allow(dead_code)]
+#[cfg(all(feature = "gui", target_os = "windows"))]
 impl EchoesApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         // Configure dark theme and colors for terminal appearance
@@ -594,9 +586,9 @@ impl EchoesApp {
                         if let Some(result) = game.try_get_item() {
                             // Add a visual prefix for item/chest interactions with color coding
                             let message = if result.contains("chest") {
-                                format!("📦 {}", result)
+                                format!("📦 {result}")
                             } else {
-                                format!("🔍 {}", result)
+                                format!("🔍 {result}")
                             };
                             self.add_message(message);
                         }
@@ -661,7 +653,7 @@ impl EchoesApp {
 
                         self.combat_messages.clear();
                         self.combat_messages
-                            .push(format!("Combat started with {}!", enemy_name));
+                            .push(format!("Combat started with {enemy_name}!"));
                         game.combat_started = false;
                     }
                 }
@@ -898,15 +890,12 @@ impl EchoesApp {
             crate::input::InputAction::MenuOption(n) => {
                 char::from_digit(*n as u32, 10).unwrap_or('0')
             }
-            crate::input::InputAction::Move(direction) => {
-                match direction {
-                    crate::input::Direction::North => 'w',
-                    crate::input::Direction::South => 's',
-                    crate::input::Direction::West => 'a',
-                    crate::input::Direction::East => 'd',
-                    _ => return, // Ignore Up/Down for now
-                }
-            }
+            crate::input::InputAction::Move(direction) => match direction {
+                crate::input::Direction::North => 'w',
+                crate::input::Direction::South => 's',
+                crate::input::Direction::West => 'a',
+                crate::input::Direction::East => 'd',
+            },
             _ => return, // Ignore other actions for now
         };
 
@@ -1057,10 +1046,8 @@ impl EchoesApp {
                                 if let Some(item) = InventoryManager::get_item(player, i) {
                                     match item {
                                         Item::Equipment(_) => {
-                                            if !is_equipped {
-                                                if ui.button("Equip").clicked() {
-                                                    equip_item_index = Some(i);
-                                                }
+                                            if !is_equipped && ui.button("Equip").clicked() {
+                                                equip_item_index = Some(i);
                                             }
                                         }
                                         Item::Consumable(_) => {
@@ -1068,7 +1055,7 @@ impl EchoesApp {
                                                 use_item_index = Some(i);
                                             }
                                         }
-                                        Item::QuestItem { .. } => {
+                                        Item::Quest { .. } => {
                                             ui.label("Quest item");
                                         }
                                     }
@@ -1087,8 +1074,7 @@ impl EchoesApp {
                 // Show feedback message if we have one
                 unsafe {
                     // Use raw const to avoid shared reference to mutable static
-                    let equip_message_ptr =
-                        std::ptr::addr_of!(EQUIP_RESULT_MESSAGE) as *const Option<(String, u64)>;
+                    let equip_message_ptr = &raw const EQUIP_RESULT_MESSAGE;
                     if let Some((message, frame_count)) = &*equip_message_ptr {
                         ui.separator();
                         ui.colored_label(Color32::from_rgb(0, 255, 0), message);
@@ -1132,9 +1118,9 @@ impl EchoesApp {
                             unsafe {
                                 // Directly write to mutable static
                                 EQUIP_RESULT_MESSAGE =
-                                    Some((format!("Error: {}", error), self.frame_count));
+                                    Some((format!("Error: {error}"), self.frame_count));
                             }
-                            self.add_message(format!("🎒 Error equipping item: {}", error));
+                            self.add_message(format!("🎒 Error equipping item: {error}"));
                         }
                     }
                 }
@@ -1146,11 +1132,11 @@ impl EchoesApp {
             // Handle consumable use for GUI
             if let Some(game) = &mut self.game {
                 if index < InventoryManager::get_item_count(&game.player) {
-                    if let Some(item) = InventoryManager::get_item(&game.player, index) {
-                        if let Item::Consumable(_) = item {
-                            let result = InventoryManager::use_item(&mut game.player, index);
-                            self.add_message(format!("🧪 {}", result.message));
-                        }
+                    if let Some(Item::Consumable(_)) =
+                        InventoryManager::get_item(&game.player, index)
+                    {
+                        let result = InventoryManager::use_item(&mut game.player, index);
+                        self.add_message(format!("🧪 {}", result.message));
                     }
                 }
             }
@@ -1197,7 +1183,7 @@ impl EchoesApp {
                         "None".to_string()
                     };
 
-                    ui.label(format!("{}: {}", slot, equipped));
+                    ui.label(format!("{slot}: {equipped}"));
                 }
 
                 ui.separator();
@@ -1275,7 +1261,7 @@ impl EchoesApp {
     }
 }
 
-#[cfg(feature = "gui")]
+#[cfg(all(feature = "gui", target_os = "windows"))]
 impl eframe::App for EchoesApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Increment frame counter
@@ -1422,17 +1408,15 @@ impl eframe::App for EchoesApp {
                 });
 
                 // Render game if active
-                if self.game_initialized && !self.show_combat_tutorial {
-                    if self.game.is_some() {
-                        // Clone the game data only at render time to avoid stale state
-                        let game_clone = self.game.clone().unwrap();
-                        if self.showing_victory_screen {
-                            self.render_victory_screen(&game_clone);
-                        } else if self.in_combat {
-                            self.render_combat_screen_safe(&game_clone);
-                        } else {
-                            self.render_game_screen_safe(&game_clone);
-                        }
+                if self.game_initialized && !self.show_combat_tutorial && self.game.is_some() {
+                    // Clone the game data only at render time to avoid stale state
+                    let game_clone = self.game.clone().unwrap();
+                    if self.showing_victory_screen {
+                        self.render_victory_screen(&game_clone);
+                    } else if self.in_combat {
+                        self.render_combat_screen_safe(&game_clone);
+                    } else {
+                        self.render_game_screen_safe(&game_clone);
                     }
                 }
 
@@ -1479,7 +1463,7 @@ impl eframe::App for EchoesApp {
                             ui.horizontal_wrapped(|ui| {
                                 for msg in &self.ui_messages {
                                     ui.label(
-                                        RichText::new(format!("{} | ", msg)).color(Color32::WHITE),
+                                        RichText::new(format!("{msg} | ")).color(Color32::WHITE),
                                     );
                                 }
                             });
@@ -1518,7 +1502,7 @@ impl eframe::App for EchoesApp {
                                     for (i, (msg, time)) in self.message_log.iter().enumerate() {
                                         // Fade older messages (30 seconds to full fade)
                                         let age = current_time - time;
-                                        let alpha = (1.0 - (age / 30.0)).max(0.3).min(1.0);
+                                        let alpha = (1.0 - (age / 30.0)).clamp(0.3, 1.0);
                                         let color = if msg.contains("chest") || msg.contains("item") {
                                             Color32::from_rgba_premultiplied(200, 255, 200, (alpha * 255.0) as u8)
                                         } else if msg.contains("combat") || msg.contains("attack") || msg.contains("damage") {
@@ -1555,7 +1539,7 @@ impl eframe::App for EchoesApp {
 
                         if let Some(key) = self.last_key {
                             ui.label(
-                                RichText::new(format!(" | Last key: {}", key))
+                                RichText::new(format!(" | Last key: {key}"))
                                     .color(Color32::LIGHT_GRAY)
                             );
                         }
@@ -1568,8 +1552,7 @@ impl eframe::App for EchoesApp {
     }
 }
 
-#[cfg(feature = "gui")]
-#[allow(dead_code)]
+#[cfg(all(feature = "gui", target_os = "windows"))]
 pub fn run_gui() -> Result<(), eframe::Error> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -1588,29 +1571,5 @@ pub fn run_gui() -> Result<(), eframe::Error> {
     )
 }
 
-// Stub implementations for when GUI feature is not enabled
-#[cfg(not(feature = "gui"))]
-pub fn run_gui() -> Result<(), Box<dyn std::error::Error>> {
-    Err("GUI feature not enabled. Compile with --features gui".into())
-}
-
-#[cfg(feature = "gui")]
-#[allow(dead_code)]
-impl EchoesApp {
-    fn get_game_info(&self) -> Option<(String, i32, i32, i32, i32, i32, i32)> {
-        if let Some(ref game) = self.game {
-            let player = &game.player;
-            Some((
-                player.name.clone(),
-                player.level as i32,
-                player.health,
-                player.max_health,
-                player.mana,
-                player.max_mana,
-                player.gold as i32,
-            ))
-        } else {
-            None
-        }
-    }
-}
+#[cfg(all(feature = "gui", target_os = "windows"))]
+impl EchoesApp {}

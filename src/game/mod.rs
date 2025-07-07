@@ -5,7 +5,7 @@ use std::time::Instant;
 
 use crate::character::Player;
 #[cfg(not(all(feature = "gui", target_os = "windows")))]
-use crate::combat::{process_combat_turn, CombatResult};
+use crate::combat::process_combat_turn;
 use crate::inventory::InventoryManager;
 #[cfg(not(all(feature = "gui", target_os = "windows")))]
 use crate::item::Item;
@@ -179,16 +179,6 @@ impl Game {
         true
     }
 
-    // This method is kept for compatibility but is no longer used
-    // Combat is now handled directly in the game loop
-    #[allow(dead_code)]
-    #[cfg(not(all(feature = "gui", target_os = "windows")))]
-    pub fn handle_combat(&mut self, _enemy_pos: Position) -> CombatResult {
-        let mut result = CombatResult::new();
-        result.add_message("Combat handled in game loop now.");
-        result
-    }
-
     pub fn process_turn(&mut self) {
         // Update game state, process enemy movements, etc.
         if let GameState::Playing = self.game_state {
@@ -198,7 +188,7 @@ impl Game {
 
             // Clone enemy positions to avoid borrowing issues
             let enemy_positions: Vec<Position> =
-                self.current_level().enemies.keys().cloned().collect();
+                self.current_level().enemies.keys().copied().collect();
 
             for pos in enemy_positions {
                 // 50% chance enemy moves randomly
@@ -294,15 +284,14 @@ impl Game {
             if add_result.success {
                 self.current_level_mut().remove_item_at(&player_pos);
                 return Some("You picked up an item.".to_string());
-            } else {
-                return Some(add_result.message);
             }
+            return Some(add_result.message);
         }
 
         // Check adjacent positions for chests or items
         let directions = [(0, -1), (0, 1), (-1, 0), (1, 0)]; // up, down, left, right
 
-        for (dx, dy) in directions.iter() {
+        for (dx, dy) in &directions {
             let adj_pos = Position::new(player_pos.x + dx, player_pos.y + dy);
 
             // Check if position is valid
@@ -331,28 +320,26 @@ impl Game {
                                 *tile_mut = Tile::floor();
                             }
                             return Some(format!("You looted the chest and found {item_name}!"));
-                        } else {
-                            return Some(format!(
-                                "Chest contains {}, but {}.",
-                                item_name_for_err,
-                                add_result.message.to_lowercase()
-                            ));
                         }
-                    } else {
-                        // This could indicate an issue with chest item generation
-                        // Add more detailed debug information
-                        #[cfg(debug_assertions)]
-                        println!("DEBUG: Found empty chest at position {adj_pos:?}");
-
-                        // Replace chest with floor since it's empty
-                        if let Some(tile_mut) =
-                            self.current_level_mut().get_tile_mut(adj_pos.x, adj_pos.y)
-                        {
-                            *tile_mut = Tile::floor();
-                        }
-
-                        return Some("The chest is empty.".to_string());
+                        return Some(format!(
+                            "Chest contains {}, but {}.",
+                            item_name_for_err,
+                            add_result.message.to_lowercase()
+                        ));
                     }
+                    // This could indicate an issue with chest item generation
+                    // Add more detailed debug information
+                    #[cfg(debug_assertions)]
+                    println!("DEBUG: Found empty chest at position {adj_pos:?}");
+
+                    // Replace chest with floor since it's empty
+                    if let Some(tile_mut) =
+                        self.current_level_mut().get_tile_mut(adj_pos.x, adj_pos.y)
+                    {
+                        *tile_mut = Tile::floor();
+                    }
+
+                    return Some("The chest is empty.".to_string());
                 }
             }
 
@@ -363,9 +350,8 @@ impl Game {
                 if add_result.success {
                     self.current_level_mut().remove_item_at(&adj_pos);
                     return Some("You picked up an item.".to_string());
-                } else {
-                    return Some(add_result.message);
                 }
+                return Some(add_result.message);
             }
         }
 
@@ -442,12 +428,9 @@ pub fn run() {
     game.game_state = GameState::Playing;
 
     // Game loop
-    while match game.game_state {
-        GameState::GameOver | GameState::Victory => false,
-        _ => true,
-    } {
+    while !matches!(game.game_state, GameState::GameOver | GameState::Victory) {
         // Windows-specific frame rate limiting for better performance
-        #[cfg(all(windows, feature = "gui"))]
+        #[cfg(all(windows, not(all(feature = "gui", target_os = "windows"))))]
         {
             if platform::is_command_prompt() {
                 platform::cmd_frame_limit();
@@ -638,17 +621,12 @@ pub fn run() {
                                 if let Some(item) = InventoryManager::get_item(&game.player, index)
                                 {
                                     match item {
-                                        Item::Equipment(_) => {
+                                        Item::Equipment(_) | Item::Consumable(_) => {
                                             let result =
                                                 InventoryManager::use_item(&mut game.player, index);
                                             ui.add_message(result.message);
                                         }
-                                        Item::Consumable(_) => {
-                                            let result =
-                                                InventoryManager::use_item(&mut game.player, index);
-                                            ui.add_message(result.message);
-                                        }
-                                        Item::QuestItem { .. } => {
+                                        Item::Quest { .. } => {
                                             ui.add_message("This item cannot be used".to_string());
                                         }
                                     }

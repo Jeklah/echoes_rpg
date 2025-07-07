@@ -6,7 +6,7 @@ use crate::inventory::InventoryManager;
 use crate::item::Item;
 use crate::world::Enemy;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum CombatAction {
     Attack,
     UseAbility(usize),
@@ -146,7 +146,7 @@ pub fn process_combat_turn(
             // Player attempts to flee
             let flee_chance = 0.3 + (player.stats.dexterity as f32 * 0.03);
 
-            if rng.gen_bool(flee_chance as f64) {
+            if rng.gen_bool(f64::from(flee_chance)) {
                 result.player_fled = true;
                 result.add_message("You successfully fled from combat!".to_string());
             } else {
