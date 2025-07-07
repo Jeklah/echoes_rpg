@@ -27,7 +27,7 @@ impl InventoryScreen {
             'e' | 'E' => InventoryAction::Exit,
             c if c.is_ascii_digit() && c != '0' => {
                 let digit = c.to_digit(10).unwrap() as usize;
-                if digit >= 1 && digit <= 9 {
+                if (1..=9).contains(&digit) {
                     InventoryAction::UseItem(digit)
                 } else {
                     InventoryAction::Invalid
@@ -105,12 +105,12 @@ impl InventoryScreen {
 
     /// Format gold display
     pub fn format_gold(gold: u32) -> String {
-        format!("Gold: {}", gold)
+        format!("Gold: {gold}")
     }
 
     /// Format inventory size display
     pub fn format_inventory_size(current: usize, max: usize) -> String {
-        format!("Items: {}/{}", current, max)
+        format!("Items: {current}/{max}")
     }
 
     /// Get empty inventory message

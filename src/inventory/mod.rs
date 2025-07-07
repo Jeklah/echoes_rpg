@@ -78,8 +78,8 @@ impl std::fmt::Display for InventoryError {
         match self {
             InventoryError::InvalidIndex => write!(f, "Invalid item index"),
             InventoryError::InventoryFull => write!(f, "Inventory is full"),
-            InventoryError::CannotEquip(msg) => write!(f, "Cannot equip item: {}", msg),
-            InventoryError::CannotUse(msg) => write!(f, "Cannot use item: {}", msg),
+            InventoryError::CannotEquip(msg) => write!(f, "Cannot equip item: {msg}"),
+            InventoryError::CannotUse(msg) => write!(f, "Cannot use item: {msg}"),
             InventoryError::ItemNotFound => write!(f, "Item not found"),
             InventoryError::AlreadyEquipped => write!(f, "Item is already equipped"),
             InventoryError::NotEquipped => write!(f, "No item equipped in that slot"),

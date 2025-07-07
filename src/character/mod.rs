@@ -170,7 +170,7 @@ impl Character {
                         let potency = consumable.potency;
                         let name = consumable.name.clone();
                         self.heal(potency);
-                        format!("You used {} and healed for {} health.", name, potency)
+                        format!("You used {name} and healed for {potency} health.")
                     }
                     crate::item::ConsumableType::ManaPotion => {
                         let potency = consumable.potency;
@@ -178,36 +178,36 @@ impl Character {
                         let before_mana = self.mana;
                         self.mana = (self.mana + potency).min(self.max_mana);
                         let restored = self.mana - before_mana;
-                        format!("You used {} and restored {} mana.", name, restored)
+                        format!("You used {name} and restored {restored} mana.")
                     }
                     crate::item::ConsumableType::StrengthElixir => {
                         let name = consumable.name.clone();
                         self.stats.modify_stat(StatType::Strength, 1);
-                        format!("You used {}. Your strength has increased!", name)
+                        format!("You used {name}. Your strength has increased!")
                     }
                     crate::item::ConsumableType::IntelligenceElixir => {
                         let name = consumable.name.clone();
                         self.stats.modify_stat(StatType::Intelligence, 1);
-                        format!("You used {}. Your intelligence has increased!", name)
+                        format!("You used {name}. Your intelligence has increased!")
                     }
                     crate::item::ConsumableType::DexterityElixir => {
                         let name = consumable.name.clone();
                         self.stats.modify_stat(StatType::Dexterity, 1);
-                        format!("You used {}. Your dexterity has increased!", name)
+                        format!("You used {name}. Your dexterity has increased!")
                     }
                     crate::item::ConsumableType::ConstitutionElixir => {
                         let name = consumable.name.clone();
                         self.stats.modify_stat(StatType::Constitution, 1);
-                        format!("You used {}. Your constitution has increased!", name)
+                        format!("You used {name}. Your constitution has increased!")
                     }
                     crate::item::ConsumableType::WisdomElixir => {
                         let name = consumable.name.clone();
                         self.stats.modify_stat(StatType::Wisdom, 1);
-                        format!("You used {}. Your wisdom has increased!", name)
+                        format!("You used {name}. Your wisdom has increased!")
                     }
                     _ => {
                         let name = consumable.name.clone();
-                        format!("You used {} with no effect.", name)
+                        format!("You used {name} with no effect.")
                     }
                 };
 

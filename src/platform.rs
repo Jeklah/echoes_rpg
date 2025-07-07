@@ -12,7 +12,6 @@ use crossterm::{
     style::Color,
     terminal::{self, Clear, ClearType},
 };
-use dirs;
 #[cfg(windows)]
 use std::env;
 use std::io::stdout;
@@ -186,7 +185,7 @@ pub fn show_welcome_message() -> Result<()> {
 
     // Create the welcome messages
     let title = "Welcome to Echoes of the Forgotten Realm!";
-    let subtitle = format!("Cross-platform RPG running on {}", platform);
+    let subtitle = format!("Cross-platform RPG running on {platform}");
     let separator = "═".repeat(title.len()); // Exact same length as title
     let continue_msg = "Press any key to continue...";
 

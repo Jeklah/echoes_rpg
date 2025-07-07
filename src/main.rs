@@ -46,7 +46,7 @@ fn run_terminal_version() {
 
     // Set Command Prompt to full screen if applicable
     if let Err(e) = platform::set_cmd_fullscreen() {
-        eprintln!("Warning: Could not set fullscreen mode: {}", e);
+        eprintln!("Warning: Could not set fullscreen mode: {e}");
     }
 
     // Check terminal size
@@ -54,8 +54,7 @@ fn run_terminal_version() {
         let (current_w, current_h) = platform::get_terminal_size();
         let (rec_w, rec_h) = platform::get_recommended_size();
         eprintln!(
-            "Warning: Terminal size ({}, {}) is smaller than recommended ({}, {})",
-            current_w, current_h, rec_w, rec_h
+            "Warning: Terminal size ({current_w}, {current_h}) is smaller than recommended ({rec_w}, {rec_h})"
         );
         eprintln!("Game may not display correctly. Consider resizing your terminal.");
     }
@@ -68,7 +67,7 @@ fn run_terminal_version() {
 
     // Show welcome message
     if let Err(e) = platform::show_welcome_message() {
-        eprintln!("Failed to display welcome message: {}", e);
+        eprintln!("Failed to display welcome message: {e}");
         platform::cleanup_terminal().ok();
         std::process::exit(1);
     }
@@ -87,12 +86,12 @@ fn run_terminal_version() {
 
     // Ensure cleanup happens even if game panics
     if let Err(e) = platform::cleanup_terminal() {
-        eprintln!("Failed to cleanup terminal: {}", e);
+        eprintln!("Failed to cleanup terminal: {e}");
     }
 
     // Handle any panics that occurred
     if let Err(panic) = result {
-        eprintln!("Game crashed: {:?}", panic);
+        eprintln!("Game crashed: {panic:?}");
         std::process::exit(1);
     }
 }

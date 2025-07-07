@@ -126,7 +126,7 @@ impl Dungeon {
             },
         };
 
-        let name = format!("{} {}", prefix, location);
+        let name = format!("{prefix} {location}");
 
         // Number of levels increases with difficulty
         let num_levels = 3 + (difficulty / 5).min(5) as usize;

@@ -129,7 +129,7 @@ impl Player {
                     if self.mana >= mana_cost {
                         self.mana -= mana_cost;
                         self.heal(heal_amount);
-                        Ok(format!("You cast Heal and restored {} health", heal_amount))
+                        Ok(format!("You cast Heal and restored {heal_amount} health"))
                     } else {
                         Err("Not enough mana to cast Heal".to_string())
                     }
@@ -140,7 +140,7 @@ impl Player {
 
                     if self.mana >= mana_cost {
                         self.mana -= mana_cost;
-                        Ok(format!("You cast Fireball for {} damage", damage))
+                        Ok(format!("You cast Fireball for {damage} damage"))
                     } else {
                         Err("Not enough mana to cast Fireball".to_string())
                     }
@@ -151,19 +151,18 @@ impl Player {
                     if self.mana >= mana_cost {
                         self.mana -= mana_cost;
                         Ok(format!(
-                            "You cast {} and increase your defense",
-                            ability_name
+                            "You cast {ability_name} and increase your defense"
                         ))
                     } else {
-                        Err(format!("Not enough mana to cast {}", ability_name))
+                        Err(format!("Not enough mana to cast {ability_name}"))
                     }
                 }
                 "Slash" | "Aimed Shot" => {
                     let damage = self.attack_damage() * 2;
-                    Ok(format!("You use {} for {} damage", ability_name, damage))
+                    Ok(format!("You use {ability_name} for {damage} damage"))
                 }
                 "Evasion" => Ok("You use Evasion, increasing your chance to dodge".to_string()),
-                _ => Ok(format!("You use {}", ability_name)),
+                _ => Ok(format!("You use {ability_name}")),
             }
         } else {
             Err("Invalid ability index".to_string())
