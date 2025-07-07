@@ -1,12 +1,13 @@
 use rand::Rng;
 use serde::{Deserialize, Serialize};
+#[cfg(windows)]
 use std::time::Instant;
 
 use crate::character::Player;
 use crate::combat::{process_combat_turn, CombatResult};
 use crate::inventory::InventoryManager;
 use crate::item::Item;
-#[cfg(feature = "gui")]
+#[cfg(all(windows, feature = "gui"))]
 use crate::platform;
 use crate::ui::UI;
 use crate::world::{Dungeon, Level, Position, Tile, TileType};
@@ -30,6 +31,7 @@ pub struct Game {
     pub game_state: GameState,
     pub combat_started: bool,
     #[serde(skip)]
+    #[cfg(windows)]
     pub last_render_time: Option<Instant>,
 }
 
@@ -44,6 +46,7 @@ impl Game {
             current_dungeon_index: 0,
             game_state: GameState::MainMenu,
             combat_started: false,
+            #[cfg(windows)]
             last_render_time: None,
         };
 
@@ -155,9 +158,7 @@ impl Game {
                         // We don't directly add a message here because the move_player method
                         // doesn't return messages, but we'll add a hook for it
                         #[cfg(debug_assertions)]
-                        println!(
-                            "DEBUG: Auto-looted chest at {new_pos:?}, found {item_name}"
-                        );
+                        println!("DEBUG: Auto-looted chest at {new_pos:?}, found {item_name}");
                     }
                     return true;
                 }
