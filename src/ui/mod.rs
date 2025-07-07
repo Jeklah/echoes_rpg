@@ -367,7 +367,7 @@ impl UI {
     }
 
     pub fn clear_screen(&mut self) -> io::Result<()> {
-        platform::clear_screen().map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        platform::clear_screen().map_err(|e| io::Error::other(e))?;
         Ok(())
     }
 
@@ -459,7 +459,7 @@ impl UI {
             let border_width = 60;
             let border_height = 12;
             let start_x = ((term_width as i32 - border_width as i32) / 2).max(0) as u16;
-            let start_y = ((term_height as i32 - border_height as i32) / 2).max(0) as u16;
+            let start_y = ((term_height as i32 - border_height) / 2).max(0) as u16;
 
             self.draw_game_border(
                 start_x as usize,
@@ -475,7 +475,7 @@ impl UI {
             let display_name = if name.is_empty() {
                 "_".to_string()
             } else {
-                format!("{}_", name)
+                format!("{name}_")
             };
 
             execute!(
@@ -556,7 +556,7 @@ impl UI {
         let border_width = 70;
         let border_height = 14;
         let start_x = ((term_width as i32 - border_width as i32) / 2).max(0) as u16;
-        let start_y = ((term_height as i32 - border_height as i32) / 2).max(0) as u16;
+        let start_y = ((term_height as i32 - border_height) / 2).max(0) as u16;
 
         self.draw_game_border(
             start_x as usize,
@@ -1056,7 +1056,7 @@ impl UI {
                     style::SetForegroundColor(*color),
                     style::Print(*symbol),
                     style::SetForegroundColor(Color::White),
-                    style::Print(format!(" - {}", meaning))
+                    style::Print(format!(" - {meaning}"))
                 )?;
             }
         }
@@ -1392,8 +1392,7 @@ impl UI {
             )?;
 
             event::read()?;
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
+            return Err(io::Error::other(
                 "No abilities available",
             ));
         }
@@ -1423,14 +1422,14 @@ impl UI {
                 }
 
                 match key_event.code {
-                    KeyCode::Char(c) if c >= '1' && c <= '9' => {
+                    KeyCode::Char(c) if ('1'..='9').contains(&c) => {
                         let index = c.to_digit(10).unwrap() as usize - 1;
                         if index < player.class.abilities.len() {
                             return Ok(index);
                         }
                     }
                     KeyCode::Esc => {
-                        return Err(io::Error::new(io::ErrorKind::Other, "Cancelled"));
+                        return Err(io::Error::other("Cancelled"));
                     }
                     _ => continue,
                 }
@@ -1471,8 +1470,7 @@ impl UI {
             )?;
 
             event::read()?;
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
+            return Err(io::Error::other(
                 "No usable items available",
             ));
         }
@@ -1502,14 +1500,14 @@ impl UI {
                 }
 
                 match key_event.code {
-                    KeyCode::Char(c) if c >= '1' && c <= '9' => {
+                    KeyCode::Char(c) if ('1'..='9').contains(&c) => {
                         let index = c.to_digit(10).unwrap() as usize - 1;
                         if index < consumables.len() {
                             return Ok(consumables[index].0);
                         }
                     }
                     KeyCode::Esc => {
-                        return Err(io::Error::new(io::ErrorKind::Other, "Cancelled"));
+                        return Err(io::Error::other("Cancelled"));
                     }
                     _ => continue,
                 }
@@ -1683,7 +1681,7 @@ impl UI {
         let border_width = 60;
         let border_height = 10;
         let start_x = ((term_width as i32 - border_width as i32) / 2).max(0) as u16;
-        let start_y = ((term_height as i32 - border_height as i32) / 2).max(0) as u16;
+        let start_y = ((term_height as i32 - border_height) / 2).max(0) as u16;
 
         self.draw_game_border(
             start_x as usize,
@@ -1730,7 +1728,7 @@ impl UI {
         let border_width = 70;
         let border_height = 10;
         let start_x = ((term_width as i32 - border_width as i32) / 2).max(0) as u16;
-        let start_y = ((term_height as i32 - border_height as i32) / 2).max(0) as u16;
+        let start_y = ((term_height as i32 - border_height) / 2).max(0) as u16;
 
         self.draw_game_border(
             start_x as usize,
