@@ -1,39 +1,38 @@
 //! GUI module for Windows graphical interface using egui
 //! Provides a native Windows application with text-based gameplay
 
-#[cfg(feature = "gui")]
+#[cfg(all(feature = "gui", target_os = "windows"))]
 use crate::character::{ClassType, Player};
-#[cfg(feature = "gui")]
+#[cfg(all(feature = "gui", target_os = "windows"))]
 use crate::game::Game;
-#[cfg(feature = "gui")]
+#[cfg(all(feature = "gui", target_os = "windows"))]
 use crate::input::InputHandler;
+#[cfg(all(feature = "gui", target_os = "windows"))]
 use crate::inventory::InventoryManager;
+#[cfg(all(feature = "gui", target_os = "windows"))]
 use crate::item::{equipment, Item};
-#[cfg(feature = "gui")]
+#[cfg(all(feature = "gui", target_os = "windows"))]
 use crate::world::{FogOfWar, Position};
-#[cfg(feature = "gui")]
+#[cfg(all(feature = "gui", target_os = "windows"))]
 use eframe::egui;
-#[cfg(feature = "gui")]
+#[cfg(all(feature = "gui", target_os = "windows"))]
 use egui::{Color32, FontFamily, FontId, RichText};
 
-#[cfg(feature = "gui")]
+#[cfg(all(feature = "gui", target_os = "windows"))]
 #[derive(Debug, Clone, PartialEq)]
 enum CharacterCreationState {
     EnteringName,
     SelectingClass,
 }
 
+#[cfg(all(feature = "gui", target_os = "windows"))]
 pub struct EchoesApp {
     game: Option<Game>,
     terminal_buffer: Vec<Vec<char>>,
     color_buffer: Vec<Vec<Option<Color32>>>,
-    input_buffer: String,
     last_key: Option<char>,
     show_combat_tutorial: bool,
-    window_size: (f32, f32),
     font_size: f32,
-    char_width: f32,
-    char_height: f32,
     cursor_pos: (usize, usize),
     terminal_size: (usize, usize),
     ui_messages: Vec<String>,
@@ -56,20 +55,16 @@ pub struct EchoesApp {
     showing_victory_screen: bool,    // Whether the victory screen is shown
 }
 
-#[cfg(feature = "gui")]
+#[cfg(all(feature = "gui", target_os = "windows"))]
 impl Default for EchoesApp {
     fn default() -> Self {
         let mut app = Self {
             game: None,
-            terminal_buffer: vec![vec![' '; 150]; 50],
-            color_buffer: vec![vec![Some(Color32::from_rgb(192, 192, 192)); 150]; 50],
-            input_buffer: String::new(),
+            terminal_buffer: vec![vec![' '; 80]; 25],
+            color_buffer: vec![vec![None; 80]; 25],
             last_key: None,
-            show_combat_tutorial: false,
-            window_size: (1200.0, 800.0),
+            show_combat_tutorial: true,
             font_size: 14.0,
-            char_width: 8.0,
-            char_height: 16.0,
             cursor_pos: (0, 0),
             terminal_size: (150, 50),
             ui_messages: Vec::with_capacity(25), // Pre-allocate more space for extended message history
@@ -96,7 +91,7 @@ impl Default for EchoesApp {
     }
 }
 
-#[cfg(feature = "gui")]
+#[cfg(all(feature = "gui", target_os = "windows"))]
 impl EchoesApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         // Configure dark theme and colors for terminal appearance
@@ -895,15 +890,12 @@ impl EchoesApp {
             crate::input::InputAction::MenuOption(n) => {
                 char::from_digit(*n as u32, 10).unwrap_or('0')
             }
-            crate::input::InputAction::Move(direction) => {
-                match direction {
-                    crate::input::Direction::North => 'w',
-                    crate::input::Direction::South => 's',
-                    crate::input::Direction::West => 'a',
-                    crate::input::Direction::East => 'd',
-                    _ => return, // Ignore Up/Down for now
-                }
-            }
+            crate::input::InputAction::Move(direction) => match direction {
+                crate::input::Direction::North => 'w',
+                crate::input::Direction::South => 's',
+                crate::input::Direction::West => 'a',
+                crate::input::Direction::East => 'd',
+            },
             _ => return, // Ignore other actions for now
         };
 
@@ -1269,7 +1261,7 @@ impl EchoesApp {
     }
 }
 
-#[cfg(feature = "gui")]
+#[cfg(all(feature = "gui", target_os = "windows"))]
 impl eframe::App for EchoesApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Increment frame counter
@@ -1560,7 +1552,7 @@ impl eframe::App for EchoesApp {
     }
 }
 
-#[cfg(feature = "gui")]
+#[cfg(all(feature = "gui", target_os = "windows"))]
 pub fn run_gui() -> Result<(), eframe::Error> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -1579,28 +1571,5 @@ pub fn run_gui() -> Result<(), eframe::Error> {
     )
 }
 
-// Stub implementations for when GUI feature is not enabled
-#[cfg(not(feature = "gui"))]
-pub fn run_gui() -> Result<(), Box<dyn std::error::Error>> {
-    Err("GUI feature not enabled. Compile with --features gui".into())
-}
-
-#[cfg(feature = "gui")]
-impl EchoesApp {
-    fn get_game_info(&self) -> Option<(String, i32, i32, i32, i32, i32, i32)> {
-        if let Some(ref game) = self.game {
-            let player = &game.player;
-            Some((
-                player.name.clone(),
-                player.level as i32,
-                player.health,
-                player.max_health,
-                player.mana,
-                player.max_mana,
-                player.gold as i32,
-            ))
-        } else {
-            None
-        }
-    }
-}
+#[cfg(all(feature = "gui", target_os = "windows"))]
+impl EchoesApp {}

@@ -617,7 +617,7 @@ impl UI {
                     KeyCode::Char('2') => break ClassType::Mage,
                     KeyCode::Char('3') => break ClassType::Ranger,
                     KeyCode::Char('4') => break ClassType::Cleric,
-                    _ => continue,
+                    _ => {}
                 }
             }
         };
@@ -1446,7 +1446,7 @@ impl UI {
                     KeyCode::Esc => {
                         return Err(io::Error::other("Cancelled"));
                     }
-                    _ => continue,
+                    _ => {}
                 }
             }
         }
@@ -1522,7 +1522,7 @@ impl UI {
                     KeyCode::Esc => {
                         return Err(io::Error::other("Cancelled"));
                     }
-                    _ => continue,
+                    _ => {}
                 }
             }
         }
@@ -1541,16 +1541,18 @@ impl UI {
 
                 match key_event.code {
                     KeyCode::Char('1') => return Ok(CombatAction::Attack),
-                    KeyCode::Char('2') => match self.draw_ability_selection(player) {
-                        Ok(ability_index) => return Ok(CombatAction::UseAbility(ability_index)),
-                        Err(_) => continue,
-                    },
-                    KeyCode::Char('3') => match self.draw_item_selection(player) {
-                        Ok(item_index) => return Ok(CombatAction::UseItem(item_index)),
-                        Err(_) => continue,
-                    },
+                    KeyCode::Char('2') => {
+                        if let Ok(ability_index) = self.draw_ability_selection(player) {
+                            return Ok(CombatAction::UseAbility(ability_index));
+                        }
+                    }
+                    KeyCode::Char('3') => {
+                        if let Ok(item_index) = self.draw_item_selection(player) {
+                            return Ok(CombatAction::UseItem(item_index));
+                        }
+                    }
                     KeyCode::Char('4') => return Ok(CombatAction::Flee),
-                    _ => continue,
+                    _ => {}
                 }
             }
         }

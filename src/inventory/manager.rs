@@ -181,7 +181,7 @@ impl InventoryManager {
     }
 
     /// Get equipped item in a specific slot
-    #[cfg(feature = "gui")]
+    #[cfg(all(feature = "gui", target_os = "windows"))]
     pub fn get_equipped_item(player: &Player, slot: EquipmentSlot) -> Option<ItemInfo> {
         if let Some(Some(index)) = player.inventory.equipped.get(&slot) {
             if let Some(item) = player.inventory.items.get(*index) {

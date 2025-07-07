@@ -34,7 +34,7 @@
 //! }
 //! ```
 //!
-//! ## Use InventoryManager for Advanced Operations
+//! ## Use `InventoryManager` for Advanced Operations
 //! ```rust
 //! use crate::inventory::InventoryManager;
 //!

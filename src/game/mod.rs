@@ -188,7 +188,7 @@ impl Game {
 
             // Clone enemy positions to avoid borrowing issues
             let enemy_positions: Vec<Position> =
-                self.current_level().enemies.keys().cloned().collect();
+                self.current_level().enemies.keys().copied().collect();
 
             for pos in enemy_positions {
                 // 50% chance enemy moves randomly
@@ -284,15 +284,14 @@ impl Game {
             if add_result.success {
                 self.current_level_mut().remove_item_at(&player_pos);
                 return Some("You picked up an item.".to_string());
-            } else {
-                return Some(add_result.message);
             }
+            return Some(add_result.message);
         }
 
         // Check adjacent positions for chests or items
         let directions = [(0, -1), (0, 1), (-1, 0), (1, 0)]; // up, down, left, right
 
-        for (dx, dy) in directions.iter() {
+        for (dx, dy) in &directions {
             let adj_pos = Position::new(player_pos.x + dx, player_pos.y + dy);
 
             // Check if position is valid
@@ -321,28 +320,26 @@ impl Game {
                                 *tile_mut = Tile::floor();
                             }
                             return Some(format!("You looted the chest and found {item_name}!"));
-                        } else {
-                            return Some(format!(
-                                "Chest contains {}, but {}.",
-                                item_name_for_err,
-                                add_result.message.to_lowercase()
-                            ));
                         }
-                    } else {
-                        // This could indicate an issue with chest item generation
-                        // Add more detailed debug information
-                        #[cfg(debug_assertions)]
-                        println!("DEBUG: Found empty chest at position {adj_pos:?}");
-
-                        // Replace chest with floor since it's empty
-                        if let Some(tile_mut) =
-                            self.current_level_mut().get_tile_mut(adj_pos.x, adj_pos.y)
-                        {
-                            *tile_mut = Tile::floor();
-                        }
-
-                        return Some("The chest is empty.".to_string());
+                        return Some(format!(
+                            "Chest contains {}, but {}.",
+                            item_name_for_err,
+                            add_result.message.to_lowercase()
+                        ));
                     }
+                    // This could indicate an issue with chest item generation
+                    // Add more detailed debug information
+                    #[cfg(debug_assertions)]
+                    println!("DEBUG: Found empty chest at position {adj_pos:?}");
+
+                    // Replace chest with floor since it's empty
+                    if let Some(tile_mut) =
+                        self.current_level_mut().get_tile_mut(adj_pos.x, adj_pos.y)
+                    {
+                        *tile_mut = Tile::floor();
+                    }
+
+                    return Some("The chest is empty.".to_string());
                 }
             }
 
@@ -353,9 +350,8 @@ impl Game {
                 if add_result.success {
                     self.current_level_mut().remove_item_at(&adj_pos);
                     return Some("You picked up an item.".to_string());
-                } else {
-                    return Some(add_result.message);
                 }
+                return Some(add_result.message);
             }
         }
 
@@ -625,12 +621,7 @@ pub fn run() {
                                 if let Some(item) = InventoryManager::get_item(&game.player, index)
                                 {
                                     match item {
-                                        Item::Equipment(_) => {
-                                            let result =
-                                                InventoryManager::use_item(&mut game.player, index);
-                                            ui.add_message(result.message);
-                                        }
-                                        Item::Consumable(_) => {
+                                        Item::Equipment(_) | Item::Consumable(_) => {
                                             let result =
                                                 InventoryManager::use_item(&mut game.player, index);
                                             ui.add_message(result.message);

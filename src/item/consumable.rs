@@ -91,8 +91,8 @@ impl Consumable {
             ConsumableType::HealthPotion | ConsumableType::ManaPotion => {
                 20 + level as i32 * 10 + rng.gen_range(0..10)
             }
-            ConsumableType::Antidote => 1, // Antidotes don't have variable potency
-            _ => 1,                        // Stat elixirs always give +1 to the stat
+            // Antidotes don't have variable potency, stat elixirs always give +1
+            _ => 1,
         };
 
         // Set name and description based on type

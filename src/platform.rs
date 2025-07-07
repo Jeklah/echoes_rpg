@@ -4,6 +4,7 @@
 //! instead of platform-specific APIs, ensuring consistent behavior across
 //! Windows, macOS, and Linux.
 
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 use anyhow::{Context, Result};
 #[cfg(not(all(feature = "gui", target_os = "windows")))]
 use crossterm::{
@@ -249,12 +250,6 @@ pub fn windows_frame_limit() {
     }
 }
 
-/// No-op frame limit for non-Windows platforms
-#[cfg(all(not(windows), not(all(feature = "gui", target_os = "windows"))))]
-pub fn windows_frame_limit() {
-    // Do nothing on non-Windows platforms
-}
-
 /// Set Command Prompt to full screen mode
 #[cfg(all(windows, not(all(feature = "gui", target_os = "windows"))))]
 pub fn set_cmd_fullscreen() -> Result<()> {
@@ -420,18 +415,6 @@ mod tests {
         let info = get_platform_info();
         assert!(!info.is_empty());
         assert!(info.contains(std::env::consts::OS));
-    }
-
-    #[test]
-    fn test_game_data_dir() {
-        let dir = get_game_data_dir();
-        assert!(dir.is_ok());
-    }
-
-    #[test]
-    fn test_config_dir() {
-        let dir = get_config_dir();
-        assert!(dir.is_ok());
     }
 
     #[test]

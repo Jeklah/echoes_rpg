@@ -141,6 +141,8 @@ impl Class {
     }
 
     pub fn use_ability(&self, ability_index: usize) -> Option<&str> {
-        self.abilities.get(ability_index).map(|s| s.as_str())
+        self.abilities
+            .get(ability_index)
+            .map(std::string::String::as_str)
     }
 }

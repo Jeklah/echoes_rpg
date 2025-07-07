@@ -299,7 +299,7 @@ impl FogOfWar {
 /// Utility functions for different rendering backends
 impl FogOfWar {
     /// Convert FogColor to egui Color32 for GUI rendering
-    #[cfg(feature = "gui")]
+    #[cfg(all(feature = "gui", target_os = "windows"))]
     pub fn to_egui_color(color: &FogColor) -> egui::Color32 {
         egui::Color32::from_rgba_unmultiplied(color.r, color.g, color.b, color.a)
     }
