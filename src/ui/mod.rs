@@ -1,3 +1,6 @@
+#[cfg(all(windows, not(all(feature = "gui", target_os = "windows"))))]
+use crossterm::event::KeyEventKind;
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 use crossterm::{
     cursor,
     event::{self, Event, KeyCode, KeyEvent},
@@ -5,35 +8,47 @@ use crossterm::{
     style::{self, Color},
     terminal::{self},
 };
-#[cfg(windows)]
-use crossterm::{event::KeyEventKind, queue};
-#[cfg(windows)]
-use std::io::Write;
+
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 use std::io::{self, stdout};
 
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 use crate::character::{ClassType, Player};
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 use crate::combat::{CombatAction, CombatResult};
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 use crate::inventory::InventoryManager;
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 use crate::item::Item;
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 use crate::platform;
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 use crate::world::{Dungeon, Enemy, FogOfWar, Level, Position};
 
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 const SCREEN_HEIGHT: usize = 35;
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 const MAP_WIDTH: usize = 70;
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 const MAP_HEIGHT: usize = 25;
-const UI_PANEL_WIDTH: usize = 35; // Increased panel width for longer content
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
+const UI_PANEL_WIDTH: usize = 35; // Increased panel width for better readability
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 const BORDER_PADDING: usize = 4; // Increased padding inside the border
 
 /// Create fog of war configuration for terminal rendering
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 fn create_fog_of_war() -> FogOfWar {
     crate::world::create_standard_fog_of_war()
 }
 
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 pub struct UI {
-    messages: Vec<String>,
-    max_messages: usize,
+    pub messages: Vec<String>,
+    pub max_messages: usize,
 }
 
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 impl UI {
     pub fn new() -> Self {
         UI {

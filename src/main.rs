@@ -30,6 +30,7 @@ fn main() {
     }
 }
 
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 fn run_terminal_version() {
     // Check if running in a compatible terminal
     if !platform::is_terminal_compatible() {

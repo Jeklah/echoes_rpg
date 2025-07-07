@@ -5,22 +5,23 @@
 //! Windows, macOS, and Linux.
 
 use anyhow::{Context, Result};
-#[cfg(windows)]
-use crossterm::queue;
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 use crossterm::{
     cursor, execute,
     style::Color,
     terminal::{self, Clear, ClearType},
 };
-#[cfg(windows)]
+#[cfg(all(windows, not(all(feature = "gui", target_os = "windows"))))]
 use std::env;
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 use std::io::stdout;
-#[cfg(windows)]
+#[cfg(all(windows, not(all(feature = "gui", target_os = "windows"))))]
 use std::process::Command;
-#[cfg(windows)]
+#[cfg(all(windows, not(all(feature = "gui", target_os = "windows"))))]
 use std::time::{Duration, Instant};
 
 /// Initialize cross-platform terminal settings
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 pub fn init_terminal() -> Result<()> {
     // Enable raw mode for input handling
     terminal::enable_raw_mode().context("Failed to enable raw mode")?;
@@ -36,6 +37,7 @@ pub fn init_terminal() -> Result<()> {
 }
 
 /// Cleanup terminal state
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 pub fn cleanup_terminal() -> Result<()> {
     // Show cursor
     execute!(stdout(), cursor::Show).context("Failed to show cursor")?;
@@ -51,6 +53,7 @@ pub fn cleanup_terminal() -> Result<()> {
 }
 
 /// Get terminal size with fallback defaults
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 pub fn get_terminal_size() -> (u16, u16) {
     match terminal::size() {
         Ok((width, height)) => {
@@ -67,6 +70,7 @@ pub fn get_terminal_size() -> (u16, u16) {
 }
 
 /// Clear the terminal screen in a cross-platform way
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 pub fn clear_screen() -> Result<()> {
     #[cfg(windows)]
     {
@@ -87,6 +91,7 @@ pub fn clear_screen() -> Result<()> {
 }
 
 /// Check if the current terminal supports the features we need
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 pub fn check_terminal_compatibility() -> Result<()> {
     // Check if we can get terminal size
     terminal::size().context("Terminal does not support size detection")?;
@@ -129,6 +134,7 @@ pub fn get_config_dir() -> Result<std::path::PathBuf> {
 }
 
 /// Platform-specific error handling with helpful messages
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 pub fn handle_error(error: &anyhow::Error) -> String {
     let platform_info = get_platform_info();
 
@@ -141,6 +147,7 @@ pub fn handle_error(error: &anyhow::Error) -> String {
 }
 
 /// Get current platform information
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 pub fn get_platform_info() -> String {
     format!(
         "{} {} ({})",
@@ -151,6 +158,7 @@ pub fn get_platform_info() -> String {
 }
 
 /// Get platform-specific troubleshooting tips
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 fn get_troubleshooting_tips() -> &'static str {
     #[cfg(windows)]
     return "• Use Windows Terminal or PowerShell for best experience\n\
@@ -176,7 +184,8 @@ fn get_troubleshooting_tips() -> &'static str {
             • Check that your terminal supports UTF-8 encoding";
 }
 
-/// Display welcome message with platform information
+/// Display welcome message with platform-specific formatting
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 pub fn show_welcome_message() -> Result<()> {
     clear_screen()?;
 
@@ -223,6 +232,7 @@ pub fn show_welcome_message() -> Result<()> {
 }
 
 /// Normalize key events across platforms
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 pub fn normalize_key_event(key_event: crossterm::event::KeyEvent) -> crossterm::event::KeyEvent {
     #[cfg(windows)]
     {
@@ -247,10 +257,11 @@ pub fn normalize_key_event(key_event: crossterm::event::KeyEvent) -> crossterm::
 
 /// Windows-specific frame rate limiting to improve performance
 #[cfg(windows)]
+#[cfg(all(windows, not(all(feature = "gui", target_os = "windows"))))]
 static mut LAST_FRAME_TIME: Option<Instant> = None;
 
 /// Limit frame rate on Windows to reduce terminal load
-#[cfg(windows)]
+#[cfg(all(windows, not(all(feature = "gui", target_os = "windows"))))]
 pub fn windows_frame_limit() {
     const TARGET_FRAME_TIME: Duration = Duration::from_millis(16); // ~60 FPS
 
@@ -276,7 +287,7 @@ pub fn windows_frame_limit() {
 }
 
 /// Set Command Prompt to full screen mode
-#[cfg(windows)]
+#[cfg(all(windows, not(all(feature = "gui", target_os = "windows"))))]
 pub fn set_cmd_fullscreen() -> Result<()> {
     if is_command_prompt() {
         // Method 1: Resize console buffer and window
@@ -333,7 +344,7 @@ pub fn set_cmd_fullscreen() -> Result<()> {
 }
 
 /// Detect if running in Command Prompt (cmd.exe) for specialized optimizations
-#[cfg(windows)]
+#[cfg(all(windows, not(all(feature = "gui", target_os = "windows"))))]
 pub fn is_command_prompt() -> bool {
     // Check COMSPEC environment variable and terminal capabilities
     if let Ok(comspec) = env::var("COMSPEC") {
@@ -362,7 +373,7 @@ pub fn is_command_prompt() -> bool {
 }
 
 /// Get optimized color palette for Command Prompt
-#[cfg(windows)]
+#[cfg(all(windows, not(all(feature = "gui", target_os = "windows"))))]
 pub fn get_cmd_color_palette() -> Vec<(Color, Color)> {
     // Simplified color palette that works well in Command Prompt
     vec![
@@ -377,7 +388,7 @@ pub fn get_cmd_color_palette() -> Vec<(Color, Color)> {
 }
 
 /// Command Prompt specific frame limiting (more aggressive)
-#[cfg(windows)]
+#[cfg(all(windows, not(all(feature = "gui", target_os = "windows"))))]
 pub fn cmd_frame_limit() {
     const CMD_TARGET_FRAME_TIME: Duration = Duration::from_millis(33); // ~30 FPS for cmd
 
@@ -394,6 +405,7 @@ pub fn cmd_frame_limit() {
 }
 
 /// Check if running in a compatible terminal environment
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 pub fn is_terminal_compatible() -> bool {
     // Check if stdout is a TTY
     if !atty::is(atty::Stream::Stdout) {
@@ -409,11 +421,13 @@ pub fn is_terminal_compatible() -> bool {
 }
 
 /// Get recommended terminal size for optimal gameplay
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 pub fn get_recommended_size() -> (u16, u16) {
     (150, 50) // Width x Height in characters
 }
 
-/// Check if current terminal size is adequate
+/// Check if terminal size is adequate
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 pub fn is_terminal_size_adequate() -> bool {
     let (current_width, current_height) = get_terminal_size();
     let (min_width, min_height) = (140, 45);

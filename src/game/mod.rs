@@ -1,14 +1,17 @@
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-#[cfg(windows)]
+#[cfg(all(windows, not(all(feature = "gui", target_os = "windows"))))]
 use std::time::Instant;
 
 use crate::character::Player;
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 use crate::combat::{process_combat_turn, CombatResult};
 use crate::inventory::InventoryManager;
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 use crate::item::Item;
-#[cfg(all(windows, feature = "gui"))]
+#[cfg(all(windows, not(all(feature = "gui", target_os = "windows"))))]
 use crate::platform;
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 use crate::ui::UI;
 use crate::world::{Dungeon, Level, Position, Tile, TileType};
 
@@ -31,7 +34,7 @@ pub struct Game {
     pub game_state: GameState,
     pub combat_started: bool,
     #[serde(skip)]
-    #[cfg(windows)]
+    #[cfg(all(windows, not(all(feature = "gui", target_os = "windows"))))]
     pub last_render_time: Option<Instant>,
 }
 
@@ -46,7 +49,7 @@ impl Game {
             current_dungeon_index: 0,
             game_state: GameState::MainMenu,
             combat_started: false,
-            #[cfg(windows)]
+            #[cfg(all(windows, not(all(feature = "gui", target_os = "windows"))))]
             last_render_time: None,
         };
 
@@ -179,6 +182,7 @@ impl Game {
     // This method is kept for compatibility but is no longer used
     // Combat is now handled directly in the game loop
     #[allow(dead_code)]
+    #[cfg(not(all(feature = "gui", target_os = "windows")))]
     pub fn handle_combat(&mut self, _enemy_pos: Position) -> CombatResult {
         let mut result = CombatResult::new();
         result.add_message("Combat handled in game loop now.");
@@ -369,6 +373,7 @@ impl Game {
     }
 }
 
+#[cfg(not(all(feature = "gui", target_os = "windows")))]
 pub fn run() {
     // Initialize UI
     let mut ui = UI::new();
