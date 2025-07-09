@@ -131,8 +131,14 @@ impl Game {
                     return true;
                 }
                 TileType::StairsUp => {
-                    // Implement going up a level if needed
-                    return false;
+                    if self.current_dungeon_mut().go_to_previous_level().is_err() {
+                        // Can't go further up
+                        return false;
+                    }
+                    // Move player to the starting position of the previous level
+                    let new_level_start = self.current_level().player_position;
+                    self.current_level_mut().player_position = new_level_start;
+                    return true;
                 }
                 TileType::Exit => {
                     if self.current_dungeon().is_final_level() {
