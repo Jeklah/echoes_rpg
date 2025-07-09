@@ -59,7 +59,7 @@ A cross-platform text-based RPG adventure game built with Rust, featuring turn-b
 | `C` | Chest | `!` | Item |
 | `#` | Wall | `.` | Floor |
 | `>` | Stairs | `+` | Door |
-| `<` | Stairs up | | |
+| `<` | Stairs up | `E` | Exit (green) |
 
 ## 🆕 Recent Updates
 
