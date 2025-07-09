@@ -153,41 +153,28 @@ impl Enemy {
         let mut stats = enemy_type.get_base_stats();
 
         // Scale stats based on level
-        for _ in 1..level {
-            match enemy_type {
-                EnemyType::Goblin => {
-                    stats.increase_dexterity(1);
-                    if level % 2 == 0 {
-                        stats.increase_strength(1);
-                    }
-                    if level % 3 == 0 {
-                        stats.increase_constitution(1);
-                    }
-                }
-                EnemyType::Orc => {
-                    stats.increase_strength(1);
-                    if level % 2 == 0 {
-                        stats.increase_constitution(1);
-                    }
-                    if level % 4 == 0 {
-                        stats.increase_dexterity(1);
-                    }
-                }
-                // Similar patterns for other enemy types...
-                _ => {
-                    // Generic scaling for other types
-                    if level % 2 == 0 {
-                        stats.increase_strength(1);
-                        stats.increase_constitution(1);
-                    }
-                    if level % 3 == 0 {
-                        stats.increase_dexterity(1);
-                        stats.increase_intelligence(1);
-                    }
-                    if level % 4 == 0 {
-                        stats.increase_wisdom(1);
-                    }
-                }
+        // Use mathematical formulas instead of a loop for efficiency
+        let level_adjustment = level.saturating_sub(1) as i32; // Level - 1, preventing underflow
+
+        match enemy_type {
+            EnemyType::Goblin => {
+                stats.increase_dexterity(level_adjustment);
+                stats.increase_strength(level_adjustment / 2);
+                stats.increase_constitution(level_adjustment / 3);
+            }
+            EnemyType::Orc => {
+                stats.increase_strength(level_adjustment);
+                stats.increase_constitution(level_adjustment / 2);
+                stats.increase_dexterity(level_adjustment / 4);
+            }
+            // Similar patterns for other enemy types...
+            _ => {
+                // Generic scaling for other types
+                stats.increase_strength(level_adjustment / 2);
+                stats.increase_constitution(level_adjustment / 2);
+                stats.increase_dexterity(level_adjustment / 3);
+                stats.increase_intelligence(level_adjustment / 3);
+                stats.increase_wisdom(level_adjustment / 4);
             }
         }
 
