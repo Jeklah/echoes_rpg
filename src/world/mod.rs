@@ -151,6 +151,15 @@ impl Dungeon {
         Ok(())
     }
 
+    pub fn go_to_previous_level(&mut self) -> Result<(), String> {
+        if self.current_level == 0 {
+            return Err("You are already at the first level".to_string());
+        }
+
+        self.current_level -= 1;
+        Ok(())
+    }
+
     pub fn is_final_level(&self) -> bool {
         self.current_level == self.levels.len() - 1
     }
