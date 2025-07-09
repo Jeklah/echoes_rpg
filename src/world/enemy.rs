@@ -3,6 +3,7 @@ use crate::item::Item;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::ops::Range;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EnemyType {
@@ -122,14 +123,14 @@ impl EnemyType {
         }
     }
 
-    pub fn get_level_range(&self) -> (u32, u32) {
+    pub fn get_level_range(&self) -> Range<u32> {
         match self {
-            EnemyType::Goblin | EnemyType::Skeleton | EnemyType::Slime => (1, 5),
-            EnemyType::Orc | EnemyType::Ghost => (3, 8),
-            EnemyType::Drake | EnemyType::Troll => (6, 12),
-            EnemyType::Elemental | EnemyType::Golem => (10, 16),
-            EnemyType::DarkMage => (14, 20),
-            EnemyType::AncientGuardian => (18, 30),
+            EnemyType::Goblin | EnemyType::Skeleton | EnemyType::Slime => 1..6,
+            EnemyType::Orc | EnemyType::Ghost => 3..9,
+            EnemyType::Drake | EnemyType::Troll => 6..13,
+            EnemyType::Elemental | EnemyType::Golem => 10..17,
+            EnemyType::DarkMage => 14..21,
+            EnemyType::AncientGuardian => 18..31,
         }
     }
 }
@@ -251,8 +252,8 @@ impl Enemy {
         ]
         .into_iter()
         .filter(|e_type| {
-            let (min_level, max_level) = e_type.get_level_range();
-            level >= min_level && level <= max_level
+            let range = e_type.get_level_range();
+            range.contains(&level)
         })
         .collect();
 
