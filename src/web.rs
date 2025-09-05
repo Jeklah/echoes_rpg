@@ -12,12 +12,12 @@ use crate::game::{Game, GameState};
 use crate::inventory::InventoryManager;
 use crate::world::{Position, TileType};
 
-// Game display constants
-const MAP_WIDTH: i32 = 70;
-const MAP_HEIGHT: i32 = 25;
-const CELL_SIZE: i32 = 12;
-const UI_PANEL_WIDTH: i32 = 300;
-const MESSAGE_HEIGHT: i32 = 120;
+// Game display constants - responsive sizing
+const MAP_WIDTH: i32 = 50;
+const MAP_HEIGHT: i32 = 20;
+const CELL_SIZE: i32 = 10;
+const UI_PANEL_WIDTH: i32 = 250;
+const MESSAGE_HEIGHT: i32 = 100;
 
 // Colors for different elements
 const PLAYER_COLOR: &str = "#FFD700"; // Gold
@@ -111,21 +111,7 @@ impl WebGame {
             .create_element("div")?
             .dyn_into::<HtmlDivElement>()?;
         container.set_id("game-container");
-
-        let style = container.dyn_ref::<HtmlElement>().unwrap().style();
-        style.set_property("position", "absolute")?;
-        style.set_property("top", "60px")?;
-        style.set_property("left", "50%")?;
-        style.set_property("transform", "translateX(-50%)")?;
-        style.set_property("background", "rgba(0, 0, 0, 0.95)")?;
-        style.set_property("border", &format!("2px solid {}", BORDER_COLOR))?;
-        style.set_property("border-radius", "8px")?;
-        style.set_property("padding", "10px")?;
-        style.set_property("font-family", "'Courier New', monospace")?;
-        style.set_property("box-shadow", &format!("0 0 20px {}", BORDER_COLOR))?;
-        style.set_property("display", "flex")?;
-        style.set_property("flex-direction", "column")?;
-
+        // Let existing CSS handle the styling
         Ok(container)
     }
 
@@ -160,7 +146,9 @@ impl WebGame {
 
         let style = map_area.dyn_ref::<HtmlElement>().unwrap().style();
         style.set_property("display", "flex")?;
-        style.set_property("gap", "10px")?;
+        style.set_property("gap", "5px")?;
+        style.set_property("flex-wrap", "wrap")?;
+        style.set_property("justify-content", "center")?;
 
         Ok(map_area)
     }
@@ -172,13 +160,14 @@ impl WebGame {
         panel.set_id("ui-panel");
 
         let style = panel.dyn_ref::<HtmlElement>().unwrap().style();
-        style.set_property("width", &format!("{}px", UI_PANEL_WIDTH))?;
-        style.set_property("height", &format!("{}px", MAP_HEIGHT * CELL_SIZE))?;
+        style.set_property("min-width", "200px")?;
+        style.set_property("max-width", "300px")?;
+        style.set_property("flex", "1")?;
         style.set_property("background", "rgba(0, 20, 0, 0.8)")?;
         style.set_property("border", &format!("1px solid {}", BORDER_COLOR))?;
-        style.set_property("padding", "10px")?;
+        style.set_property("padding", "8px")?;
         style.set_property("color", TEXT_COLOR)?;
-        style.set_property("font-size", "12px")?;
+        style.set_property("font-size", "11px")?;
         style.set_property("font-family", "'Courier New', monospace")?;
         style.set_property("overflow-y", "auto")?;
         style.set_property("white-space", "pre-wrap")?;
@@ -194,15 +183,16 @@ impl WebGame {
 
         let style = messages.dyn_ref::<HtmlElement>().unwrap().style();
         style.set_property("width", "100%")?;
-        style.set_property("height", &format!("{}px", MESSAGE_HEIGHT))?;
+        style.set_property("height", "80px")?;
+        style.set_property("max-height", "120px")?;
         style.set_property("background", "rgba(0, 20, 0, 0.8)")?;
         style.set_property("border", &format!("1px solid {}", BORDER_COLOR))?;
-        style.set_property("padding", "10px")?;
+        style.set_property("padding", "8px")?;
         style.set_property("color", TEXT_COLOR)?;
-        style.set_property("font-size", "11px")?;
+        style.set_property("font-size", "10px")?;
         style.set_property("font-family", "'Courier New', monospace")?;
         style.set_property("overflow-y", "auto")?;
-        style.set_property("margin-top", "10px")?;
+        style.set_property("margin-top", "5px")?;
 
         Ok(messages)
     }
