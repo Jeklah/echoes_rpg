@@ -35,17 +35,23 @@ impl WebGame {
             "font-family: 'Courier New', monospace;
              background: rgba(0, 17, 0, 0.9);
              color: #00ff00;
-             padding: 15px;
-             max-width: min(1200px, calc(100vw - 40px));
-             margin: 10px auto;
+             padding: 10px;
              border: 2px solid #00ff00;
              border-radius: 10px;
              box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
-             height: calc(100vh - 180px);
-             max-height: calc(100vh - 180px);
              display: flex;
              flex-direction: column;
-             overflow: hidden;",
+             overflow: hidden;
+             box-sizing: border-box;
+             position: absolute;
+             top: 70px;
+             left: 10px;
+             right: 10px;
+             bottom: 40px;
+             width: auto;
+             height: auto;
+             max-width: 1200px;
+             margin: 0 auto;",
         )?;
 
         // Create output area
@@ -65,10 +71,11 @@ impl WebGame {
              overflow-y: auto;
              font-size: clamp(12px, 1.5vw, 16px);
              line-height: 1.4;
-             margin-bottom: 15px;
+             margin-bottom: 10px;
              box-shadow: inset 0 0 10px rgba(0, 255, 0, 0.1);
              min-height: 0;
-             max-height: 100%;",
+             max-height: 100%;
+             box-sizing: border-box;",
         )?;
 
         // Create input area
