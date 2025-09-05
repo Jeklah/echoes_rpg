@@ -35,12 +35,17 @@ impl WebGame {
             "font-family: 'Courier New', monospace;
              background: rgba(0, 17, 0, 0.9);
              color: #00ff00;
-             padding: 20px;
-             max-width: 1200px;
-             margin: 20px auto;
+             padding: 15px;
+             max-width: min(1200px, calc(100vw - 40px));
+             margin: 10px auto;
              border: 2px solid #00ff00;
              border-radius: 10px;
-             box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);",
+             box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+             height: calc(100vh - 180px);
+             max-height: calc(100vh - 180px);
+             display: flex;
+             flex-direction: column;
+             overflow: hidden;",
         )?;
 
         // Create output area
@@ -53,16 +58,17 @@ impl WebGame {
             "white-space: pre-wrap;
              background: #000000;
              color: #00ff00;
-             padding: 20px;
+             padding: 15px;
              border: 1px solid #006600;
              border-radius: 5px;
-             min-height: 500px;
-             max-height: 600px;
+             flex: 1;
              overflow-y: auto;
-             font-size: 14px;
+             font-size: clamp(12px, 1.5vw, 16px);
              line-height: 1.4;
-             margin-bottom: 20px;
-             box-shadow: inset 0 0 10px rgba(0, 255, 0, 0.1);",
+             margin-bottom: 15px;
+             box-shadow: inset 0 0 10px rgba(0, 255, 0, 0.1);
+             min-height: 0;
+             max-height: 100%;",
         )?;
 
         // Create input area
@@ -77,10 +83,15 @@ impl WebGame {
             "width: 100%;
              background: #000;
              color: #00ff00;
-             border: 1px solid #00ff00;
-             padding: 10px;
+             border: 2px solid #00ff00;
+             border-radius: 5px;
+             padding: 12px;
              font-family: 'Courier New', monospace;
-             font-size: 14px;",
+             font-size: clamp(12px, 1.5vw, 16px);
+             outline: none;
+             transition: all 0.3s ease;
+             flex-shrink: 0;
+             box-sizing: border-box;",
         )?;
 
         // Add elements to container

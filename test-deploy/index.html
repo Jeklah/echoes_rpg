@@ -5,46 +5,62 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Echoes RPG - Web Edition</title>
         <style>
+            :root {
+                --vh: 1vh;
+            }
+
             * {
                 margin: 0;
                 padding: 0;
                 box-sizing: border-box;
             }
 
+            html,
+            body {
+                height: 100%;
+                height: calc(var(--vh, 1vh) * 100);
+                overflow: hidden;
+            }
+
             body {
                 font-family: "Courier New", monospace;
                 background: linear-gradient(135deg, #0a0a0a, #1a1a2e);
                 color: #00ff00;
-                min-height: 100vh;
-                overflow-x: hidden;
+                display: flex;
+                flex-direction: column;
             }
 
             .header {
                 text-align: center;
-                padding: 20px;
+                padding: 15px;
                 background: rgba(0, 0, 0, 0.8);
                 border-bottom: 2px solid #00ff00;
+                flex-shrink: 0;
             }
 
             .header h1 {
-                font-size: 2.5rem;
+                font-size: clamp(1.5rem, 4vw, 2.5rem);
                 text-shadow: 0 0 10px #00ff00;
-                margin-bottom: 10px;
+                margin-bottom: 8px;
             }
 
             .header p {
-                font-size: 1.2rem;
+                font-size: clamp(0.9rem, 2vw, 1.2rem);
                 opacity: 0.8;
             }
 
             #loading-container {
-                max-width: 1200px;
-                margin: 20px auto;
-                padding: 20px;
+                max-width: min(1200px, calc(100vw - 40px));
+                margin: 10px auto;
+                padding: 15px;
                 background: rgba(0, 17, 0, 0.9);
                 border: 2px solid #00ff00;
                 border-radius: 10px;
                 box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
             }
 
             .loading {
@@ -82,21 +98,104 @@
 
             .footer {
                 text-align: center;
-                padding: 20px;
-                font-size: 0.9rem;
+                padding: 10px;
+                font-size: clamp(0.7rem, 1.5vw, 0.9rem);
                 opacity: 0.7;
                 border-top: 1px solid #006600;
-                margin-top: 20px;
+                flex-shrink: 0;
+            }
+
+            /* Styles for WASM-generated game elements */
+            #game-container {
+                max-width: min(1200px, calc(100vw - 40px)) !important;
+                margin: 10px auto !important;
+                padding: 15px !important;
+                background: rgba(0, 17, 0, 0.9) !important;
+                border: 2px solid #00ff00 !important;
+                border-radius: 10px !important;
+                box-shadow: 0 0 20px rgba(0, 255, 0, 0.3) !important;
+                font-family: "Courier New", monospace !important;
+                height: calc(var(--vh, 1vh) * 100 - 140px) !important;
+                max-height: calc(var(--vh, 1vh) * 100 - 140px) !important;
+                display: flex !important;
+                flex-direction: column !important;
+                overflow: hidden !important;
+            }
+
+            #game-output {
+                background: #000000 !important;
+                color: #00ff00 !important;
+                padding: 15px !important;
+                border: 1px solid #006600 !important;
+                border-radius: 5px !important;
+                flex: 1 !important;
+                overflow-y: auto !important;
+                white-space: pre-wrap !important;
+                font-size: clamp(12px, 1.5vw, 16px) !important;
+                line-height: 1.4 !important;
+                margin-bottom: 15px !important;
+                box-shadow: inset 0 0 10px rgba(0, 255, 0, 0.1) !important;
+                font-family: "Courier New", monospace !important;
+                min-height: 0 !important;
+                max-height: 100% !important;
+            }
+
+            #game-output::-webkit-scrollbar {
+                width: 8px !important;
+            }
+
+            #game-output::-webkit-scrollbar-track {
+                background: #000000 !important;
+            }
+
+            #game-output::-webkit-scrollbar-thumb {
+                background: #00ff00 !important;
+                border-radius: 4px !important;
+            }
+
+            #game-input {
+                width: 100% !important;
+                background: #000000 !important;
+                color: #00ff00 !important;
+                border: 2px solid #00ff00 !important;
+                border-radius: 5px !important;
+                padding: 12px !important;
+                font-family: "Courier New", monospace !important;
+                font-size: clamp(12px, 1.5vw, 16px) !important;
+                outline: none !important;
+                transition: all 0.3s ease !important;
+                flex-shrink: 0 !important;
+                box-sizing: border-box !important;
+            }
+
+            #game-input:focus {
+                box-shadow: 0 0 10px rgba(0, 255, 0, 0.5) !important;
+                border-color: #00ff88 !important;
+            }
+
+            #game-input::placeholder {
+                color: #006600 !important;
             }
 
             @media (max-width: 768px) {
-                .header h1 {
-                    font-size: 2rem;
+                #loading-container {
+                    margin: 5px;
+                    padding: 10px;
                 }
 
-                #loading-container {
-                    margin: 10px;
-                    padding: 15px;
+                #game-container {
+                    margin: 5px auto !important;
+                    padding: 10px !important;
+                    height: calc(var(--vh, 1vh) * 100 - 120px) !important;
+                    max-height: calc(var(--vh, 1vh) * 100 - 120px) !important;
+                }
+
+                .header {
+                    padding: 10px;
+                }
+
+                .footer {
+                    padding: 8px;
                 }
             }
         </style>
@@ -129,6 +228,33 @@
 
             let game = null;
 
+            // Dynamic viewport adjustment
+            function adjustLayoutForViewport() {
+                const vh = window.innerHeight * 0.01;
+                document.documentElement.style.setProperty("--vh", `${vh}px`);
+
+                // Calculate optimal heights based on actual viewport
+                const headerHeight =
+                    document.querySelector(".header")?.offsetHeight || 60;
+                const footerHeight =
+                    document.querySelector(".footer")?.offsetHeight || 40;
+                const availableHeight =
+                    window.innerHeight - headerHeight - footerHeight - 40; // 40px for margins
+
+                // Update game container height if it exists
+                const gameContainer = document.getElementById("game-container");
+                if (gameContainer) {
+                    gameContainer.style.height = `${availableHeight}px`;
+                    gameContainer.style.maxHeight = `${availableHeight}px`;
+                }
+            }
+
+            // Listen for viewport changes
+            window.addEventListener("resize", adjustLayoutForViewport);
+            window.addEventListener("orientationchange", () => {
+                setTimeout(adjustLayoutForViewport, 100);
+            });
+
             async function run() {
                 try {
                     console.log("Initializing WASM module...");
@@ -137,6 +263,9 @@
                     // Hide loading container - WASM will create the game interface
                     document.getElementById("loading-container").style.display =
                         "none";
+
+                    // Adjust layout after game is created
+                    setTimeout(adjustLayoutForViewport, 100);
 
                     console.log(
                         "WASM initialized - game should be starting automatically...",
@@ -149,7 +278,8 @@
                 }
             }
 
-            // Start the game when the page loads
+            // Initial adjustment and start game
+            adjustLayoutForViewport();
             run();
         </script>
     </body>
