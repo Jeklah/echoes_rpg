@@ -305,7 +305,10 @@ impl FogOfWar {
     }
 
     /// Convert FogColor to crossterm Color for terminal rendering
-    #[cfg(not(all(feature = "gui", target_os = "windows")))]
+    #[cfg(all(
+        not(all(feature = "gui", target_os = "windows")),
+        not(target_arch = "wasm32")
+    ))]
     pub fn to_terminal_color(color: &FogColor) -> crossterm::style::Color {
         crossterm::style::Color::Rgb {
             r: color.r,

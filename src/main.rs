@@ -3,9 +3,11 @@ mod combat;
 mod game;
 mod inventory;
 mod item;
-mod platform;
 mod ui;
 mod world;
+
+#[cfg(not(target_arch = "wasm32"))]
+mod platform;
 
 #[cfg(feature = "gui")]
 mod gui;
@@ -13,6 +15,10 @@ mod gui;
 #[cfg(feature = "gui")]
 mod input;
 
+#[cfg(target_arch = "wasm32")]
+mod web;
+
+#[cfg(not(target_arch = "wasm32"))]
 fn main() {
     // Check if GUI feature is enabled and we're on Windows
     #[cfg(all(feature = "gui", target_os = "windows"))]
@@ -30,7 +36,15 @@ fn main() {
     }
 }
 
-#[cfg(not(all(feature = "gui", target_os = "windows")))]
+#[cfg(target_arch = "wasm32")]
+fn main() {
+    // WASM entry point is handled in web.rs
+}
+
+#[cfg(all(
+    not(target_arch = "wasm32"),
+    not(all(feature = "gui", target_os = "windows"))
+))]
 fn run_terminal_version() {
     // Check if running in a compatible terminal
     if !platform::is_terminal_compatible() {
@@ -74,6 +88,7 @@ fn run_terminal_version() {
     }
 
     // Wait for user input before starting
+    #[cfg(not(target_arch = "wasm32"))]
     if crossterm::event::read().is_err() {
         eprintln!("Failed to read user input");
         platform::cleanup_terminal().ok();

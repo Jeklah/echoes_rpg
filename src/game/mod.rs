@@ -1,17 +1,28 @@
+#[cfg(not(target_arch = "wasm32"))]
+use crossterm::event::KeyCode;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 #[cfg(all(windows, not(all(feature = "gui", target_os = "windows"))))]
 use std::time::Instant;
 
 use crate::character::Player;
-#[cfg(not(all(feature = "gui", target_os = "windows")))]
+#[cfg(all(
+    not(all(feature = "gui", target_os = "windows")),
+    not(target_arch = "wasm32")
+))]
 use crate::combat::process_combat_turn;
 use crate::inventory::InventoryManager;
-#[cfg(not(all(feature = "gui", target_os = "windows")))]
+#[cfg(all(
+    not(all(feature = "gui", target_os = "windows")),
+    not(target_arch = "wasm32")
+))]
 use crate::item::Item;
 #[cfg(all(windows, not(all(feature = "gui", target_os = "windows"))))]
 use crate::platform;
-#[cfg(not(all(feature = "gui", target_os = "windows")))]
+#[cfg(all(
+    not(all(feature = "gui", target_os = "windows")),
+    not(target_arch = "wasm32")
+))]
 use crate::ui::UI;
 use crate::world::{Dungeon, Level, Position, Tile, TileType};
 
@@ -365,7 +376,10 @@ impl Game {
     }
 }
 
-#[cfg(not(all(feature = "gui", target_os = "windows")))]
+#[cfg(all(
+    not(all(feature = "gui", target_os = "windows")),
+    not(target_arch = "wasm32")
+))]
 pub fn run() {
     // Initialize UI
     let mut ui = UI::new();
@@ -384,11 +398,11 @@ pub fn run() {
     loop {
         match ui.wait_for_key() {
             Ok(key_event) => match key_event.code {
-                crossterm::event::KeyCode::Char('1') => {
+                KeyCode::Char('1') => {
                     // Start new game
                     break;
                 }
-                crossterm::event::KeyCode::Char('2') => {
+                KeyCode::Char('2') => {
                     // Exit
                     if let Err(e) = ui.cleanup() {
                         eprintln!("Error cleaning up UI: {e}");
@@ -478,7 +492,7 @@ pub fn run() {
         match game.game_state {
             GameState::Playing => match ui.wait_for_key() {
                 Ok(key_event) => match key_event.code {
-                    crossterm::event::KeyCode::Up => {
+                    KeyCode::Up => {
                         if game.move_player(0, -1) {
                             match game.game_state {
                                 GameState::Combat(_) => {
@@ -488,7 +502,7 @@ pub fn run() {
                             }
                         }
                     }
-                    crossterm::event::KeyCode::Down => {
+                    KeyCode::Down => {
                         if game.move_player(0, 1) {
                             match game.game_state {
                                 GameState::Combat(_) => {
@@ -498,7 +512,7 @@ pub fn run() {
                             }
                         }
                     }
-                    crossterm::event::KeyCode::Left => {
+                    KeyCode::Left => {
                         if game.move_player(-1, 0) {
                             match game.game_state {
                                 GameState::Combat(_) => {
@@ -508,7 +522,7 @@ pub fn run() {
                             }
                         }
                     }
-                    crossterm::event::KeyCode::Right => {
+                    KeyCode::Right => {
                         if game.move_player(1, 0) {
                             match game.game_state {
                                 GameState::Combat(_) => {
@@ -518,19 +532,19 @@ pub fn run() {
                             }
                         }
                     }
-                    crossterm::event::KeyCode::Char('i') => {
+                    KeyCode::Char('i') => {
                         game.game_state = GameState::Inventory;
                     }
-                    crossterm::event::KeyCode::Char('c') => {
+                    KeyCode::Char('c') => {
                         game.game_state = GameState::Character;
                     }
-                    crossterm::event::KeyCode::Char('g') => {
+                    KeyCode::Char('g') => {
                         // Try to get item at current position or adjacent chest
                         if let Some(result) = game.try_get_item() {
                             ui.add_message(result);
                         }
                     }
-                    crossterm::event::KeyCode::Char('q') => {
+                    KeyCode::Char('q') => {
                         break;
                     }
                     _ => {}
@@ -621,7 +635,7 @@ pub fn run() {
 
                 match ui.wait_for_key() {
                     Ok(key_event) => match key_event.code {
-                        crossterm::event::KeyCode::Char(c) if ('1'..='9').contains(&c) => {
+                        KeyCode::Char(c) if ('1'..='9').contains(&c) => {
                             let index = c.to_digit(10).unwrap() as usize - 1;
                             if index < InventoryManager::get_item_count(&game.player) {
                                 if let Some(item) = InventoryManager::get_item(&game.player, index)
@@ -639,7 +653,7 @@ pub fn run() {
                                 }
                             }
                         }
-                        crossterm::event::KeyCode::Char('e') | crossterm::event::KeyCode::Esc => {
+                        KeyCode::Char('e') | KeyCode::Esc => {
                             game.game_state = GameState::Playing;
                         }
                         _ => {}

@@ -21,6 +21,7 @@ use crate::inventory::InventoryManager;
 #[cfg(not(all(feature = "gui", target_os = "windows")))]
 use crate::item::Item;
 #[cfg(not(all(feature = "gui", target_os = "windows")))]
+#[cfg(not(target_arch = "wasm32"))]
 use crate::platform;
 #[cfg(not(all(feature = "gui", target_os = "windows")))]
 use crate::world::{Dungeon, Enemy, FogOfWar, Level, Position};
