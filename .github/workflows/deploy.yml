@@ -78,12 +78,6 @@ jobs:
           echo "Contents of pkg directory:"
           ls -la ./dist/pkg/
 
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: wasm-build-artifacts
-          path: ./dist
-
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
