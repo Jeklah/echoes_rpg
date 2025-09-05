@@ -15,11 +15,25 @@
                 box-sizing: border-box;
             }
 
-            html,
-            body {
+            html {
                 height: 100%;
-                height: calc(var(--vh, 1vh) * 100);
                 overflow: hidden;
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            body {
+                height: 100vh;
+                height: 100dvh; /* Dynamic viewport height for modern browsers */
+                overflow: hidden !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                position: fixed !important;
+                width: 100vw !important;
+                top: 0 !important;
+                left: 0 !important;
+                box-sizing: border-box !important;
             }
 
             body {
@@ -32,10 +46,14 @@
 
             .header {
                 text-align: center;
-                padding: 15px;
+                padding: 10px;
                 background: rgba(0, 0, 0, 0.8);
                 border-bottom: 2px solid #00ff00;
                 flex-shrink: 0;
+                min-height: 60px;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
             }
 
             .header h1 {
@@ -50,9 +68,9 @@
             }
 
             #loading-container {
-                max-width: min(1200px, calc(100vw - 40px));
-                margin: 10px auto;
-                padding: 15px;
+                max-width: min(1200px, calc(100vw - 20px));
+                margin: 5px auto;
+                padding: 10px;
                 background: rgba(0, 17, 0, 0.9);
                 border: 2px solid #00ff00;
                 border-radius: 10px;
@@ -61,6 +79,7 @@
                 display: flex;
                 flex-direction: column;
                 justify-content: center;
+                overflow: hidden;
             }
 
             .loading {
@@ -98,28 +117,38 @@
 
             .footer {
                 text-align: center;
-                padding: 10px;
+                padding: 5px;
                 font-size: clamp(0.7rem, 1.5vw, 0.9rem);
                 opacity: 0.7;
                 border-top: 1px solid #006600;
                 flex-shrink: 0;
+                min-height: 30px;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
             }
 
             /* Styles for WASM-generated game elements */
             #game-container {
-                max-width: min(1200px, calc(100vw - 40px)) !important;
-                margin: 10px auto !important;
-                padding: 15px !important;
+                position: absolute !important;
+                top: 70px !important;
+                left: 10px !important;
+                right: 10px !important;
+                bottom: 40px !important;
+                width: auto !important;
+                height: auto !important;
+                max-width: 1200px !important;
+                margin: 0 auto !important;
+                padding: 10px !important;
                 background: rgba(0, 17, 0, 0.9) !important;
                 border: 2px solid #00ff00 !important;
                 border-radius: 10px !important;
                 box-shadow: 0 0 20px rgba(0, 255, 0, 0.3) !important;
                 font-family: "Courier New", monospace !important;
-                height: calc(var(--vh, 1vh) * 100 - 140px) !important;
-                max-height: calc(var(--vh, 1vh) * 100 - 140px) !important;
                 display: flex !important;
                 flex-direction: column !important;
                 overflow: hidden !important;
+                box-sizing: border-box !important;
             }
 
             #game-output {
@@ -179,23 +208,28 @@
 
             @media (max-width: 768px) {
                 #loading-container {
-                    margin: 5px;
-                    padding: 10px;
+                    margin: 2px;
+                    padding: 8px;
                 }
 
                 #game-container {
-                    margin: 5px auto !important;
-                    padding: 10px !important;
-                    height: calc(var(--vh, 1vh) * 100 - 120px) !important;
-                    max-height: calc(var(--vh, 1vh) * 100 - 120px) !important;
+                    top: 60px !important;
+                    left: 5px !important;
+                    right: 5px !important;
+                    bottom: 30px !important;
+                    width: auto !important;
+                    height: auto !important;
+                    padding: 8px !important;
                 }
 
                 .header {
-                    padding: 10px;
+                    padding: 8px;
+                    min-height: 50px;
                 }
 
                 .footer {
-                    padding: 8px;
+                    padding: 4px;
+                    min-height: 25px;
                 }
             }
         </style>
@@ -228,32 +262,57 @@
 
             let game = null;
 
-            // Dynamic viewport adjustment
+            // Dynamic viewport adjustment for fixed positioning
             function adjustLayoutForViewport() {
-                const vh = window.innerHeight * 0.01;
-                document.documentElement.style.setProperty("--vh", `${vh}px`);
+                const vh = window.innerHeight;
+                const vw = window.innerWidth;
 
-                // Calculate optimal heights based on actual viewport
+                // Update CSS custom property
+                document.documentElement.style.setProperty(
+                    "--vh",
+                    `${vh * 0.01}px`,
+                );
+
+                // Force no scrollbars at document level
+                document.documentElement.style.overflow = "hidden";
+                document.body.style.overflow = "hidden";
+                document.documentElement.style.height = "100%";
+                document.body.style.height = vh + "px";
+                document.body.style.width = "100vw";
+                document.body.style.position = "fixed";
+                document.body.style.top = "0";
+                document.body.style.left = "0";
+
+                // Calculate exact dimensions
                 const headerHeight =
-                    document.querySelector(".header")?.offsetHeight || 60;
+                    document.querySelector(".header")?.offsetHeight ||
+                    (vw <= 768 ? 50 : 70);
                 const footerHeight =
-                    document.querySelector(".footer")?.offsetHeight || 40;
-                const availableHeight =
-                    window.innerHeight - headerHeight - footerHeight - 40; // 40px for margins
+                    document.querySelector(".footer")?.offsetHeight ||
+                    (vw <= 768 ? 25 : 35);
 
-                // Update game container height if it exists
+                // Update game container if it exists
                 const gameContainer = document.getElementById("game-container");
                 if (gameContainer) {
-                    gameContainer.style.height = `${availableHeight}px`;
-                    gameContainer.style.maxHeight = `${availableHeight}px`;
+                    gameContainer.style.top = headerHeight + "px";
+                    gameContainer.style.bottom = footerHeight + "px";
+                    gameContainer.style.left = vw <= 768 ? "5px" : "10px";
+                    gameContainer.style.right = vw <= 768 ? "5px" : "10px";
+                    gameContainer.style.width = "auto";
+                    gameContainer.style.height = "auto";
+                    gameContainer.style.maxWidth = "1200px";
+                    gameContainer.style.margin = "0 auto";
                 }
             }
 
             // Listen for viewport changes
             window.addEventListener("resize", adjustLayoutForViewport);
             window.addEventListener("orientationchange", () => {
-                setTimeout(adjustLayoutForViewport, 100);
+                setTimeout(adjustLayoutForViewport, 150);
             });
+
+            // Initial call
+            adjustLayoutForViewport();
 
             async function run() {
                 try {
@@ -278,8 +337,7 @@
                 }
             }
 
-            // Initial adjustment and start game
-            adjustLayoutForViewport();
+            // Start game - viewport already adjusted above
             run();
         </script>
     </body>
