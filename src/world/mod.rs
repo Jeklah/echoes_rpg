@@ -6,7 +6,9 @@ pub mod tile;
 
 // Re-exports
 pub use enemy::Enemy;
+#[cfg(not(target_arch = "wasm32"))]
 pub use fog_factory::create_standard_fog_of_war;
+#[cfg(not(target_arch = "wasm32"))]
 pub use fog_of_war::FogOfWar;
 pub use level::{Level, Position};
 pub use tile::{Tile, TileType};
