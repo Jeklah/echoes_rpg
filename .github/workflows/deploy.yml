@@ -46,8 +46,36 @@ jobs:
         run: |
           mkdir -p ./dist
           cp index.html ./dist/
+          cp 404.html ./dist/
           cp -r pkg ./dist/
+
+          # Create README for the deployed site
+          cat > ./dist/README.md << 'EOF'
+          # Echoes RPG - Web Edition
+
+          This is the web version of Echoes RPG, a cross-platform text-based RPG adventure game.
+
+          ## Play the Game
+          Open `index.html` in your browser or visit the GitHub Pages URL.
+
+          ## About
+          - Built with Rust and WebAssembly
+          - Terminal-style interface in the browser
+          - Full RPG gameplay with combat, inventory, and exploration
+
+          ## Commands
+          Use commands like: `look`, `go north`, `inventory`, `help`, `attack`, `use item`
+
+          Built automatically from the main repository.
+          EOF
+
+          # Add .nojekyll to prevent Jekyll processing
+          touch ./dist/.nojekyll
+
+          echo "✅ Deployment directory prepared"
+          echo "Contents of dist directory:"
           ls -la ./dist/
+          echo "Contents of pkg directory:"
           ls -la ./dist/pkg/
 
       - name: Upload build artifacts
