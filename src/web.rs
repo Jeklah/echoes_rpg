@@ -1,303 +1,798 @@
+use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{console, window, HtmlDivElement, HtmlInputElement};
+use web_sys::{
+    console, window, CanvasRenderingContext2d, Document, HtmlCanvasElement, HtmlDivElement,
+    HtmlElement, KeyboardEvent,
+};
 
 use crate::character::{ClassType, Player};
-use crate::game::Game;
+use crate::combat::CombatAction;
+use crate::game::{Game, GameState};
+use crate::inventory::InventoryManager;
+use crate::world::{Position, TileType};
 
-#[wasm_bindgen]
-extern "C" {
-    fn alert(s: &str);
-}
+// Game display constants
+const MAP_WIDTH: i32 = 70;
+const MAP_HEIGHT: i32 = 25;
+const CELL_SIZE: i32 = 12;
+const UI_PANEL_WIDTH: i32 = 300;
+const MESSAGE_HEIGHT: i32 = 120;
+
+// Colors for different elements
+const PLAYER_COLOR: &str = "#FFD700"; // Gold
+const WALL_COLOR: &str = "#808080"; // Gray
+const FLOOR_COLOR: &str = "#2F4F2F"; // Dark green
+const DOOR_COLOR: &str = "#8B4513"; // Brown
+const ENEMY_COLOR: &str = "#FF0000"; // Red
+const ITEM_COLOR: &str = "#00FFFF"; // Cyan
+const CHEST_COLOR: &str = "#DAA520"; // Goldenrod
+const EXIT_COLOR: &str = "#32CD32"; // Lime green
+const FOG_COLOR: &str = "#1a1a1a"; // Very dark gray
+const BACKGROUND_COLOR: &str = "#000000"; // Black
+const TEXT_COLOR: &str = "#00FF00"; // Green terminal text
+const BORDER_COLOR: &str = "#00FF00"; // Green border
 
 #[wasm_bindgen]
 pub struct WebGame {
     game: Game,
-    output_element: HtmlDivElement,
-    input_element: HtmlInputElement,
-    current_input: String,
+    canvas: HtmlCanvasElement,
+    context: CanvasRenderingContext2d,
+    ui_panel: HtmlDivElement,
+    message_area: HtmlDivElement,
+    pressed_keys: HashMap<String, bool>,
+    last_key_time: f64,
+    key_repeat_delay: f64,
 }
 
 #[wasm_bindgen]
 impl WebGame {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Result<WebGame, JsValue> {
-        console::log_1(&"Initializing Echoes RPG Web Version...".into());
+        console::log_1(&"Creating Echoes RPG Visual Dungeon Crawler...".into());
 
         let window = window().unwrap();
         let document = window.document().unwrap();
 
-        // Create the game container
-        let container = document.create_element("div")?;
-        container.set_id("game-container");
-        container.set_attribute(
-            "style",
-            "font-family: 'Courier New', monospace;
-             background: rgba(0, 17, 0, 0.9);
-             color: #00ff00;
-             padding: 10px;
-             border: 2px solid #00ff00;
-             border-radius: 10px;
-             box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
-             display: flex;
-             flex-direction: column;
-             overflow: hidden;
-             box-sizing: border-box;
-             position: absolute;
-             top: 70px;
-             left: 10px;
-             right: 10px;
-             bottom: 40px;
-             width: auto;
-             height: auto;
-             max-width: 1200px;
-             margin: 0 auto;",
-        )?;
+        // Create main game container
+        let container = Self::create_game_container(&document)?;
 
-        // Create output area
-        let output = document
-            .create_element("div")?
-            .dyn_into::<HtmlDivElement>()?;
-        output.set_id("game-output");
-        output.set_attribute(
-            "style",
-            "white-space: pre-wrap;
-             background: #000000;
-             color: #00ff00;
-             padding: 15px;
-             border: 1px solid #006600;
-             border-radius: 5px;
-             flex: 1;
-             overflow-y: auto;
-             font-size: clamp(12px, 1.5vw, 16px);
-             line-height: 1.4;
-             margin-bottom: 10px;
-             box-shadow: inset 0 0 10px rgba(0, 255, 0, 0.1);
-             min-height: 0;
-             max-height: 100%;
-             box-sizing: border-box;",
-        )?;
+        // Create canvas for map rendering
+        let canvas = Self::create_canvas(&document)?;
+        let context = Self::get_canvas_context(&canvas)?;
 
-        // Create input area
-        let input = document
-            .create_element("input")?
-            .dyn_into::<HtmlInputElement>()?;
-        input.set_id("game-input");
-        input.set_type("text");
-        input.set_placeholder("Enter command...");
-        input.set_attribute(
-            "style",
-            "width: 100%;
-             background: #000;
-             color: #00ff00;
-             border: 2px solid #00ff00;
-             border-radius: 5px;
-             padding: 12px;
-             font-family: 'Courier New', monospace;
-             font-size: clamp(12px, 1.5vw, 16px);
-             outline: none;
-             transition: all 0.3s ease;
-             flex-shrink: 0;
-             box-sizing: border-box;",
-        )?;
+        // Create UI panel
+        let ui_panel = Self::create_ui_panel(&document)?;
+
+        // Create message area
+        let message_area = Self::create_message_area(&document)?;
 
         // Add elements to container
-        container.append_child(&output)?;
-        container.append_child(&input)?;
+        let map_area = Self::create_map_area(&document)?;
+        map_area.append_child(&canvas)?;
+
+        container.append_child(&map_area)?;
+        container.append_child(&ui_panel)?;
+        container.append_child(&message_area)?;
 
         // Add container to body
         document.body().unwrap().append_child(&container)?;
 
-        let player = Player::new("WebPlayer".to_string(), ClassType::Warrior);
-        let game_instance = Game::new(player);
+        // Create game instance with default player for now
+        let player = Player::new("WebHero".to_string(), ClassType::Warrior);
+        let game = Game::new(player);
 
-        let game = WebGame {
-            game: game_instance,
-            output_element: output,
-            input_element: input,
-            current_input: String::new(),
+        let web_game = WebGame {
+            game,
+            canvas,
+            context,
+            ui_panel,
+            message_area,
+            pressed_keys: HashMap::new(),
+            last_key_time: 0.0,
+            key_repeat_delay: 150.0, // milliseconds
         };
 
-        Ok(game)
+        Ok(web_game)
     }
 
     #[wasm_bindgen]
     pub fn start_game(&mut self) -> Result<(), JsValue> {
-        self.display_welcome_message()?;
-        self.setup_input_handlers()?;
-        self.display_main_menu()?;
+        console::log_1(&"Starting visual dungeon crawler...".into());
+
+        self.setup_keyboard_handlers()?;
+        self.show_title_screen()?;
+
         Ok(())
     }
 
-    fn display_welcome_message(&self) -> Result<(), JsValue> {
-        let welcome_text = r#"
-╔═══════════════════════════════════════════════════════════════════════════════╗
-║                                                                               ║
-║  ███████╗ ██████╗██╗  ██╗ ██████╗ ███████╗███████╗    ██████╗ ██████╗  ██████╗ ║
-║  ██╔════╝██╔════╝██║  ██║██╔═══██╗██╔════╝██╔════╝    ██╔══██╗██╔══██╗██╔════╝ ║
-║  █████╗  ██║     ███████║██║   ██║█████╗  ███████╗    ██████╔╝██████╔╝██║  ███╗║
-║  ██╔══╝  ██║     ██╔══██║██║   ██║██╔══╝  ╚════██║    ██╔══██╗██╔═══╝ ██║   ██║║
-║  ███████╗╚██████╗██║  ██║╚██████╔╝███████╗███████║    ██║  ██║██║     ╚██████╔╝║
-║  ╚══════╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚══════╝    ╚═╝  ╚═╝╚═╝      ╚═════╝ ║
-║                                                                               ║
-║                        A Cross-Platform Text Adventure                       ║
-║                              Web Version                                     ║
-╚═══════════════════════════════════════════════════════════════════════════════╝
+    fn create_game_container(document: &Document) -> Result<HtmlDivElement, JsValue> {
+        let container = document
+            .create_element("div")?
+            .dyn_into::<HtmlDivElement>()?;
+        container.set_id("game-container");
 
-Welcome to Echoes RPG - Web Edition!
+        let style = container.dyn_ref::<HtmlElement>().unwrap().style();
+        style.set_property("position", "absolute")?;
+        style.set_property("top", "60px")?;
+        style.set_property("left", "50%")?;
+        style.set_property("transform", "translateX(-50%)")?;
+        style.set_property("background", "rgba(0, 0, 0, 0.95)")?;
+        style.set_property("border", &format!("2px solid {}", BORDER_COLOR))?;
+        style.set_property("border-radius", "8px")?;
+        style.set_property("padding", "10px")?;
+        style.set_property("font-family", "'Courier New', monospace")?;
+        style.set_property("box-shadow", &format!("0 0 20px {}", BORDER_COLOR))?;
+        style.set_property("display", "flex")?;
+        style.set_property("flex-direction", "column")?;
 
-This is the browser version of the text-based RPG adventure.
-Use the input field below to enter commands and navigate through the world.
-
-Press Enter or click outside this area to continue...
-"#;
-
-        self.output_element.set_inner_text(welcome_text);
-        Ok(())
+        Ok(container)
     }
 
-    fn display_main_menu(&self) -> Result<(), JsValue> {
-        let menu_text = r#"
-═══════════════════════════════════════════════════════════════════════════════
-                                MAIN MENU
-═══════════════════════════════════════════════════════════════════════════════
+    fn create_canvas(document: &Document) -> Result<HtmlCanvasElement, JsValue> {
+        let canvas = document
+            .create_element("canvas")?
+            .dyn_into::<HtmlCanvasElement>()?;
+        canvas.set_id("game-canvas");
+        canvas.set_width((MAP_WIDTH * CELL_SIZE) as u32);
+        canvas.set_height((MAP_HEIGHT * CELL_SIZE) as u32);
 
-Please choose an option:
+        let style = canvas.style();
+        style.set_property("border", &format!("1px solid {}", BORDER_COLOR))?;
+        style.set_property("background", BACKGROUND_COLOR)?;
+        style.set_property("image-rendering", "pixelated")?;
 
-1. Start New Game
-2. Continue Game (if save exists)
-3. View Instructions
-4. Exit
-
-Enter your choice (1-4): "#;
-
-        self.append_output(menu_text)?;
-        Ok(())
+        Ok(canvas)
     }
 
-    fn setup_input_handlers(&self) -> Result<(), JsValue> {
-        let input_element = self.input_element.clone();
-        let output_element = self.output_element.clone();
+    fn get_canvas_context(canvas: &HtmlCanvasElement) -> Result<CanvasRenderingContext2d, JsValue> {
+        Ok(canvas
+            .get_context("2d")?
+            .unwrap()
+            .dyn_into::<CanvasRenderingContext2d>()?)
+    }
 
-        // Create closure for handling input
-        let closure = Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
-            if event.key() == "Enter" {
-                let input_value = input_element.value();
-                if !input_value.is_empty() {
-                    // Display the command
-                    let current_output = output_element.inner_text();
-                    let new_output = format!("{}\n> {}\n", current_output, input_value);
-                    output_element.set_inner_text(&new_output);
+    fn create_map_area(document: &Document) -> Result<HtmlDivElement, JsValue> {
+        let map_area = document
+            .create_element("div")?
+            .dyn_into::<HtmlDivElement>()?;
+        map_area.set_id("map-area");
 
-                    // Process the command (this would call your game logic)
-                    WebGame::process_command(&input_value, &output_element);
+        let style = map_area.dyn_ref::<HtmlElement>().unwrap().style();
+        style.set_property("display", "flex")?;
+        style.set_property("gap", "10px")?;
 
-                    // Clear input
-                    input_element.set_value("");
+        Ok(map_area)
+    }
 
-                    // Scroll to bottom
-                    output_element.set_scroll_top(output_element.scroll_height());
+    fn create_ui_panel(document: &Document) -> Result<HtmlDivElement, JsValue> {
+        let panel = document
+            .create_element("div")?
+            .dyn_into::<HtmlDivElement>()?;
+        panel.set_id("ui-panel");
+
+        let style = panel.dyn_ref::<HtmlElement>().unwrap().style();
+        style.set_property("width", &format!("{}px", UI_PANEL_WIDTH))?;
+        style.set_property("height", &format!("{}px", MAP_HEIGHT * CELL_SIZE))?;
+        style.set_property("background", "rgba(0, 20, 0, 0.8)")?;
+        style.set_property("border", &format!("1px solid {}", BORDER_COLOR))?;
+        style.set_property("padding", "10px")?;
+        style.set_property("color", TEXT_COLOR)?;
+        style.set_property("font-size", "12px")?;
+        style.set_property("font-family", "'Courier New', monospace")?;
+        style.set_property("overflow-y", "auto")?;
+        style.set_property("white-space", "pre-wrap")?;
+
+        Ok(panel)
+    }
+
+    fn create_message_area(document: &Document) -> Result<HtmlDivElement, JsValue> {
+        let messages = document
+            .create_element("div")?
+            .dyn_into::<HtmlDivElement>()?;
+        messages.set_id("message-area");
+
+        let style = messages.dyn_ref::<HtmlElement>().unwrap().style();
+        style.set_property("width", "100%")?;
+        style.set_property("height", &format!("{}px", MESSAGE_HEIGHT))?;
+        style.set_property("background", "rgba(0, 20, 0, 0.8)")?;
+        style.set_property("border", &format!("1px solid {}", BORDER_COLOR))?;
+        style.set_property("padding", "10px")?;
+        style.set_property("color", TEXT_COLOR)?;
+        style.set_property("font-size", "11px")?;
+        style.set_property("font-family", "'Courier New', monospace")?;
+        style.set_property("overflow-y", "auto")?;
+        style.set_property("margin-top", "10px")?;
+
+        Ok(messages)
+    }
+
+    fn setup_keyboard_handlers(&mut self) -> Result<(), JsValue> {
+        let window = window().unwrap();
+        let document = window.document().unwrap();
+
+        // Prevent default browser shortcuts
+        let keydown_closure = Closure::wrap(Box::new(move |event: KeyboardEvent| {
+            let key = event.key();
+
+            // Prevent browser shortcuts for game keys
+            match key.as_str() {
+                "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight" | "i" | "I" | "c" | "C"
+                | "g" | "G" | "q" | "Q" | " " | "Enter" | "Escape" => {
+                    event.prevent_default();
+                    event.stop_propagation();
+                }
+                _ => {}
+            }
+        }) as Box<dyn FnMut(_)>);
+
+        document.add_event_listener_with_callback(
+            "keydown",
+            keydown_closure.as_ref().unchecked_ref(),
+        )?;
+        keydown_closure.forget();
+
+        // Handle key processing
+        let game_ptr = self as *mut WebGame;
+        let keyup_closure = Closure::wrap(Box::new(move |event: KeyboardEvent| {
+            let key = event.key();
+            unsafe {
+                if let Some(game) = game_ptr.as_mut() {
+                    let _ = game.handle_key_input(&key);
                 }
             }
         }) as Box<dyn FnMut(_)>);
 
-        self.input_element
-            .add_event_listener_with_callback("keypress", closure.as_ref().unchecked_ref())?;
-        closure.forget(); // Keep the closure alive
+        document
+            .add_event_listener_with_callback("keyup", keyup_closure.as_ref().unchecked_ref())?;
+        keyup_closure.forget();
 
         Ok(())
     }
 
-    fn append_output(&self, text: &str) -> Result<(), JsValue> {
-        let current_output = self.output_element.inner_text();
-        let new_output = format!("{}\n{}", current_output, text);
-        self.output_element.set_inner_text(&new_output);
-        self.output_element
-            .set_scroll_top(self.output_element.scroll_height());
-        Ok(())
+    fn handle_key_input(&mut self, key: &str) -> Result<(), JsValue> {
+        // Prevent key repeat spam
+        let now = js_sys::Date::now();
+        if now - self.last_key_time < self.key_repeat_delay {
+            return Ok(());
+        }
+        self.last_key_time = now;
+
+        match self.game.game_state.clone() {
+            GameState::Playing => self.handle_gameplay_input(key),
+            GameState::MainMenu => self.handle_menu_input(key),
+            GameState::Inventory => self.handle_inventory_input(key),
+            GameState::Character => self.handle_character_input(key),
+            GameState::Combat(pos) => self.handle_combat_input(key, pos),
+            _ => Ok(()),
+        }
     }
 
-    // Static method to process commands (this would integrate with your game logic)
-    fn process_command(input: &str, output_element: &HtmlDivElement) {
-        let response = match input.trim() {
-            "1" => {
-                r#"Starting new game...
-
-You find yourself standing at the edge of a mysterious forest.
-The ancient trees tower above you, their branches swaying in an otherworldly breeze.
-A narrow path leads deeper into the woods, while behind you lies the safety of the village.
-
-What would you like to do?
-- 'go forward' to enter the forest
-- 'go back' to return to the village
-- 'look' to examine your surroundings
-- 'inventory' to check your items
-- 'help' for more commands"#
-            },
-            "2" => "No save file found. Starting a new game instead...",
-            "3" => {
-                r#"═══════════════════════════════════════════════════════════════════════════════
-                              GAME INSTRUCTIONS
-═══════════════════════════════════════════════════════════════════════════════
-
-BASIC COMMANDS:
-- Movement: 'go [direction]', 'north', 'south', 'east', 'west'
-- Interaction: 'look', 'examine [item]', 'take [item]', 'use [item]'
-- Combat: 'attack', 'defend', 'flee'
-- Character: 'inventory', 'stats', 'health'
-- Game: 'save', 'load', 'help', 'quit'
-
-TIPS:
-- Type 'look' to get a description of your current location
-- Use 'inventory' to see what items you're carrying
-- Pay attention to your health and stamina
-- Save your game frequently!
-
-Type 'menu' to return to the main menu."#
-            },
-            "4" | "exit" | "quit" => "Thanks for playing Echoes RPG! Refresh the page to start again.",
-            "menu" => {
-                r#"═══════════════════════════════════════════════════════════════════════════════
-                                MAIN MENU
-═══════════════════════════════════════════════════════════════════════════════
-
-Please choose an option:
-
-1. Start New Game
-2. Continue Game (if save exists)
-3. View Instructions
-4. Exit
-
-Enter your choice (1-4):"#
-            },
-            "help" => {
-                "Available commands: go, look, take, use, inventory, stats, attack, defend, flee, save, load, help, menu, quit"
-            },
-            "look" => {
-                "You are in a dark forest. Tall trees surround you on all sides. A path leads north deeper into the woods."
-            },
-            "inventory" => {
-                "Your inventory:\n- Rusty sword\n- Health potion x2\n- 50 gold coins"
-            },
-            "stats" => {
-                "Your Stats:\nLevel: 1\nHealth: 100/100\nStamina: 50/50\nStrength: 10\nDefense: 8\nExperience: 0/100"
-            },
-            _ => {
-                "I don't understand that command. Type 'help' for available commands."
+    fn handle_gameplay_input(&mut self, key: &str) -> Result<(), JsValue> {
+        match key {
+            "ArrowUp" => {
+                if self.game.move_player(0, -1) {
+                    self.process_movement()?;
+                }
             }
+            "ArrowDown" => {
+                if self.game.move_player(0, 1) {
+                    self.process_movement()?;
+                }
+            }
+            "ArrowLeft" => {
+                if self.game.move_player(-1, 0) {
+                    self.process_movement()?;
+                }
+            }
+            "ArrowRight" => {
+                if self.game.move_player(1, 0) {
+                    self.process_movement()?;
+                }
+            }
+            "i" | "I" => {
+                self.game.game_state = GameState::Inventory;
+                self.render_game()?;
+            }
+            "c" | "C" => {
+                self.game.game_state = GameState::Character;
+                self.render_game()?;
+            }
+            "g" | "G" => {
+                if let Some(message) = self.game.try_get_item() {
+                    self.add_message(&message);
+                    self.render_game()?;
+                }
+            }
+            "q" | "Q" => {
+                self.add_message("Thanks for playing!");
+                // Could add exit confirmation here
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn handle_menu_input(&mut self, key: &str) -> Result<(), JsValue> {
+        match key {
+            "1" => {
+                self.start_new_game()?;
+            }
+            "2" => {
+                self.add_message("Load game not implemented yet.");
+            }
+            "3" => {
+                self.show_instructions()?;
+            }
+            "4" | "q" | "Q" => {
+                self.add_message("Thanks for playing!");
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn handle_inventory_input(&mut self, key: &str) -> Result<(), JsValue> {
+        match key {
+            "Escape" | "i" | "I" => {
+                self.game.game_state = GameState::Playing;
+                self.render_game()?;
+            }
+            key if key.len() == 1 && key.chars().next().unwrap().is_ascii_digit() && key != "0" => {
+                if let Ok(index) = key.parse::<usize>() {
+                    let index = index - 1; // Convert to 0-based
+                    if index < InventoryManager::get_item_count(&self.game.player) {
+                        let result = InventoryManager::use_item(&mut self.game.player, index);
+                        self.add_message(&result.message);
+                        if result.success {
+                            self.render_game()?;
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn handle_character_input(&mut self, key: &str) -> Result<(), JsValue> {
+        match key {
+            "Escape" | "c" | "C" => {
+                self.game.game_state = GameState::Playing;
+                self.render_game()?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn handle_combat_input(&mut self, key: &str, pos: Position) -> Result<(), JsValue> {
+        match key {
+            "1" | " " => {
+                // Attack
+                self.execute_combat_action(CombatAction::Attack, pos)?;
+            }
+            "2" => {
+                // Use ability (if implemented)
+                self.execute_combat_action(CombatAction::UseAbility(0), pos)?;
+            }
+            "3" => {
+                // Use item (if implemented)
+                self.execute_combat_action(CombatAction::UseItem(0), pos)?;
+            }
+            "4" | "f" | "F" => {
+                // Flee
+                self.execute_combat_action(CombatAction::Flee, pos)?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn process_movement(&mut self) -> Result<(), JsValue> {
+        match self.game.game_state {
+            GameState::Combat(_) => {
+                // Combat will be handled in the next update
+                self.render_game()?;
+            }
+            _ => {
+                self.game.process_turn();
+                self.render_game()?;
+            }
+        }
+        Ok(())
+    }
+
+    fn execute_combat_action(
+        &mut self,
+        action: CombatAction,
+        _pos: Position,
+    ) -> Result<(), JsValue> {
+        // This would integrate with the actual combat system
+        // For now, just add a placeholder message
+        match action {
+            CombatAction::Attack => {
+                self.add_message("You attack the enemy!");
+            }
+            CombatAction::Flee => {
+                self.add_message("You attempt to flee!");
+                self.game.game_state = GameState::Playing;
+            }
+            _ => {
+                self.add_message("Combat action not yet implemented.");
+            }
+        }
+        self.render_game()
+    }
+
+    fn start_new_game(&mut self) -> Result<(), JsValue> {
+        // For now, start with a simple character creation
+        // In full implementation, this would show character creation screen
+        let player = Player::new("Hero".to_string(), ClassType::Warrior);
+        self.game = Game::new(player);
+        self.game.game_state = GameState::Playing;
+
+        self.add_message("Welcome to the dungeon! Use arrow keys to move.");
+        self.add_message("Press 'i' for inventory, 'c' for character, 'g' to get items.");
+        self.render_game()
+    }
+
+    fn show_instructions(&mut self) -> Result<(), JsValue> {
+        self.add_message("=== GAME INSTRUCTIONS ===");
+        self.add_message("Arrow Keys: Move your character");
+        self.add_message("I: Open inventory");
+        self.add_message("C: View character stats");
+        self.add_message("G: Pick up items");
+        self.add_message("Q: Quit game");
+        self.add_message("In combat: 1=Attack, 4=Flee");
+        self.add_message("Press any key to continue...");
+        Ok(())
+    }
+
+    fn show_title_screen(&mut self) -> Result<(), JsValue> {
+        self.clear_canvas()?;
+        self.game.game_state = GameState::MainMenu;
+
+        // Draw title on canvas
+        self.context
+            .set_fill_style(&wasm_bindgen::JsValue::from_str(TEXT_COLOR));
+        self.context.set_font("20px 'Courier New'");
+        self.context.fill_text("ECHOES RPG", 200.0, 100.0)?;
+
+        self.context.set_font("12px 'Courier New'");
+        self.context
+            .fill_text("Web Dungeon Crawler", 220.0, 130.0)?;
+
+        // Update UI panel with menu
+        self.ui_panel.set_inner_html(&format!(
+            "<div style='text-align: center; margin-top: 50px;'>
+                <div style='font-size: 16px; margin-bottom: 20px;'>MAIN MENU</div>
+                <div>1. Start New Game</div>
+                <div>2. Load Game</div>
+                <div>3. Instructions</div>
+                <div>4. Exit</div>
+                <div style='margin-top: 30px; font-size: 10px;'>Press number key to select</div>
+            </div>"
+        ));
+
+        self.add_message("Welcome to Echoes RPG!");
+        self.add_message("Use number keys to navigate the menu.");
+
+        Ok(())
+    }
+
+    fn render_game(&mut self) -> Result<(), JsValue> {
+        self.clear_canvas()?;
+        self.update_visibility();
+
+        match self.game.game_state {
+            GameState::Playing | GameState::Combat(_) => {
+                self.render_map()?;
+                self.render_ui_panel()?;
+            }
+            GameState::Inventory => {
+                self.render_map()?;
+                self.render_inventory_panel()?;
+            }
+            GameState::Character => {
+                self.render_map()?;
+                self.render_character_panel()?;
+            }
+            _ => {}
+        }
+
+        Ok(())
+    }
+
+    fn clear_canvas(&mut self) -> Result<(), JsValue> {
+        self.context
+            .set_fill_style(&wasm_bindgen::JsValue::from_str(BACKGROUND_COLOR));
+        self.context.fill_rect(
+            0.0,
+            0.0,
+            (MAP_WIDTH * CELL_SIZE) as f64,
+            (MAP_HEIGHT * CELL_SIZE) as f64,
+        );
+        Ok(())
+    }
+
+    fn update_visibility(&mut self) {
+        self.game.update_visibility();
+    }
+
+    fn render_map(&mut self) -> Result<(), JsValue> {
+        // Extract all needed data first to avoid borrowing issues
+        let level_width = self.game.current_level().width as i32;
+        let level_height = self.game.current_level().height as i32;
+        let player_pos = self.game.player_position();
+
+        // Collect tile data
+        let mut tile_data = Vec::new();
+        let mut enemy_positions = Vec::new();
+        let mut item_positions = Vec::new();
+
+        {
+            let level = self.game.current_level();
+            for y in 0..MAP_HEIGHT {
+                for x in 0..MAP_WIDTH {
+                    if x < level_width && y < level_height {
+                        let tile = &level.tiles[y as usize][x as usize];
+                        tile_data.push((x, y, tile.visible, tile.explored, tile.tile_type.clone()));
+                    }
+                }
+            }
+
+            // Collect entity positions
+            for (pos, _enemy) in &level.enemies {
+                enemy_positions.push((pos.x, pos.y));
+            }
+            for (pos, _item) in &level.items {
+                item_positions.push((pos.x, pos.y));
+            }
+        }
+
+        // Now render everything
+        for (x, y, visible, explored, tile_type) in tile_data {
+            if visible {
+                self.render_tile(x, y, &tile_type)?;
+
+                // Render entities at this position
+                if player_pos.x == x && player_pos.y == y {
+                    self.render_player(x, y)?;
+                } else if enemy_positions.contains(&(x, y)) {
+                    self.render_enemy(x, y)?;
+                } else if item_positions.contains(&(x, y)) {
+                    self.render_item(x, y)?;
+                }
+            } else if explored {
+                self.render_fog_tile(x, y)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn render_tile(&mut self, x: i32, y: i32, tile_type: &TileType) -> Result<(), JsValue> {
+        let color = match tile_type {
+            TileType::Wall => WALL_COLOR,
+            TileType::Floor => FLOOR_COLOR,
+            TileType::Door => DOOR_COLOR,
+            TileType::Chest => CHEST_COLOR,
+            TileType::Exit => EXIT_COLOR,
+            TileType::StairsDown => EXIT_COLOR,
+            TileType::StairsUp => EXIT_COLOR,
         };
 
-        let current_output = output_element.inner_text();
-        let new_output = format!("{}\n{}\n", current_output, response);
-        output_element.set_inner_text(&new_output);
-        output_element.set_scroll_top(output_element.scroll_height());
+        self.context
+            .set_fill_style(&wasm_bindgen::JsValue::from_str(color));
+        self.context.fill_rect(
+            (x * CELL_SIZE) as f64,
+            (y * CELL_SIZE) as f64,
+            CELL_SIZE as f64,
+            CELL_SIZE as f64,
+        );
+
+        Ok(())
+    }
+
+    fn render_fog_tile(&mut self, x: i32, y: i32) -> Result<(), JsValue> {
+        self.context
+            .set_fill_style(&wasm_bindgen::JsValue::from_str(FOG_COLOR));
+        self.context.fill_rect(
+            (x * CELL_SIZE) as f64,
+            (y * CELL_SIZE) as f64,
+            CELL_SIZE as f64,
+            CELL_SIZE as f64,
+        );
+        Ok(())
+    }
+
+    fn render_player(&mut self, x: i32, y: i32) -> Result<(), JsValue> {
+        self.context
+            .set_fill_style(&wasm_bindgen::JsValue::from_str(PLAYER_COLOR));
+        self.context.fill_rect(
+            (x * CELL_SIZE) as f64,
+            (y * CELL_SIZE) as f64,
+            CELL_SIZE as f64,
+            CELL_SIZE as f64,
+        );
+
+        // Add @ symbol for player
+        self.context
+            .set_fill_style(&wasm_bindgen::JsValue::from_str("#000000"));
+        self.context
+            .set_font(&format!("{}px monospace", CELL_SIZE - 2));
+        self.context.fill_text(
+            "@",
+            (x * CELL_SIZE + 2) as f64,
+            (y * CELL_SIZE + CELL_SIZE - 2) as f64,
+        )?;
+
+        Ok(())
+    }
+
+    fn render_enemy(&mut self, x: i32, y: i32) -> Result<(), JsValue> {
+        self.context
+            .set_fill_style(&wasm_bindgen::JsValue::from_str(ENEMY_COLOR));
+        self.context.fill_rect(
+            (x * CELL_SIZE) as f64,
+            (y * CELL_SIZE) as f64,
+            CELL_SIZE as f64,
+            CELL_SIZE as f64,
+        );
+        Ok(())
+    }
+
+    fn render_item(&mut self, x: i32, y: i32) -> Result<(), JsValue> {
+        self.context
+            .set_fill_style(&wasm_bindgen::JsValue::from_str(ITEM_COLOR));
+        self.context.fill_rect(
+            (x * CELL_SIZE) as f64,
+            (y * CELL_SIZE) as f64,
+            CELL_SIZE as f64,
+            CELL_SIZE as f64,
+        );
+        Ok(())
+    }
+
+    fn render_ui_panel(&mut self) -> Result<(), JsValue> {
+        let player = &self.game.player;
+        let dungeon = self.game.current_dungeon();
+
+        let ui_content = format!(
+            "<div style='color: {}; font-family: monospace;'>
+                <div style='font-size: 14px; margin-bottom: 10px; text-align: center;'>HERO STATUS</div>
+                <div>Name: {}</div>
+                <div>Level: {}</div>
+                <div>Health: {}/{}</div>
+                <div>Experience: {}</div>
+                <div>Gold: {}</div>
+                <div style='margin-top: 15px;'>
+                    <div style='font-size: 12px; margin-bottom: 5px;'>DUNGEON INFO</div>
+                    <div>Floor: {}</div>
+                    <div>Type: {:?}</div>
+                </div>
+                <div style='margin-top: 15px;'>
+                    <div style='font-size: 12px; margin-bottom: 5px;'>CONTROLS</div>
+                    <div>↑↓←→ Move</div>
+                    <div>I - Inventory</div>
+                    <div>C - Character</div>
+                    <div>G - Get Item</div>
+                    <div>Q - Quit</div>
+                </div>
+            </div>",
+            TEXT_COLOR,
+            player.name,
+            player.level,
+            player.health,
+            player.max_health,
+            player.experience,
+            player.gold,
+            self.game.current_dungeon_index + 1,
+            dungeon.dungeon_type
+        );
+
+        self.ui_panel.set_inner_html(&ui_content);
+        Ok(())
+    }
+
+    fn render_inventory_panel(&mut self) -> Result<(), JsValue> {
+        let player = &self.game.player;
+        let item_count = InventoryManager::get_item_count(player);
+
+        let mut content = format!(
+            "<div style='color: {}; font-family: monospace;'>
+                <div style='font-size: 14px; margin-bottom: 10px; text-align: center;'>INVENTORY</div>",
+            TEXT_COLOR
+        );
+
+        if item_count == 0 {
+            content.push_str("<div>Your inventory is empty.</div>");
+        } else {
+            for i in 0..item_count {
+                if let Some(item) = InventoryManager::get_item(player, i) {
+                    content.push_str(&format!("<div>{}. {}</div>", i + 1, item.name()));
+                }
+            }
+        }
+
+        content.push_str(
+            "
+            <div style='margin-top: 15px;'>
+                <div>Press 1-9 to use item</div>
+                <div>Press I or ESC to close</div>
+            </div>
+        </div>",
+        );
+
+        self.ui_panel.set_inner_html(&content);
+        Ok(())
+    }
+
+    fn render_character_panel(&mut self) -> Result<(), JsValue> {
+        let player = &self.game.player;
+
+        let content = format!(
+            "<div style='color: {}; font-family: monospace;'>
+                <div style='font-size: 14px; margin-bottom: 10px; text-align: center;'>CHARACTER</div>
+                <div>Name: {}</div>
+                <div>Class: {:?}</div>
+                <div>Level: {}</div>
+                <div>Health: {}/{}</div>
+                <div>Experience: {}</div>
+                <div>Gold: {}</div>
+                <div style='margin-top: 10px;'>
+                    <div style='font-size: 12px; margin-bottom: 5px;'>STATS</div>
+                    <div>Strength: {}</div>
+                    <div>Intelligence: {}</div>
+                    <div>Dexterity: {}</div>
+                    <div>Constitution: {}</div>
+                    <div>Wisdom: {}</div>
+                </div>
+                <div style='margin-top: 15px;'>
+                    <div>Press C or ESC to close</div>
+                </div>
+            </div>",
+            TEXT_COLOR,
+            player.name,
+            player.class.class_type,
+            player.level,
+            player.health,
+            player.max_health,
+            player.experience,
+            player.gold,
+            player.stats.strength,
+            player.stats.intelligence,
+            player.stats.dexterity,
+            player.stats.constitution,
+            player.stats.wisdom
+        );
+
+        self.ui_panel.set_inner_html(&content);
+        Ok(())
+    }
+
+    fn add_message(&mut self, message: &str) {
+        let current_content = self.message_area.inner_html();
+        let new_content = if current_content.is_empty() {
+            message.to_string()
+        } else {
+            format!("{}<br>{}", current_content, message)
+        };
+        self.message_area.set_inner_html(&new_content);
+
+        // Auto-scroll to bottom
+        self.message_area
+            .set_scroll_top(self.message_area.scroll_height());
     }
 }
 
 // Initialize the game when the WASM module loads
 #[wasm_bindgen(start)]
 pub fn main() -> Result<(), JsValue> {
-    console::log_1(&"WASM module loaded successfully!".into());
+    console::log_1(
+        &"WASM module loaded - initializing Echoes RPG Visual Dungeon Crawler...".into(),
+    );
 
     // Set up panic hook for better error messages
     console_error_panic_hook::set_once();
@@ -319,11 +814,11 @@ fn initialize_game() -> Result<(), JsValue> {
         return Ok(());
     }
 
-    console::log_1(&"Creating single game instance...".into());
+    console::log_1(&"Creating visual dungeon crawler game instance...".into());
     let mut game = WebGame::new()?;
     game.start_game()?;
 
-    console::log_1(&"Game initialized successfully!".into());
+    console::log_1(&"Visual dungeon crawler initialized successfully!".into());
 
     // Keep the game instance alive (in a real implementation, you'd want to store this properly)
     std::mem::forget(game);
