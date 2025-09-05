@@ -33,12 +33,14 @@ impl WebGame {
         container.set_attribute(
             "style",
             "font-family: 'Courier New', monospace;
-             background: #000;
+             background: rgba(0, 17, 0, 0.9);
              color: #00ff00;
              padding: 20px;
-             height: 80vh;
-             overflow-y: auto;
-             border: 2px solid #00ff00;",
+             max-width: 1200px;
+             margin: 20px auto;
+             border: 2px solid #00ff00;
+             border-radius: 10px;
+             box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);",
         )?;
 
         // Create output area
@@ -49,11 +51,18 @@ impl WebGame {
         output.set_attribute(
             "style",
             "white-space: pre-wrap;
-             min-height: 400px;
-             margin-bottom: 20px;
-             padding: 10px;
+             background: #000000;
+             color: #00ff00;
+             padding: 20px;
              border: 1px solid #006600;
-             background: #001100;",
+             border-radius: 5px;
+             min-height: 500px;
+             max-height: 600px;
+             overflow-y: auto;
+             font-size: 14px;
+             line-height: 1.4;
+             margin-bottom: 20px;
+             box-shadow: inset 0 0 10px rgba(0, 255, 0, 0.1);",
         )?;
 
         // Create input area
@@ -275,34 +284,28 @@ pub fn main() -> Result<(), JsValue> {
     // Set up panic hook for better error messages
     console_error_panic_hook::set_once();
 
-    // Wait for DOM to be ready, then initialize game
-    let window = window().unwrap();
-    let document = window.document().unwrap();
-
-    if document.ready_state() == "loading" {
-        // Wait for DOM to load
-        let closure = Closure::wrap(Box::new(|| {
-            initialize_game().unwrap_or_else(|e| {
-                console::error_1(&format!("Failed to initialize game: {:?}", e).into());
-            });
-        }) as Box<dyn FnMut()>);
-
-        document.add_event_listener_with_callback(
-            "DOMContentLoaded",
-            closure.as_ref().unchecked_ref(),
-        )?;
-        closure.forget();
-    } else {
-        // DOM is already loaded
-        initialize_game()?;
-    }
+    // Auto-initialize game when WASM loads
+    initialize_game()?;
 
     Ok(())
 }
 
 fn initialize_game() -> Result<(), JsValue> {
+    // Wait a bit to ensure DOM is ready
+    let window = window().unwrap();
+    let document = window.document().unwrap();
+
+    // Check if game is already initialized to prevent duplicates
+    if document.get_element_by_id("game-container").is_some() {
+        console::log_1(&"Game already initialized, skipping duplicate initialization.".into());
+        return Ok(());
+    }
+
+    console::log_1(&"Creating single game instance...".into());
     let mut game = WebGame::new()?;
     game.start_game()?;
+
+    console::log_1(&"Game initialized successfully!".into());
 
     // Keep the game instance alive (in a real implementation, you'd want to store this properly)
     std::mem::forget(game);
