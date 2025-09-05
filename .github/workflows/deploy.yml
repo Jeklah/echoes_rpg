@@ -31,7 +31,7 @@ jobs:
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
       - name: Cache cargo registry
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
@@ -50,11 +50,17 @@ jobs:
           ls -la ./dist/
           ls -la ./dist/pkg/
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v3
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-build-artifacts
+          path: ./dist
 
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v2
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
         with:
           path: "./dist"
 
@@ -67,4 +73,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v2
+        uses: actions/deploy-pages@v4
