@@ -1560,20 +1560,29 @@ impl UI {
     }
 
     pub fn wait_for_key(&mut self) -> io::Result<KeyEvent> {
+        use crossterm::event::{poll, read};
+        use std::time::Duration;
+
         loop {
-            if let Event::Key(key_event) = event::read()? {
-                // On Windows, filter out key release events to prevent double input
-                #[cfg(windows)]
-                {
-                    if key_event.kind == KeyEventKind::Press {
+            // Poll with timeout to prevent infinite blocking
+            if poll(Duration::from_millis(100))? {
+                if let Event::Key(key_event) = read()? {
+                    // On Windows, filter out key release events to prevent double input
+                    #[cfg(windows)]
+                    {
+                        if key_event.kind == KeyEventKind::Press {
+                            return Ok(platform::normalize_key_event(key_event));
+                        }
+                    }
+                    #[cfg(not(windows))]
+                    {
+                        // On other platforms, use the original behavior
                         return Ok(platform::normalize_key_event(key_event));
                     }
                 }
-                #[cfg(not(windows))]
-                {
-                    // On other platforms, use the original behavior
-                    return Ok(platform::normalize_key_event(key_event));
-                }
+            } else {
+                // No input available, yield CPU briefly and continue polling
+                std::thread::sleep(Duration::from_millis(1));
             }
         }
     }

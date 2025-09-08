@@ -234,18 +234,37 @@ impl Game {
         let level = self.current_level_mut();
         let player_pos = level.player_position;
 
-        // Set all tiles to not visible
-        for row in &mut level.visible_tiles {
-            for tile in row {
-                *tile = false;
+        // Safety bounds to prevent excessive computation
+        let max_width = level.width.min(200); // Cap at reasonable size
+        let max_height = level.height.min(200);
+
+        // Set all tiles to not visible with bounds checking
+        if level.visible_tiles.len() <= max_height
+            && level.visible_tiles.iter().all(|row| row.len() <= max_width)
+        {
+            for row in &mut level.visible_tiles {
+                for tile in row {
+                    *tile = false;
+                }
             }
+        } else {
+            eprintln!("Warning: Visibility tiles exceed safety bounds, skipping update");
+            return;
         }
 
         // Reveal a circular area around the player
-        let view_radius = 10; // Increased view radius to match UI display
+        let view_radius = 10.min(max_width as i32 / 4).min(max_height as i32 / 4); // Bounded view radius
+
+        let mut tiles_processed = 0;
+        const MAX_TILES_PER_UPDATE: usize = 2000; // Prevent excessive processing
 
         for dy in -view_radius..=view_radius {
             for dx in -view_radius..=view_radius {
+                if tiles_processed >= MAX_TILES_PER_UPDATE {
+                    eprintln!("Warning: Visibility update hit tile processing limit");
+                    break;
+                }
+
                 let x = player_pos.x + dx;
                 let y = player_pos.y + dy;
 
@@ -253,38 +272,67 @@ impl Game {
                 if x >= 0 && x < level.width as i32 && y >= 0 && y < level.height as i32 {
                     // Check if within view radius (circular area)
                     if dx * dx + dy * dy <= view_radius * view_radius {
-                        level.visible_tiles[y as usize][x as usize] = true;
-                        level.revealed_tiles[y as usize][x as usize] = true;
+                        let ux = x as usize;
+                        let uy = y as usize;
 
-                        // Update tile to be explored
-                        if let Some(tile) = level.get_tile_mut(x, y) {
-                            tile.explored = true;
-                            tile.visible = true;
+                        // Additional bounds checking for array access
+                        if uy < level.visible_tiles.len()
+                            && ux < level.visible_tiles[uy].len()
+                            && uy < level.revealed_tiles.len()
+                            && ux < level.revealed_tiles[uy].len()
+                        {
+                            level.visible_tiles[uy][ux] = true;
+                            level.revealed_tiles[uy][ux] = true;
+
+                            // Update tile to be explored
+                            if let Some(tile) = level.get_tile_mut(x, y) {
+                                tile.explored = true;
+                                tile.visible = true;
+                            }
                         }
                     }
                 }
+                tiles_processed += 1;
+            }
+            if tiles_processed >= MAX_TILES_PER_UPDATE {
+                break;
             }
         }
 
         // Add more tile visibility for the screen around the player
         // This ensures all tiles shown on screen are visible, even beyond the circular radius
-        let screen_width = 30; // Half the screen width
-        let screen_height = 10; // Half the screen height
+        let screen_width = 30.min(max_width as i32 / 2); // Bounded screen width
+        let screen_height = 10.min(max_height as i32 / 2); // Bounded screen height
 
         for dy in -screen_height..=screen_height {
             for dx in -screen_width..=screen_width {
+                if tiles_processed >= MAX_TILES_PER_UPDATE {
+                    eprintln!("Warning: Screen visibility update hit tile processing limit");
+                    break;
+                }
+
                 let x = player_pos.x + dx;
                 let y = player_pos.y + dy;
 
                 // Check if within bounds and not already visible
                 if x >= 0 && x < level.width as i32 && y >= 0 && y < level.height as i32 {
-                    level.revealed_tiles[y as usize][x as usize] = true;
+                    let ux = x as usize;
+                    let uy = y as usize;
 
-                    // Only mark as explored, not necessarily visible (for fog of war effect)
-                    if let Some(tile) = level.get_tile_mut(x, y) {
-                        tile.explored = true;
+                    // Additional bounds checking for array access
+                    if uy < level.revealed_tiles.len() && ux < level.revealed_tiles[uy].len() {
+                        level.revealed_tiles[uy][ux] = true;
+
+                        // Only mark as explored, not necessarily visible (for fog of war effect)
+                        if let Some(tile) = level.get_tile_mut(x, y) {
+                            tile.explored = true;
+                        }
                     }
                 }
+                tiles_processed += 1;
+            }
+            if tiles_processed >= MAX_TILES_PER_UPDATE {
+                break;
             }
         }
     }
@@ -447,7 +495,10 @@ pub fn run() {
 
     game.game_state = GameState::Playing;
 
-    // Game loop
+    // Game loop with error recovery
+    let mut consecutive_errors = 0;
+    const MAX_CONSECUTIVE_ERRORS: u32 = 5;
+
     while !matches!(game.game_state, GameState::GameOver | GameState::Victory) {
         // Windows-specific frame rate limiting for better performance
         #[cfg(all(windows, not(all(feature = "gui", target_os = "windows"))))]
@@ -488,70 +539,84 @@ pub fn run() {
             }
         }
 
-        // Handle input based on game state
+        // Handle input based on game state with error recovery
         match game.game_state {
             GameState::Playing => match ui.wait_for_key() {
-                Ok(key_event) => match key_event.code {
-                    KeyCode::Up => {
-                        if game.move_player(0, -1) {
-                            match game.game_state {
-                                GameState::Combat(_) => {
-                                    // Combat will be handled in the next loop iteration
+                Ok(key_event) => {
+                    consecutive_errors = 0; // Reset error counter on success
+                    match key_event.code {
+                        KeyCode::Up => {
+                            if game.move_player(0, -1) {
+                                match game.game_state {
+                                    GameState::Combat(_) => {
+                                        // Combat will be handled in the next loop iteration
+                                    }
+                                    _ => game.process_turn(),
                                 }
-                                _ => game.process_turn(),
                             }
                         }
-                    }
-                    KeyCode::Down => {
-                        if game.move_player(0, 1) {
-                            match game.game_state {
-                                GameState::Combat(_) => {
-                                    // Combat will be handled in the next loop iteration
+                        KeyCode::Down => {
+                            if game.move_player(0, 1) {
+                                match game.game_state {
+                                    GameState::Combat(_) => {
+                                        // Combat will be handled in the next loop iteration
+                                    }
+                                    _ => game.process_turn(),
                                 }
-                                _ => game.process_turn(),
                             }
                         }
-                    }
-                    KeyCode::Left => {
-                        if game.move_player(-1, 0) {
-                            match game.game_state {
-                                GameState::Combat(_) => {
-                                    // Combat will be handled in the next loop iteration
+                        KeyCode::Left => {
+                            if game.move_player(-1, 0) {
+                                match game.game_state {
+                                    GameState::Combat(_) => {
+                                        // Combat will be handled in the next loop iteration
+                                    }
+                                    _ => game.process_turn(),
                                 }
-                                _ => game.process_turn(),
                             }
                         }
-                    }
-                    KeyCode::Right => {
-                        if game.move_player(1, 0) {
-                            match game.game_state {
-                                GameState::Combat(_) => {
-                                    // Combat will be handled in the next loop iteration
+                        KeyCode::Right => {
+                            if game.move_player(1, 0) {
+                                match game.game_state {
+                                    GameState::Combat(_) => {
+                                        // Combat will be handled in the next loop iteration
+                                    }
+                                    _ => game.process_turn(),
                                 }
-                                _ => game.process_turn(),
                             }
                         }
-                    }
-                    KeyCode::Char('i') => {
-                        game.game_state = GameState::Inventory;
-                    }
-                    KeyCode::Char('c') => {
-                        game.game_state = GameState::Character;
-                    }
-                    KeyCode::Char('g') => {
-                        // Try to get item at current position or adjacent chest
-                        if let Some(result) = game.try_get_item() {
-                            ui.add_message(result);
+                        KeyCode::Char('i') => {
+                            game.game_state = GameState::Inventory;
                         }
+                        KeyCode::Char('c') => {
+                            game.game_state = GameState::Character;
+                        }
+                        KeyCode::Char('g') => {
+                            // Try to get item at current position or adjacent chest
+                            if let Some(result) = game.try_get_item() {
+                                ui.add_message(result);
+                            }
+                        }
+                        KeyCode::Char('q') => {
+                            break;
+                        }
+                        _ => {}
                     }
-                    KeyCode::Char('q') => {
+                }
+                Err(e) => {
+                    consecutive_errors += 1;
+                    eprintln!(
+                        "Error reading key (attempt {}/{}): {e}",
+                        consecutive_errors, MAX_CONSECUTIVE_ERRORS
+                    );
+
+                    if consecutive_errors >= MAX_CONSECUTIVE_ERRORS {
+                        eprintln!("Too many consecutive input errors, exiting game loop");
                         break;
                     }
-                    _ => {}
-                },
-                Err(e) => {
-                    eprintln!("Error reading key: {e}");
-                    break;
+
+                    // Brief pause before retrying to prevent tight error loop
+                    std::thread::sleep(std::time::Duration::from_millis(100));
                 }
             },
             GameState::Combat(enemy_pos) => {
@@ -634,33 +699,52 @@ pub fn run() {
                 }
 
                 match ui.wait_for_key() {
-                    Ok(key_event) => match key_event.code {
-                        KeyCode::Char(c) if ('1'..='9').contains(&c) => {
-                            let index = c.to_digit(10).unwrap() as usize - 1;
-                            if index < InventoryManager::get_item_count(&game.player) {
-                                if let Some(item) = InventoryManager::get_item(&game.player, index)
-                                {
-                                    match item {
-                                        Item::Equipment(_) | Item::Consumable(_) => {
-                                            let result =
-                                                InventoryManager::use_item(&mut game.player, index);
-                                            ui.add_message(result.message);
-                                        }
-                                        Item::Quest { .. } => {
-                                            ui.add_message("This item cannot be used".to_string());
+                    Ok(key_event) => {
+                        consecutive_errors = 0; // Reset error counter on success
+                        match key_event.code {
+                            KeyCode::Char(c) if ('1'..='9').contains(&c) => {
+                                let index = c.to_digit(10).unwrap() as usize - 1;
+                                if index < InventoryManager::get_item_count(&game.player) {
+                                    if let Some(item) =
+                                        InventoryManager::get_item(&game.player, index)
+                                    {
+                                        match item {
+                                            Item::Equipment(_) | Item::Consumable(_) => {
+                                                let result = InventoryManager::use_item(
+                                                    &mut game.player,
+                                                    index,
+                                                );
+                                                ui.add_message(result.message);
+                                            }
+                                            Item::Quest { .. } => {
+                                                ui.add_message(
+                                                    "This item cannot be used".to_string(),
+                                                );
+                                            }
                                         }
                                     }
                                 }
                             }
+                            KeyCode::Char('e') | KeyCode::Esc => {
+                                game.game_state = GameState::Playing;
+                            }
+                            _ => {}
                         }
-                        KeyCode::Char('e') | KeyCode::Esc => {
-                            game.game_state = GameState::Playing;
-                        }
-                        _ => {}
-                    },
+                    }
                     Err(e) => {
-                        eprintln!("Error reading key: {e}");
-                        break;
+                        consecutive_errors += 1;
+                        eprintln!(
+                            "Error reading key in inventory (attempt {}/{}): {e}",
+                            consecutive_errors, MAX_CONSECUTIVE_ERRORS
+                        );
+
+                        if consecutive_errors >= MAX_CONSECUTIVE_ERRORS {
+                            eprintln!("Too many consecutive input errors in inventory, returning to main menu");
+                            break;
+                        }
+
+                        // Brief pause before retrying
+                        std::thread::sleep(std::time::Duration::from_millis(100));
                     }
                 }
             }
@@ -670,10 +754,26 @@ pub fn run() {
                     break;
                 }
 
-                // Any key returns to game
-                if let Err(e) = ui.wait_for_key() {
-                    eprintln!("Error reading key: {e}");
-                    break;
+                // Any key returns to game with error handling
+                match ui.wait_for_key() {
+                    Ok(_) => {
+                        consecutive_errors = 0; // Reset error counter on success
+                    }
+                    Err(e) => {
+                        consecutive_errors += 1;
+                        eprintln!(
+                            "Error reading key in character screen (attempt {}/{}): {e}",
+                            consecutive_errors, MAX_CONSECUTIVE_ERRORS
+                        );
+
+                        if consecutive_errors >= MAX_CONSECUTIVE_ERRORS {
+                            eprintln!("Too many consecutive input errors in character screen, returning to main menu");
+                            break;
+                        }
+
+                        // Brief pause before retrying
+                        std::thread::sleep(std::time::Duration::from_millis(100));
+                    }
                 }
 
                 game.game_state = GameState::Playing;
