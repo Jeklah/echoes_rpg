@@ -75,8 +75,11 @@ impl WebGame {
         container.append_child(&ui_panel)?;
         container.append_child(&message_area)?;
 
-        // Add container to body
-        document.body().unwrap().append_child(&container)?;
+        // Add container to main-content div instead of body
+        let main_content = document
+            .get_element_by_id("main-content")
+            .ok_or("Could not find main-content element")?;
+        main_content.append_child(&container)?;
 
         // Create game instance with default player for now
         let player = Player::new("WebHero".to_string(), ClassType::Warrior);
