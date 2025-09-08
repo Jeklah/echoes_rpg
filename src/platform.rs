@@ -6,6 +6,8 @@
 
 #[cfg(not(all(feature = "gui", target_os = "windows")))]
 use anyhow::{Context, Result};
+#[cfg(all(windows, not(all(feature = "gui", target_os = "windows"))))]
+use crossterm::queue;
 #[cfg(not(all(feature = "gui", target_os = "windows")))]
 use crossterm::{
     cursor, execute,
@@ -76,7 +78,6 @@ pub fn clear_screen() -> Result<()> {
     #[cfg(windows)]
     {
         // Windows-optimized screen clearing
-        use std::io::Write;
         queue!(stdout(), Clear(ClearType::All), cursor::MoveTo(0, 0))
             .context("Failed to clear screen")?;
         stdout().flush().context("Failed to flush stdout")?;
