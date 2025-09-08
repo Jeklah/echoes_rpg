@@ -2,7 +2,7 @@ name: Build and Deploy WASM
 on:
   push:
     branches:
-      - master # If your default branch is named something else, change this
+      - wasm # If your default branch is named something else, change this
       - main
 
 permissions:
