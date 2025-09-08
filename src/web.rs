@@ -81,7 +81,12 @@ impl WebGame {
             .ok_or("Could not find main-content element")?;
 
         // Only append if container is not already a child of main-content
-        if container.parent_element().is_none() {
+        let needs_append = match container.parent_element() {
+            Some(parent) => parent != main_content,
+            None => true,
+        };
+
+        if needs_append {
             main_content.append_child(&container)?;
         }
 
@@ -118,7 +123,7 @@ impl WebGame {
         if let Some(existing_container) = document.get_element_by_id("game-container") {
             // Clear existing content and reuse the container
             existing_container.set_inner_html("");
-            return existing_container.dyn_into::<HtmlDivElement>();
+            return Ok(existing_container.dyn_into::<HtmlDivElement>()?);
         }
 
         // Create new container if none exists
