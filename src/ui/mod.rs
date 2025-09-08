@@ -4,13 +4,13 @@ use crossterm::event::KeyEventKind;
 use crossterm::{
     cursor,
     event::{self, Event, KeyCode, KeyEvent},
-    execute,
+    execute, queue,
     style::{self, Color},
     terminal::{self},
 };
 
 #[cfg(not(all(feature = "gui", target_os = "windows")))]
-use std::io::{self, stdout};
+use std::io::{self, stdout, Write};
 
 #[cfg(not(all(feature = "gui", target_os = "windows")))]
 use crate::character::{ClassType, Player};
