@@ -12,21 +12,18 @@ use crate::game::{Game, GameState};
 use crate::inventory::InventoryManager;
 use crate::world::{Position, TileType};
 
-// Game display constants - responsive sizing
-// Camera viewport constants (like desktop version)
-const VIEW_WIDTH: i32 = 50; // Number of tiles visible horizontally
-const VIEW_HEIGHT: i32 = 20; // Number of tiles visible vertically
-const CELL_SIZE: i32 = 10;
-const CANVAS_WIDTH: i32 = 800; // Large canvas width for scaling
-const CANVAS_HEIGHT: i32 = 600; // Large canvas height for scaling
+// WASM-specific viewport constants (independent of desktop versions)
+const VIEW_WIDTH: i32 = 50; // WASM: Number of tiles visible horizontally
+const VIEW_HEIGHT: i32 = 20; // WASM: Number of tiles visible vertically
+const CELL_SIZE: i32 = 10; // WASM: Base cell size for calculations
+const CANVAS_WIDTH: i32 = 800; // WASM: Large canvas width for scaling
+const CANVAS_HEIGHT: i32 = 600; // WASM: Large canvas height for scaling
 
-// Legacy constants for compatibility
-const MAP_WIDTH: i32 = VIEW_WIDTH;
-const MAP_HEIGHT: i32 = VIEW_HEIGHT;
-const UI_PANEL_WIDTH: i32 = 250;
-const MESSAGE_HEIGHT: i32 = 100;
+// WASM-specific UI constants (separate from desktop)
+const UI_PANEL_WIDTH: i32 = 250; // WASM: UI panel width
+const MESSAGE_HEIGHT: i32 = 100; // WASM: Message area height
 
-// Calculate scale factor to fill canvas
+// WASM-specific scaling calculations (independent of desktop)
 const SCALE_FACTOR_X: f64 = CANVAS_WIDTH as f64 / (VIEW_WIDTH * CELL_SIZE) as f64;
 const SCALE_FACTOR_Y: f64 = CANVAS_HEIGHT as f64 / (VIEW_HEIGHT * CELL_SIZE) as f64;
 const SCALE_FACTOR: f64 = if SCALE_FACTOR_X < SCALE_FACTOR_Y {
@@ -50,6 +47,7 @@ const BACKGROUND_COLOR: &str = "#000000"; // Black
 const TEXT_COLOR: &str = "#00FF00"; // Green terminal text
 const BORDER_COLOR: &str = "#00FF00"; // Green border
 
+/// WASM-specific game structure (separate from desktop Game)
 #[wasm_bindgen]
 pub struct WebGame {
     game: Game,
@@ -63,6 +61,7 @@ pub struct WebGame {
 }
 
 #[wasm_bindgen]
+/// WASM-specific implementation (independent of desktop versions)
 impl WebGame {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Result<WebGame, JsValue> {
@@ -125,6 +124,7 @@ impl WebGame {
         Ok(web_game)
     }
 
+    /// WASM-specific game start (separate from desktop start logic)
     #[wasm_bindgen]
     pub fn start_game(&mut self) -> Result<(), JsValue> {
         console::log_1(&"Starting visual dungeon crawler...".into());
@@ -549,34 +549,35 @@ impl WebGame {
         self.game.update_visibility();
     }
 
+    /// WASM-specific map rendering with camera following (independent of desktop)
     fn render_map(&mut self) -> Result<(), JsValue> {
         // Extract all needed data first to avoid borrowing issues
         let level_width = self.game.current_level().width as i32;
         let level_height = self.game.current_level().height as i32;
         let player_pos = self.game.player_position();
 
-        // Calculate camera center (like desktop version)
+        // WASM-specific camera system (can be modified independently of desktop)
         let center_x = VIEW_WIDTH / 2;
         let center_y = VIEW_HEIGHT / 2;
 
-        // Collect tile data using camera system
+        // WASM-specific tile collection with camera offset
         let mut tile_data = Vec::new();
         let mut enemy_positions = Vec::new();
         let mut item_positions = Vec::new();
 
         {
             let level = self.game.current_level();
-            // Render viewport centered on player
+            // WASM: Render viewport centered on player (independent camera system)
             for screen_y in 0..VIEW_HEIGHT {
                 for screen_x in 0..VIEW_WIDTH {
-                    // Calculate map coordinates by offsetting from player position (like desktop)
+                    // WASM: Calculate map coordinates with camera offset
                     let map_x = player_pos.x - center_x + screen_x;
                     let map_y = player_pos.y - center_y + screen_y;
 
-                    // Check bounds
+                    // WASM: Bounds checking for camera viewport
                     if map_x >= 0 && map_x < level_width && map_y >= 0 && map_y < level_height {
                         let tile = &level.tiles[map_y as usize][map_x as usize];
-                        // Store screen coordinates for rendering, but use map coordinates for tile data
+                        // WASM: Store screen coords for rendering, map coords for data
                         tile_data.push((
                             screen_x,
                             screen_y,
@@ -590,7 +591,7 @@ impl WebGame {
                 }
             }
 
-            // Collect entity positions relative to viewport
+            // WASM: Collect entity positions relative to camera viewport
             for (pos, _enemy) in &level.enemies {
                 let screen_x = pos.x - player_pos.x + center_x;
                 let screen_y = pos.y - player_pos.y + center_y;
@@ -609,12 +610,12 @@ impl WebGame {
             }
         }
 
-        // Now render everything using camera-relative coordinates
+        // WASM: Render everything using camera-relative coordinates
         for (screen_x, screen_y, map_x, map_y, visible, explored, tile_type) in tile_data {
             if visible {
                 self.render_tile(screen_x, screen_y, &tile_type)?;
 
-                // Render entities at this position (player is always at center)
+                // WASM: Render entities (player always centered in WASM version)
                 if player_pos.x == map_x && player_pos.y == map_y {
                     self.render_player(screen_x, screen_y)?;
                 } else if enemy_positions.contains(&(screen_x, screen_y)) {
