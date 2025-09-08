@@ -58,6 +58,9 @@ pub struct WebGame {
     pressed_keys: HashMap<String, bool>,
     last_key_time: f64,
     key_repeat_delay: f64,
+    animation_frame_id: Option<i32>,
+    last_movement_time: f64,
+    movement_repeat_rate: f64,
 }
 
 #[wasm_bindgen]
@@ -119,6 +122,9 @@ impl WebGame {
             pressed_keys: HashMap::new(),
             last_key_time: 0.0,
             key_repeat_delay: 150.0, // milliseconds
+            animation_frame_id: None,
+            last_movement_time: 0.0,
+            movement_repeat_rate: 120.0, // milliseconds between movement when holding key
         };
 
         Ok(web_game)
@@ -244,7 +250,8 @@ impl WebGame {
         let window = window().unwrap();
         let document = window.document().unwrap();
 
-        // Prevent default browser shortcuts
+        // Handle keydown events - set key state and start processing loop
+        let game_ptr1 = self as *mut WebGame;
         let keydown_closure = Closure::wrap(Box::new(move |event: KeyboardEvent| {
             let key = event.key();
 
@@ -257,6 +264,12 @@ impl WebGame {
                 }
                 _ => {}
             }
+
+            unsafe {
+                if let Some(game) = game_ptr1.as_mut() {
+                    let _ = game.handle_key_down(&key);
+                }
+            }
         }) as Box<dyn FnMut(_)>);
 
         document.add_event_listener_with_callback(
@@ -265,13 +278,13 @@ impl WebGame {
         )?;
         keydown_closure.forget();
 
-        // Handle key processing
-        let game_ptr = self as *mut WebGame;
+        // Handle keyup events - clear key state
+        let game_ptr2 = self as *mut WebGame;
         let keyup_closure = Closure::wrap(Box::new(move |event: KeyboardEvent| {
             let key = event.key();
             unsafe {
-                if let Some(game) = game_ptr.as_mut() {
-                    let _ = game.handle_key_input(&key);
+                if let Some(game) = game_ptr2.as_mut() {
+                    let _ = game.handle_key_up(&key);
                 }
             }
         }) as Box<dyn FnMut(_)>);
@@ -283,8 +296,42 @@ impl WebGame {
         Ok(())
     }
 
-    fn handle_key_input(&mut self, key: &str) -> Result<(), JsValue> {
-        // Prevent key repeat spam
+    fn handle_key_down(&mut self, key: &str) -> Result<(), JsValue> {
+        // Set key as pressed
+        self.pressed_keys.insert(key.to_string(), true);
+
+        // Handle non-movement keys immediately (single press actions)
+        match key {
+            "i" | "I" => self.handle_single_key_action(key)?,
+            "c" | "C" => self.handle_single_key_action(key)?,
+            "g" | "G" => self.handle_single_key_action(key)?,
+            "q" | "Q" => self.handle_single_key_action(key)?,
+            " " | "Enter" | "Escape" => self.handle_single_key_action(key)?,
+            _ => {}
+        }
+
+        // Start processing loop if not already running
+        if self.animation_frame_id.is_none() {
+            self.start_key_processing_loop()?;
+        }
+
+        Ok(())
+    }
+
+    fn handle_key_up(&mut self, key: &str) -> Result<(), JsValue> {
+        // Clear key state
+        self.pressed_keys.insert(key.to_string(), false);
+
+        // Stop processing loop if no keys are held
+        if !self.any_keys_pressed() {
+            self.stop_key_processing_loop();
+        }
+
+        Ok(())
+    }
+
+    fn handle_single_key_action(&mut self, key: &str) -> Result<(), JsValue> {
+        // Prevent key repeat spam for non-movement actions
         let now = js_sys::Date::now();
         if now - self.last_key_time < self.key_repeat_delay {
             return Ok(());
@@ -301,27 +348,79 @@ impl WebGame {
         }
     }
 
+    fn any_keys_pressed(&self) -> bool {
+        self.pressed_keys.values().any(|&pressed| pressed)
+    }
+
+    fn start_key_processing_loop(&mut self) -> Result<(), JsValue> {
+        let window = window().unwrap();
+        let game_ptr = self as *mut WebGame;
+
+        let closure = Closure::wrap(Box::new(move || unsafe {
+            if let Some(game) = game_ptr.as_mut() {
+                let _ = game.process_held_keys();
+            }
+        }) as Box<dyn FnMut()>);
+
+        let id = window.request_animation_frame(closure.as_ref().unchecked_ref())?;
+        self.animation_frame_id = Some(id);
+        closure.forget();
+
+        Ok(())
+    }
+
+    fn stop_key_processing_loop(&mut self) {
+        if let Some(id) = self.animation_frame_id.take() {
+            let window = window().unwrap();
+            window.cancel_animation_frame(id).ok();
+        }
+    }
+
+    fn process_held_keys(&mut self) -> Result<(), JsValue> {
+        let now = js_sys::Date::now();
+
+        // Process movement keys with their own timing
+        if now - self.last_movement_time >= self.movement_repeat_rate {
+            if matches!(self.game.game_state, GameState::Playing) {
+                if *self.pressed_keys.get("ArrowUp").unwrap_or(&false) {
+                    if self.game.move_player(0, -1) {
+                        self.process_movement()?;
+                    }
+                    self.last_movement_time = now;
+                } else if *self.pressed_keys.get("ArrowDown").unwrap_or(&false) {
+                    if self.game.move_player(0, 1) {
+                        self.process_movement()?;
+                    }
+                    self.last_movement_time = now;
+                } else if *self.pressed_keys.get("ArrowLeft").unwrap_or(&false) {
+                    if self.game.move_player(-1, 0) {
+                        self.process_movement()?;
+                    }
+                    self.last_movement_time = now;
+                } else if *self.pressed_keys.get("ArrowRight").unwrap_or(&false) {
+                    if self.game.move_player(1, 0) {
+                        self.process_movement()?;
+                    }
+                    self.last_movement_time = now;
+                }
+            }
+        }
+
+        // Continue the loop if keys are still pressed
+        if self.any_keys_pressed() {
+            self.start_key_processing_loop()?;
+        } else {
+            self.animation_frame_id = None;
+        }
+
+        Ok(())
+    }
+
     fn handle_gameplay_input(&mut self, key: &str) -> Result<(), JsValue> {
         match key {
-            "ArrowUp" => {
-                if self.game.move_player(0, -1) {
-                    self.process_movement()?;
-                }
-            }
-            "ArrowDown" => {
-                if self.game.move_player(0, 1) {
-                    self.process_movement()?;
-                }
-            }
-            "ArrowLeft" => {
-                if self.game.move_player(-1, 0) {
-                    self.process_movement()?;
-                }
-            }
-            "ArrowRight" => {
-                if self.game.move_player(1, 0) {
-                    self.process_movement()?;
-                }
+            // Movement keys are now handled by the continuous processing loop
+            "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight" => {
+                // Movement is handled in process_held_keys()
             }
             "i" | "I" => {
                 self.game.game_state = GameState::Inventory;
