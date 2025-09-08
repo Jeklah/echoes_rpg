@@ -147,6 +147,10 @@ impl WebGame {
         style.set_property("border", &format!("1px solid {}", BORDER_COLOR))?;
         style.set_property("background", BACKGROUND_COLOR)?;
         style.set_property("image-rendering", "pixelated")?;
+        style.set_property("max-width", "100%")?;
+        style.set_property("max-height", "100%")?;
+        style.set_property("height", "auto")?;
+        style.set_property("object-fit", "contain")?;
 
         Ok(canvas)
     }
@@ -166,9 +170,12 @@ impl WebGame {
 
         let style = map_area.dyn_ref::<HtmlElement>().unwrap().style();
         style.set_property("display", "flex")?;
-        style.set_property("gap", "5px")?;
-        style.set_property("flex-wrap", "wrap")?;
         style.set_property("justify-content", "center")?;
+        style.set_property("align-items", "center")?;
+        style.set_property("flex", "1")?;
+        style.set_property("min-height", "0")?;
+        style.set_property("overflow", "hidden")?;
+        style.set_property("width", "100%")?;
 
         Ok(map_area)
     }
