@@ -75,11 +75,15 @@ impl WebGame {
         container.append_child(&ui_panel)?;
         container.append_child(&message_area)?;
 
-        // Add container to main-content div instead of body
+        // Add container to main-content div if it's not already there
         let main_content = document
             .get_element_by_id("main-content")
             .ok_or("Could not find main-content element")?;
-        main_content.append_child(&container)?;
+
+        // Only append if container is not already a child of main-content
+        if container.parent_element().is_none() {
+            main_content.append_child(&container)?;
+        }
 
         // Create game instance with default player for now
         let player = Player::new("WebHero".to_string(), ClassType::Warrior);
@@ -110,6 +114,14 @@ impl WebGame {
     }
 
     fn create_game_container(document: &Document) -> Result<HtmlDivElement, JsValue> {
+        // Check if game-container already exists
+        if let Some(existing_container) = document.get_element_by_id("game-container") {
+            // Clear existing content and reuse the container
+            existing_container.set_inner_html("");
+            return existing_container.dyn_into::<HtmlDivElement>();
+        }
+
+        // Create new container if none exists
         let container = document
             .create_element("div")?
             .dyn_into::<HtmlDivElement>()?;
