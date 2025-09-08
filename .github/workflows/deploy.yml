@@ -3,7 +3,6 @@ on:
   push:
     branches:
       - wasm
-      - master # If your default branch is named something else, change this
 
 permissions:
   contents: read
