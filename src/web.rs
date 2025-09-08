@@ -16,8 +16,20 @@ use crate::world::{Position, TileType};
 const MAP_WIDTH: i32 = 50;
 const MAP_HEIGHT: i32 = 20;
 const CELL_SIZE: i32 = 10;
+const CANVAS_WIDTH: i32 = 800; // Large canvas width for scaling
+const CANVAS_HEIGHT: i32 = 600; // Large canvas height for scaling
 const UI_PANEL_WIDTH: i32 = 250;
 const MESSAGE_HEIGHT: i32 = 100;
+
+// Calculate scale factor to fill canvas
+const SCALE_FACTOR_X: f64 = CANVAS_WIDTH as f64 / (MAP_WIDTH * CELL_SIZE) as f64;
+const SCALE_FACTOR_Y: f64 = CANVAS_HEIGHT as f64 / (MAP_HEIGHT * CELL_SIZE) as f64;
+const SCALE_FACTOR: f64 = if SCALE_FACTOR_X < SCALE_FACTOR_Y {
+    SCALE_FACTOR_X
+} else {
+    SCALE_FACTOR_Y
+};
+const SCALED_CELL_SIZE: f64 = CELL_SIZE as f64 * SCALE_FACTOR;
 
 // Colors for different elements
 const PLAYER_COLOR: &str = "#FFD700"; // Gold
@@ -140,16 +152,15 @@ impl WebGame {
             .create_element("canvas")?
             .dyn_into::<HtmlCanvasElement>()?;
         canvas.set_id("game-canvas");
-        canvas.set_width((MAP_WIDTH * CELL_SIZE) as u32);
-        canvas.set_height((MAP_HEIGHT * CELL_SIZE) as u32);
+        canvas.set_width(CANVAS_WIDTH as u32);
+        canvas.set_height(CANVAS_HEIGHT as u32);
 
         let style = canvas.style();
         style.set_property("border", &format!("1px solid {}", BORDER_COLOR))?;
         style.set_property("background", BACKGROUND_COLOR)?;
         style.set_property("image-rendering", "pixelated")?;
-        style.set_property("max-width", "100%")?;
-        style.set_property("max-height", "100%")?;
-        style.set_property("height", "auto")?;
+        style.set_property("width", "95%")?;
+        style.set_property("height", "95%")?;
         style.set_property("object-fit", "contain")?;
 
         Ok(canvas)
@@ -524,12 +535,8 @@ impl WebGame {
     fn clear_canvas(&mut self) -> Result<(), JsValue> {
         self.context
             .set_fill_style(&wasm_bindgen::JsValue::from_str(BACKGROUND_COLOR));
-        self.context.fill_rect(
-            0.0,
-            0.0,
-            (MAP_WIDTH * CELL_SIZE) as f64,
-            (MAP_HEIGHT * CELL_SIZE) as f64,
-        );
+        self.context
+            .fill_rect(0.0, 0.0, CANVAS_WIDTH as f64, CANVAS_HEIGHT as f64);
         Ok(())
     }
 
@@ -603,10 +610,10 @@ impl WebGame {
         self.context
             .set_fill_style(&wasm_bindgen::JsValue::from_str(color));
         self.context.fill_rect(
-            (x * CELL_SIZE) as f64,
-            (y * CELL_SIZE) as f64,
-            CELL_SIZE as f64,
-            CELL_SIZE as f64,
+            (x as f64) * SCALED_CELL_SIZE,
+            (y as f64) * SCALED_CELL_SIZE,
+            SCALED_CELL_SIZE,
+            SCALED_CELL_SIZE,
         );
 
         Ok(())
@@ -616,10 +623,10 @@ impl WebGame {
         self.context
             .set_fill_style(&wasm_bindgen::JsValue::from_str(FOG_COLOR));
         self.context.fill_rect(
-            (x * CELL_SIZE) as f64,
-            (y * CELL_SIZE) as f64,
-            CELL_SIZE as f64,
-            CELL_SIZE as f64,
+            (x as f64) * SCALED_CELL_SIZE,
+            (y as f64) * SCALED_CELL_SIZE,
+            SCALED_CELL_SIZE,
+            SCALED_CELL_SIZE,
         );
         Ok(())
     }
@@ -628,21 +635,21 @@ impl WebGame {
         self.context
             .set_fill_style(&wasm_bindgen::JsValue::from_str(PLAYER_COLOR));
         self.context.fill_rect(
-            (x * CELL_SIZE) as f64,
-            (y * CELL_SIZE) as f64,
-            CELL_SIZE as f64,
-            CELL_SIZE as f64,
+            (x as f64) * SCALED_CELL_SIZE,
+            (y as f64) * SCALED_CELL_SIZE,
+            SCALED_CELL_SIZE,
+            SCALED_CELL_SIZE,
         );
 
         // Add @ symbol for player
         self.context
             .set_fill_style(&wasm_bindgen::JsValue::from_str("#000000"));
         self.context
-            .set_font(&format!("{}px monospace", CELL_SIZE - 2));
+            .set_font(&format!("{}px monospace", (SCALED_CELL_SIZE - 2.0) as i32));
         self.context.fill_text(
             "@",
-            (x * CELL_SIZE + 2) as f64,
-            (y * CELL_SIZE + CELL_SIZE - 2) as f64,
+            (x as f64) * SCALED_CELL_SIZE + 2.0,
+            (y as f64) * SCALED_CELL_SIZE + SCALED_CELL_SIZE - 2.0,
         )?;
 
         Ok(())
@@ -652,10 +659,10 @@ impl WebGame {
         self.context
             .set_fill_style(&wasm_bindgen::JsValue::from_str(ENEMY_COLOR));
         self.context.fill_rect(
-            (x * CELL_SIZE) as f64,
-            (y * CELL_SIZE) as f64,
-            CELL_SIZE as f64,
-            CELL_SIZE as f64,
+            (x as f64) * SCALED_CELL_SIZE,
+            (y as f64) * SCALED_CELL_SIZE,
+            SCALED_CELL_SIZE,
+            SCALED_CELL_SIZE,
         );
         Ok(())
     }
@@ -664,10 +671,10 @@ impl WebGame {
         self.context
             .set_fill_style(&wasm_bindgen::JsValue::from_str(ITEM_COLOR));
         self.context.fill_rect(
-            (x * CELL_SIZE) as f64,
-            (y * CELL_SIZE) as f64,
-            CELL_SIZE as f64,
-            CELL_SIZE as f64,
+            (x as f64) * SCALED_CELL_SIZE,
+            (y as f64) * SCALED_CELL_SIZE,
+            SCALED_CELL_SIZE,
+            SCALED_CELL_SIZE,
         );
         Ok(())
     }
