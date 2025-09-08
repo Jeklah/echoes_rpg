@@ -180,9 +180,8 @@ impl WebGame {
         panel.set_id("ui-panel");
 
         let style = panel.dyn_ref::<HtmlElement>().unwrap().style();
-        style.set_property("min-width", "200px")?;
-        style.set_property("max-width", "300px")?;
-        style.set_property("flex", "1")?;
+        style.set_property("width", "100%")?;
+        style.set_property("height", "120px")?;
         style.set_property("background", "rgba(0, 20, 0, 0.8)")?;
         style.set_property("border", &format!("1px solid {}", BORDER_COLOR))?;
         style.set_property("padding", "8px")?;
@@ -190,7 +189,8 @@ impl WebGame {
         style.set_property("font-size", "11px")?;
         style.set_property("font-family", "'Courier New', monospace")?;
         style.set_property("overflow-y", "auto")?;
-        style.set_property("white-space", "pre-wrap")?;
+        style.set_property("display", "flex")?;
+        style.set_property("flex-direction", "column")?;
 
         Ok(panel)
     }
@@ -670,28 +670,20 @@ impl WebGame {
         let dungeon = self.game.current_dungeon();
 
         let ui_content = format!(
-            "<div style='color: {}; font-family: monospace;'>
-                <div style='font-size: 14px; margin-bottom: 10px; text-align: center;'>HERO STATUS</div>
-                <div>Name: {}</div>
-                <div>Level: {}</div>
-                <div>Health: {}/{}</div>
-                <div>Experience: {}</div>
-                <div>Gold: {}</div>
-                <div style='margin-top: 15px;'>
-                    <div style='font-size: 12px; margin-bottom: 5px;'>DUNGEON INFO</div>
-                    <div>Floor: {}</div>
-                    <div>Type: {:?}</div>
+            "<div style='color: {}; font-family: monospace; height: 100%; display: flex; flex-direction: column;'>
+                <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid {}; padding-bottom: 4px;'>
+                    <div style='font-weight: bold;'>{} (Lv.{}) | HP: {}/{}</div>
+                    <div>XP: {} | Gold: {}</div>
+                    <div>Floor: {} ({:?})</div>
                 </div>
-                <div style='margin-top: 15px;'>
-                    <div style='font-size: 12px; margin-bottom: 5px;'>CONTROLS</div>
-                    <div>↑↓←→ Move</div>
-                    <div>I - Inventory</div>
-                    <div>C - Character</div>
-                    <div>G - Get Item</div>
-                    <div>Q - Quit</div>
+                <div style='display: flex; justify-content: space-between; flex: 1; align-items: center;'>
+                    <div style='font-size: 10px;'>
+                        <div>↑↓←→ Move | I-Inv | C-Char | G-Get | Q-Quit</div>
+                    </div>
                 </div>
             </div>",
             TEXT_COLOR,
+            BORDER_COLOR,
             player.name,
             player.level,
             player.health,
