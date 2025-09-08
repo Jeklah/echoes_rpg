@@ -297,17 +297,29 @@ impl WebGame {
     }
 
     fn handle_key_down(&mut self, key: &str) -> Result<(), JsValue> {
+        console::log_2(&"Key down:".into(), &key.into());
+
         // Set key as pressed
         self.pressed_keys.insert(key.to_string(), true);
 
-        // Handle non-movement keys immediately (single press actions)
+        // Handle movement keys immediately for first press
         match key {
-            "i" | "I" => self.handle_single_key_action(key)?,
-            "c" | "C" => self.handle_single_key_action(key)?,
-            "g" | "G" => self.handle_single_key_action(key)?,
-            "q" | "Q" => self.handle_single_key_action(key)?,
-            " " | "Enter" | "Escape" => self.handle_single_key_action(key)?,
-            _ => {}
+            "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight" => {
+                console::log_2(&"Movement key detected:".into(), &key.into());
+                if matches!(self.game.game_state, GameState::Playing) {
+                    console::log_1(&"Game state is Playing, handling movement".into());
+                    self.handle_immediate_movement(key)?;
+                }
+            }
+            // Menu keys, action keys, and navigation keys
+            "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "0" | "i" | "I" | "c" | "C"
+            | "g" | "G" | "q" | "Q" | "f" | "F" | " " | "Enter" | "Escape" => {
+                console::log_2(&"Action key detected:".into(), &key.into());
+                self.handle_single_key_action(key)?;
+            }
+            _ => {
+                console::log_2(&"Unknown key:".into(), &key.into());
+            }
         }
 
         // Start processing loop if not already running
@@ -319,14 +331,50 @@ impl WebGame {
     }
 
     fn handle_key_up(&mut self, key: &str) -> Result<(), JsValue> {
+        console::log_2(&"Key up:".into(), &key.into());
+
         // Clear key state
         self.pressed_keys.insert(key.to_string(), false);
 
         // Stop processing loop if no keys are held
         if !self.any_keys_pressed() {
+            console::log_1(&"No keys pressed, stopping loop".into());
             self.stop_key_processing_loop();
         }
 
+        Ok(())
+    }
+
+    fn handle_immediate_movement(&mut self, key: &str) -> Result<(), JsValue> {
+        console::log_2(&"Handling immediate movement:".into(), &key.into());
+
+        let moved = match key {
+            "ArrowUp" => {
+                console::log_1(&"Moving up".into());
+                self.game.move_player(0, -1)
+            }
+            "ArrowDown" => {
+                console::log_1(&"Moving down".into());
+                self.game.move_player(0, 1)
+            }
+            "ArrowLeft" => {
+                console::log_1(&"Moving left".into());
+                self.game.move_player(-1, 0)
+            }
+            "ArrowRight" => {
+                console::log_1(&"Moving right".into());
+                self.game.move_player(1, 0)
+            }
+            _ => false,
+        };
+
+        if moved {
+            console::log_1(&"Player moved successfully".into());
+            self.process_movement()?;
+            self.last_movement_time = js_sys::Date::now();
+        } else {
+            console::log_1(&"Player movement failed".into());
+        }
         Ok(())
     }
 
@@ -382,25 +430,32 @@ impl WebGame {
         // Process movement keys with their own timing
         if now - self.last_movement_time >= self.movement_repeat_rate {
             if matches!(self.game.game_state, GameState::Playing) {
+                let mut moved = false;
+
+                // Check each direction independently (allows multiple directions)
                 if *self.pressed_keys.get("ArrowUp").unwrap_or(&false) {
                     if self.game.move_player(0, -1) {
-                        self.process_movement()?;
+                        moved = true;
                     }
-                    self.last_movement_time = now;
-                } else if *self.pressed_keys.get("ArrowDown").unwrap_or(&false) {
+                }
+                if *self.pressed_keys.get("ArrowDown").unwrap_or(&false) {
                     if self.game.move_player(0, 1) {
-                        self.process_movement()?;
+                        moved = true;
                     }
-                    self.last_movement_time = now;
-                } else if *self.pressed_keys.get("ArrowLeft").unwrap_or(&false) {
+                }
+                if *self.pressed_keys.get("ArrowLeft").unwrap_or(&false) {
                     if self.game.move_player(-1, 0) {
-                        self.process_movement()?;
+                        moved = true;
                     }
-                    self.last_movement_time = now;
-                } else if *self.pressed_keys.get("ArrowRight").unwrap_or(&false) {
+                }
+                if *self.pressed_keys.get("ArrowRight").unwrap_or(&false) {
                     if self.game.move_player(1, 0) {
-                        self.process_movement()?;
+                        moved = true;
                     }
+                }
+
+                if moved {
+                    self.process_movement()?;
                     self.last_movement_time = now;
                 }
             }
