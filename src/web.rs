@@ -13,17 +13,22 @@ use crate::inventory::InventoryManager;
 use crate::world::{Position, TileType};
 
 // Game display constants - responsive sizing
-const MAP_WIDTH: i32 = 50;
-const MAP_HEIGHT: i32 = 20;
+// Camera viewport constants (like desktop version)
+const VIEW_WIDTH: i32 = 50; // Number of tiles visible horizontally
+const VIEW_HEIGHT: i32 = 20; // Number of tiles visible vertically
 const CELL_SIZE: i32 = 10;
 const CANVAS_WIDTH: i32 = 800; // Large canvas width for scaling
 const CANVAS_HEIGHT: i32 = 600; // Large canvas height for scaling
+
+// Legacy constants for compatibility
+const MAP_WIDTH: i32 = VIEW_WIDTH;
+const MAP_HEIGHT: i32 = VIEW_HEIGHT;
 const UI_PANEL_WIDTH: i32 = 250;
 const MESSAGE_HEIGHT: i32 = 100;
 
 // Calculate scale factor to fill canvas
-const SCALE_FACTOR_X: f64 = CANVAS_WIDTH as f64 / (MAP_WIDTH * CELL_SIZE) as f64;
-const SCALE_FACTOR_Y: f64 = CANVAS_HEIGHT as f64 / (MAP_HEIGHT * CELL_SIZE) as f64;
+const SCALE_FACTOR_X: f64 = CANVAS_WIDTH as f64 / (VIEW_WIDTH * CELL_SIZE) as f64;
+const SCALE_FACTOR_Y: f64 = CANVAS_HEIGHT as f64 / (VIEW_HEIGHT * CELL_SIZE) as f64;
 const SCALE_FACTOR: f64 = if SCALE_FACTOR_X < SCALE_FACTOR_Y {
     SCALE_FACTOR_X
 } else {
@@ -550,46 +555,75 @@ impl WebGame {
         let level_height = self.game.current_level().height as i32;
         let player_pos = self.game.player_position();
 
-        // Collect tile data
+        // Calculate camera center (like desktop version)
+        let center_x = VIEW_WIDTH / 2;
+        let center_y = VIEW_HEIGHT / 2;
+
+        // Collect tile data using camera system
         let mut tile_data = Vec::new();
         let mut enemy_positions = Vec::new();
         let mut item_positions = Vec::new();
 
         {
             let level = self.game.current_level();
-            for y in 0..MAP_HEIGHT {
-                for x in 0..MAP_WIDTH {
-                    if x < level_width && y < level_height {
-                        let tile = &level.tiles[y as usize][x as usize];
-                        tile_data.push((x, y, tile.visible, tile.explored, tile.tile_type.clone()));
+            // Render viewport centered on player
+            for screen_y in 0..VIEW_HEIGHT {
+                for screen_x in 0..VIEW_WIDTH {
+                    // Calculate map coordinates by offsetting from player position (like desktop)
+                    let map_x = player_pos.x - center_x + screen_x;
+                    let map_y = player_pos.y - center_y + screen_y;
+
+                    // Check bounds
+                    if map_x >= 0 && map_x < level_width && map_y >= 0 && map_y < level_height {
+                        let tile = &level.tiles[map_y as usize][map_x as usize];
+                        // Store screen coordinates for rendering, but use map coordinates for tile data
+                        tile_data.push((
+                            screen_x,
+                            screen_y,
+                            map_x,
+                            map_y,
+                            tile.visible,
+                            tile.explored,
+                            tile.tile_type.clone(),
+                        ));
                     }
                 }
             }
 
-            // Collect entity positions
+            // Collect entity positions relative to viewport
             for (pos, _enemy) in &level.enemies {
-                enemy_positions.push((pos.x, pos.y));
+                let screen_x = pos.x - player_pos.x + center_x;
+                let screen_y = pos.y - player_pos.y + center_y;
+                if screen_x >= 0 && screen_x < VIEW_WIDTH && screen_y >= 0 && screen_y < VIEW_HEIGHT
+                {
+                    enemy_positions.push((screen_x, screen_y));
+                }
             }
             for (pos, _item) in &level.items {
-                item_positions.push((pos.x, pos.y));
+                let screen_x = pos.x - player_pos.x + center_x;
+                let screen_y = pos.y - player_pos.y + center_y;
+                if screen_x >= 0 && screen_x < VIEW_WIDTH && screen_y >= 0 && screen_y < VIEW_HEIGHT
+                {
+                    item_positions.push((screen_x, screen_y));
+                }
             }
         }
 
-        // Now render everything
-        for (x, y, visible, explored, tile_type) in tile_data {
+        // Now render everything using camera-relative coordinates
+        for (screen_x, screen_y, map_x, map_y, visible, explored, tile_type) in tile_data {
             if visible {
-                self.render_tile(x, y, &tile_type)?;
+                self.render_tile(screen_x, screen_y, &tile_type)?;
 
-                // Render entities at this position
-                if player_pos.x == x && player_pos.y == y {
-                    self.render_player(x, y)?;
-                } else if enemy_positions.contains(&(x, y)) {
-                    self.render_enemy(x, y)?;
-                } else if item_positions.contains(&(x, y)) {
-                    self.render_item(x, y)?;
+                // Render entities at this position (player is always at center)
+                if player_pos.x == map_x && player_pos.y == map_y {
+                    self.render_player(screen_x, screen_y)?;
+                } else if enemy_positions.contains(&(screen_x, screen_y)) {
+                    self.render_enemy(screen_x, screen_y)?;
+                } else if item_positions.contains(&(screen_x, screen_y)) {
+                    self.render_item(screen_x, screen_y)?;
                 }
             } else if explored {
-                self.render_fog_tile(x, y)?;
+                self.render_fog_tile(screen_x, screen_y)?;
             }
         }
 
