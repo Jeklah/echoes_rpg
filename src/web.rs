@@ -58,7 +58,7 @@ pub struct WebGame {
     pressed_keys: HashMap<String, bool>,
     last_key_time: f64,
     key_repeat_delay: f64,
-    animation_frame_id: Option<i32>,
+    key_repeat_timeout: Option<i32>,
     last_movement_time: f64,
     movement_repeat_rate: f64,
 }
@@ -122,7 +122,7 @@ impl WebGame {
             pressed_keys: HashMap::new(),
             last_key_time: 0.0,
             key_repeat_delay: 150.0, // milliseconds
-            animation_frame_id: None,
+            key_repeat_timeout: None,
             last_movement_time: 0.0,
             movement_repeat_rate: 120.0, // milliseconds between movement when holding key
         };
@@ -302,13 +302,15 @@ impl WebGame {
         // Set key as pressed
         self.pressed_keys.insert(key.to_string(), true);
 
-        // Handle movement keys immediately for first press
+        // Handle all keys immediately
         match key {
             "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight" => {
                 console::log_2(&"Movement key detected:".into(), &key.into());
                 if matches!(self.game.game_state, GameState::Playing) {
                     console::log_1(&"Game state is Playing, handling movement".into());
                     self.handle_immediate_movement(key)?;
+                    // Start simple repeat timer for movement
+                    self.start_simple_repeat_timer()?;
                 }
             }
             // Menu keys, action keys, and navigation keys
@@ -322,11 +324,6 @@ impl WebGame {
             }
         }
 
-        // Start processing loop if not already running
-        if self.animation_frame_id.is_none() {
-            self.start_key_processing_loop()?;
-        }
-
         Ok(())
     }
 
@@ -336,10 +333,10 @@ impl WebGame {
         // Clear key state
         self.pressed_keys.insert(key.to_string(), false);
 
-        // Stop processing loop if no keys are held
-        if !self.any_keys_pressed() {
-            console::log_1(&"No keys pressed, stopping loop".into());
-            self.stop_key_processing_loop();
+        // Stop repeat timer if no movement keys are held
+        if !self.any_movement_keys_pressed() {
+            console::log_1(&"No movement keys pressed, stopping timer".into());
+            self.stop_repeat_timer();
         }
 
         Ok(())
@@ -379,20 +376,49 @@ impl WebGame {
     }
 
     fn handle_single_key_action(&mut self, key: &str) -> Result<(), JsValue> {
+        console::log_2(&"handle_single_key_action called with:".into(), &key.into());
+
         // Prevent key repeat spam for non-movement actions
         let now = js_sys::Date::now();
-        if now - self.last_key_time < self.key_repeat_delay {
+        let time_since_last = now - self.last_key_time;
+        console::log_2(&"Time since last key:".into(), &time_since_last.into());
+
+        if time_since_last < self.key_repeat_delay {
+            console::log_1(&"Key blocked by repeat delay".into());
             return Ok(());
         }
         self.last_key_time = now;
 
+        console::log_2(
+            &"Current game state:".into(),
+            &format!("{:?}", self.game.game_state).into(),
+        );
+
         match self.game.game_state.clone() {
-            GameState::Playing => self.handle_gameplay_input(key),
-            GameState::MainMenu => self.handle_menu_input(key),
-            GameState::Inventory => self.handle_inventory_input(key),
-            GameState::Character => self.handle_character_input(key),
-            GameState::Combat(pos) => self.handle_combat_input(key, pos),
-            _ => Ok(()),
+            GameState::Playing => {
+                console::log_1(&"Calling handle_gameplay_input".into());
+                self.handle_gameplay_input(key)
+            }
+            GameState::MainMenu => {
+                console::log_1(&"Calling handle_menu_input".into());
+                self.handle_menu_input(key)
+            }
+            GameState::Inventory => {
+                console::log_1(&"Calling handle_inventory_input".into());
+                self.handle_inventory_input(key)
+            }
+            GameState::Character => {
+                console::log_1(&"Calling handle_character_input".into());
+                self.handle_character_input(key)
+            }
+            GameState::Combat(pos) => {
+                console::log_1(&"Calling handle_combat_input".into());
+                self.handle_combat_input(key, pos)
+            }
+            _ => {
+                console::log_1(&"Unknown game state, ignoring key".into());
+                Ok(())
+            }
         }
     }
 
@@ -400,72 +426,83 @@ impl WebGame {
         self.pressed_keys.values().any(|&pressed| pressed)
     }
 
-    fn start_key_processing_loop(&mut self) -> Result<(), JsValue> {
+    fn any_movement_keys_pressed(&self) -> bool {
+        ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]
+            .iter()
+            .any(|&key| *self.pressed_keys.get(key).unwrap_or(&false))
+    }
+
+    fn start_simple_repeat_timer(&mut self) -> Result<(), JsValue> {
+        // Only start if not already running
+        if self.key_repeat_timeout.is_some() {
+            return Ok(());
+        }
+
         let window = window().unwrap();
         let game_ptr = self as *mut WebGame;
 
         let closure = Closure::wrap(Box::new(move || unsafe {
             if let Some(game) = game_ptr.as_mut() {
-                let _ = game.process_held_keys();
+                let _ = game.process_movement_repeat();
             }
         }) as Box<dyn FnMut()>);
 
-        let id = window.request_animation_frame(closure.as_ref().unchecked_ref())?;
-        self.animation_frame_id = Some(id);
+        let id = window.set_timeout_with_callback_and_timeout_and_arguments_0(
+            closure.as_ref().unchecked_ref(),
+            self.movement_repeat_rate as i32,
+        )?;
+        self.key_repeat_timeout = Some(id);
         closure.forget();
 
         Ok(())
     }
 
-    fn stop_key_processing_loop(&mut self) {
-        if let Some(id) = self.animation_frame_id.take() {
+    fn stop_repeat_timer(&mut self) {
+        if let Some(id) = self.key_repeat_timeout.take() {
             let window = window().unwrap();
-            window.cancel_animation_frame(id).ok();
+            window.clear_timeout_with_handle(id);
         }
     }
 
-    fn process_held_keys(&mut self) -> Result<(), JsValue> {
-        let now = js_sys::Date::now();
+    fn process_movement_repeat(&mut self) -> Result<(), JsValue> {
+        self.key_repeat_timeout = None;
 
-        // Process movement keys with their own timing
-        if now - self.last_movement_time >= self.movement_repeat_rate {
-            if matches!(self.game.game_state, GameState::Playing) {
-                let mut moved = false;
+        if !matches!(self.game.game_state, GameState::Playing) {
+            return Ok(());
+        }
 
-                // Check each direction independently (allows multiple directions)
-                if *self.pressed_keys.get("ArrowUp").unwrap_or(&false) {
-                    if self.game.move_player(0, -1) {
-                        moved = true;
-                    }
-                }
-                if *self.pressed_keys.get("ArrowDown").unwrap_or(&false) {
-                    if self.game.move_player(0, 1) {
-                        moved = true;
-                    }
-                }
-                if *self.pressed_keys.get("ArrowLeft").unwrap_or(&false) {
-                    if self.game.move_player(-1, 0) {
-                        moved = true;
-                    }
-                }
-                if *self.pressed_keys.get("ArrowRight").unwrap_or(&false) {
-                    if self.game.move_player(1, 0) {
-                        moved = true;
-                    }
-                }
+        let mut moved = false;
 
-                if moved {
-                    self.process_movement()?;
-                    self.last_movement_time = now;
-                }
+        // Check each direction independently
+        if *self.pressed_keys.get("ArrowUp").unwrap_or(&false) {
+            if self.game.move_player(0, -1) {
+                moved = true;
+            }
+        }
+        if *self.pressed_keys.get("ArrowDown").unwrap_or(&false) {
+            if self.game.move_player(0, 1) {
+                moved = true;
+            }
+        }
+        if *self.pressed_keys.get("ArrowLeft").unwrap_or(&false) {
+            if self.game.move_player(-1, 0) {
+                moved = true;
+            }
+        }
+        if *self.pressed_keys.get("ArrowRight").unwrap_or(&false) {
+            if self.game.move_player(1, 0) {
+                moved = true;
             }
         }
 
-        // Continue the loop if keys are still pressed
-        if self.any_keys_pressed() {
-            self.start_key_processing_loop()?;
-        } else {
-            self.animation_frame_id = None;
+        if moved {
+            self.process_movement()?;
+            self.last_movement_time = js_sys::Date::now();
+        }
+
+        // Continue timer if movement keys are still pressed
+        if self.any_movement_keys_pressed() {
+            self.start_simple_repeat_timer()?;
         }
 
         Ok(())
@@ -501,8 +538,10 @@ impl WebGame {
     }
 
     fn handle_menu_input(&mut self, key: &str) -> Result<(), JsValue> {
+        console::log_2(&"Menu input received:".into(), &key.into());
         match key {
             "1" => {
+                console::log_1(&"Starting new game...".into());
                 self.start_new_game()?;
             }
             "2" => {
@@ -613,15 +652,22 @@ impl WebGame {
     }
 
     fn start_new_game(&mut self) -> Result<(), JsValue> {
+        console::log_1(&"start_new_game() called".into());
         // For now, start with a simple character creation
         // In full implementation, this would show character creation screen
         let player = Player::new("Hero".to_string(), ClassType::Warrior);
+        console::log_1(&"Player created".into());
         self.game = Game::new(player);
+        console::log_1(&"Game created".into());
         self.game.game_state = GameState::Playing;
+        console::log_1(&"Game state set to Playing".into());
 
         self.add_message("Welcome to the dungeon! Use arrow keys to move.");
         self.add_message("Press 'i' for inventory, 'c' for character, 'g' to get items.");
-        self.render_game()
+        console::log_1(&"Messages added, rendering game...".into());
+        let result = self.render_game();
+        console::log_1(&"Render complete".into());
+        result
     }
 
     fn show_instructions(&mut self) -> Result<(), JsValue> {
