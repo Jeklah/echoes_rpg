@@ -50,6 +50,7 @@
                 flex-direction: column;
                 overflow: hidden;
                 padding: 10px;
+                min-height: 0; /* Allows flex child to shrink */
             }
 
             #loading-container {
@@ -65,6 +66,7 @@
                 margin: 0 auto;
                 max-width: 900px;
                 width: 100%;
+                min-height: 400px; /* Ensure minimum height */
             }
 
             #game-container {
@@ -80,6 +82,7 @@
                 max-width: 900px;
                 width: 100%;
                 overflow: hidden;
+                min-height: 400px; /* Ensure minimum height */
             }
 
             .loading {
@@ -188,7 +191,7 @@
             <p>A Cross-Platform Text Adventure - Web Edition</p>
         </div>
 
-        <div class="main-content">
+        <div class="main-content" id="main-content">
             <div id="loading-container">
                 <div id="loading" class="loading">Loading game...</div>
 
@@ -217,7 +220,7 @@
                     console.log("Initializing WASM module...");
                     await init();
 
-                    // Hide loading container - WASM will create the game interface
+                    // Hide loading container - WASM will create game interface in main-content
                     document.getElementById("loading-container").style.display =
                         "none";
 
