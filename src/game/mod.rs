@@ -171,13 +171,8 @@ impl Game {
                             // Inventory full, can't loot the chest
                             return false;
                         }
-                        // Remove the item and replace the chest with a floor tile
+                        // Remove the item
                         self.current_level_mut().remove_item_at(&new_pos);
-                        if let Some(tile) =
-                            self.current_level_mut().get_tile_mut(new_pos.x, new_pos.y)
-                        {
-                            *tile = Tile::floor();
-                        }
 
                         // This is auto-looting by walking into a chest
                         // We don't directly add a message here because the move_player method
@@ -185,7 +180,15 @@ impl Game {
                         #[cfg(debug_assertions)]
                         println!("DEBUG: Auto-looted chest at {new_pos:?}, found {item_name}");
                     }
-                    return true;
+
+                    // Always replace the chest with a floor tile (whether it had loot or not)
+                    if let Some(tile) = self.current_level_mut().get_tile_mut(new_pos.x, new_pos.y)
+                    {
+                        *tile = Tile::floor();
+                    }
+
+                    // Don't return early - let the player move to the chest position
+                    // after it's been converted to a floor tile
                 }
                 _ => {}
             }
