@@ -61,6 +61,8 @@ pub struct WebGame {
     key_repeat_timeout: Option<i32>,
     last_movement_time: f64,
     movement_repeat_rate: f64,
+    max_consecutive_movements: u32,
+    consecutive_movement_count: u32,
 }
 
 #[wasm_bindgen]
@@ -125,6 +127,8 @@ impl WebGame {
             key_repeat_timeout: None,
             last_movement_time: 0.0,
             movement_repeat_rate: 120.0, // milliseconds between movement when holding key
+            max_consecutive_movements: 50, // Prevent infinite timer loops
+            consecutive_movement_count: 0,
         };
 
         Ok(web_game)
@@ -267,7 +271,10 @@ impl WebGame {
 
             unsafe {
                 if let Some(game) = game_ptr1.as_mut() {
-                    let _ = game.handle_key_down(&key);
+                    if let Err(e) = game.handle_key_down(&key) {
+                        console::log_2(&"Error in key down handler:".into(), &e);
+                        game.clear_all_key_states();
+                    }
                 }
             }
         }) as Box<dyn FnMut(_)>);
@@ -284,7 +291,10 @@ impl WebGame {
             let key = event.key();
             unsafe {
                 if let Some(game) = game_ptr2.as_mut() {
-                    let _ = game.handle_key_up(&key);
+                    if let Err(e) = game.handle_key_up(&key) {
+                        console::log_2(&"Error in key up handler:".into(), &e);
+                        game.clear_all_key_states();
+                    }
                 }
             }
         }) as Box<dyn FnMut(_)>);
@@ -339,11 +349,21 @@ impl WebGame {
             self.stop_repeat_timer();
         }
 
+        // Periodic cleanup
+        let _ = self.cleanup_stuck_state();
+
         Ok(())
     }
 
     fn handle_immediate_movement(&mut self, key: &str) -> Result<(), JsValue> {
         console::log_2(&"Handling immediate movement:".into(), &key.into());
+
+        // Rate limit movement to prevent overwhelming the system
+        let now = js_sys::Date::now();
+        if now - self.last_movement_time < 50.0 {
+            console::log_1(&"Movement rate limited".into());
+            return Ok(());
+        }
 
         let moved = match key {
             "ArrowUp" => {
@@ -368,7 +388,8 @@ impl WebGame {
         if moved {
             console::log_1(&"Player moved successfully".into());
             self.process_movement()?;
-            self.last_movement_time = js_sys::Date::now();
+            self.last_movement_time = now;
+            self.consecutive_movement_count = 0; // Reset counter on successful movement
         } else {
             console::log_1(&"Player movement failed".into());
         }
@@ -432,9 +453,24 @@ impl WebGame {
             .any(|&key| *self.pressed_keys.get(key).unwrap_or(&false))
     }
 
+    fn clear_all_key_states(&mut self) {
+        // Clear all key states to prevent stuck keys
+        for key in ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].iter() {
+            self.pressed_keys.insert(key.to_string(), false);
+        }
+        self.stop_repeat_timer();
+    }
+
     fn start_simple_repeat_timer(&mut self) -> Result<(), JsValue> {
         // Only start if not already running
         if self.key_repeat_timeout.is_some() {
+            return Ok(());
+        }
+
+        // Prevent infinite timer loops by limiting consecutive movements
+        if self.consecutive_movement_count >= self.max_consecutive_movements {
+            console::log_1(&"Movement timer limit reached, stopping timer".into());
+            self.consecutive_movement_count = 0;
             return Ok(());
         }
 
@@ -443,53 +479,84 @@ impl WebGame {
 
         let closure = Closure::wrap(Box::new(move || unsafe {
             if let Some(game) = game_ptr.as_mut() {
-                let _ = game.process_movement_repeat();
+                if let Err(e) = game.process_movement_repeat() {
+                    console::log_2(&"Error in movement repeat:".into(), &e);
+                    // Clear key states on error to prevent infinite loops
+                    game.clear_all_key_states();
+                }
             }
         }) as Box<dyn FnMut()>);
 
-        let id = window.set_timeout_with_callback_and_timeout_and_arguments_0(
+        match window.set_timeout_with_callback_and_timeout_and_arguments_0(
             closure.as_ref().unchecked_ref(),
             self.movement_repeat_rate as i32,
-        )?;
-        self.key_repeat_timeout = Some(id);
-        closure.forget();
-
-        Ok(())
+        ) {
+            Ok(id) => {
+                self.key_repeat_timeout = Some(id);
+                closure.forget();
+                Ok(())
+            }
+            Err(e) => {
+                console::log_2(&"Failed to set movement timer:".into(), &e);
+                self.clear_all_key_states();
+                Err(e)
+            }
+        }
     }
 
     fn stop_repeat_timer(&mut self) {
         if let Some(id) = self.key_repeat_timeout.take() {
-            let window = window().unwrap();
-            window.clear_timeout_with_handle(id);
+            if let Some(window) = window() {
+                window.clear_timeout_with_handle(id);
+            }
         }
+        // Reset the consecutive movement counter when stopping
+        self.consecutive_movement_count = 0;
     }
 
     fn process_movement_repeat(&mut self) -> Result<(), JsValue> {
         self.key_repeat_timeout = None;
+        self.consecutive_movement_count += 1;
 
         if !matches!(self.game.game_state, GameState::Playing) {
+            console::log_1(&"Game state not Playing, stopping repeat".into());
+            self.consecutive_movement_count = 0;
+            return Ok(());
+        }
+
+        // Rate limiting for repeated movement
+        let now = js_sys::Date::now();
+        if now - self.last_movement_time < 80.0 {
+            // Still continue timer but skip this movement
+            if self.any_movement_keys_pressed()
+                && self.consecutive_movement_count < self.max_consecutive_movements
+            {
+                self.start_simple_repeat_timer()?;
+            }
             return Ok(());
         }
 
         let mut moved = false;
+        let mut movement_attempted = false;
 
-        // Check each direction independently
+        // Only process one direction at a time to avoid conflicts
         if *self.pressed_keys.get("ArrowUp").unwrap_or(&false) {
+            movement_attempted = true;
             if self.game.move_player(0, -1) {
                 moved = true;
             }
-        }
-        if *self.pressed_keys.get("ArrowDown").unwrap_or(&false) {
+        } else if *self.pressed_keys.get("ArrowDown").unwrap_or(&false) {
+            movement_attempted = true;
             if self.game.move_player(0, 1) {
                 moved = true;
             }
-        }
-        if *self.pressed_keys.get("ArrowLeft").unwrap_or(&false) {
+        } else if *self.pressed_keys.get("ArrowLeft").unwrap_or(&false) {
+            movement_attempted = true;
             if self.game.move_player(-1, 0) {
                 moved = true;
             }
-        }
-        if *self.pressed_keys.get("ArrowRight").unwrap_or(&false) {
+        } else if *self.pressed_keys.get("ArrowRight").unwrap_or(&false) {
+            movement_attempted = true;
             if self.game.move_player(1, 0) {
                 moved = true;
             }
@@ -497,12 +564,38 @@ impl WebGame {
 
         if moved {
             self.process_movement()?;
-            self.last_movement_time = js_sys::Date::now();
+            self.last_movement_time = now;
         }
 
-        // Continue timer if movement keys are still pressed
-        if self.any_movement_keys_pressed() {
+        // Continue timer if movement keys are still pressed, but with safety limits
+        if self.any_movement_keys_pressed()
+            && self.consecutive_movement_count < self.max_consecutive_movements
+            && movement_attempted
+        {
             self.start_simple_repeat_timer()?;
+        } else if self.consecutive_movement_count >= self.max_consecutive_movements {
+            console::log_1(&"Maximum consecutive movements reached, resetting timer".into());
+            self.consecutive_movement_count = 0;
+        }
+
+        Ok(())
+    }
+
+    // Add a safety mechanism to periodically clean up stuck state
+    fn cleanup_stuck_state(&mut self) -> Result<(), JsValue> {
+        let now = js_sys::Date::now();
+
+        // If it's been too long since last movement and we have pressed keys, clear them
+        if now - self.last_movement_time > 5000.0 && self.any_movement_keys_pressed() {
+            console::log_1(&"Cleaning up stuck key states".into());
+            self.clear_all_key_states();
+        }
+
+        // If consecutive count is too high, reset it
+        if self.consecutive_movement_count > self.max_consecutive_movements + 10 {
+            console::log_1(&"Resetting stuck consecutive movement counter".into());
+            self.consecutive_movement_count = 0;
+            self.stop_repeat_timer();
         }
 
         Ok(())
