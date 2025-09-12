@@ -258,11 +258,13 @@ impl Game {
             static mut LAST_VISIBILITY_UPDATE: f64 = 0.0;
             let now = js_sys::Date::now();
             unsafe {
-                if now - LAST_VISIBILITY_UPDATE < 50.0 {
-                    // Skip update if called too frequently
+                if now - LAST_VISIBILITY_UPDATE < 16.0 {
+                    // Skip update if called too frequently (60 FPS limit)
+                    console::log_1(&"Visibility update skipped due to rate limiting".into());
                     return;
                 }
                 LAST_VISIBILITY_UPDATE = now;
+                console::log_1(&"Starting visibility update".into());
             }
         }
 
@@ -296,14 +298,18 @@ impl Game {
             for tile in row {
                 *tile = false;
                 tiles_cleared += 1;
-                // WASM: Yield control periodically during large operations
-                #[cfg(target_arch = "wasm32")]
-                {
-                    if tiles_cleared % 1000 == 0 && tiles_cleared > 0 && !is_first_update {
-                        // Allow browser to process other events, but complete first update
-                        return;
-                    }
-                }
+                // WASM: Don't yield during tile clearing to prevent inconsistent state
+                // Early return will happen after clearing is complete
+            }
+        }
+
+        // WASM: Allow early return after tile clearing is complete
+        #[cfg(target_arch = "wasm32")]
+        {
+            if !is_first_update && tiles_cleared > 1000 {
+                // Tile clearing complete, yield control for subsequent updates
+                console::log_1(&"Visibility update yielding after tile clearing".into());
+                return;
             }
         }
 
@@ -424,6 +430,9 @@ impl Game {
         // Mark first visibility update as complete for WASM
         #[cfg(target_arch = "wasm32")]
         {
+            if !self.first_visibility_update_done {
+                console::log_1(&"First visibility update completed".into());
+            }
             self.first_visibility_update_done = true;
         }
     }
