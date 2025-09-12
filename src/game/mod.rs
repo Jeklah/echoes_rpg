@@ -258,8 +258,8 @@ impl Game {
             static mut LAST_VISIBILITY_UPDATE: f64 = 0.0;
             let now = js_sys::Date::now();
             unsafe {
-                if now - LAST_VISIBILITY_UPDATE < 16.0 {
-                    // Skip update if called too frequently (60 FPS limit)
+                if now - LAST_VISIBILITY_UPDATE < 8.0 {
+                    // Skip update if called too frequently (120 FPS limit)
                     console::log_1(&"Visibility update skipped due to rate limiting".into());
                     return;
                 }
@@ -303,30 +303,20 @@ impl Game {
             }
         }
 
-        // WASM: Allow early return after tile clearing is complete
-        #[cfg(target_arch = "wasm32")]
-        {
-            if !is_first_update && tiles_cleared > 1000 {
-                // Tile clearing complete, yield control for subsequent updates
-                console::log_1(&"Visibility update yielding after tile clearing".into());
-                return;
-            }
-        }
+        // WASM: Removed early return to ensure visibility always completes
+        // This prevents partial visibility updates that cause freezing
 
         // Reveal a circular area around the player
         let view_radius = if cfg!(target_arch = "wasm32") {
-            5.min(max_width as i32 / 6).min(max_height as i32 / 6) // Smaller radius for WASM
+            8.min(max_width as i32 / 6).min(max_height as i32 / 6) // Match viewport size better
         } else {
             10.min(max_width as i32 / 4).min(max_height as i32 / 4)
         };
 
         let mut tiles_processed = 0;
         let max_tiles_per_update = if cfg!(target_arch = "wasm32") {
-            if is_first_update {
-                5000
-            } else {
-                1500
-            } // Ensure first update completes
+            // Always allow full completion for WASM to prevent freezing
+            10000
         } else {
             2000
         };
@@ -339,12 +329,13 @@ impl Game {
                         console::log_1(
                             &"Warning: Visibility update hit tile processing limit".into(),
                         );
+                        // Continue processing for WASM to prevent incomplete visibility
                     }
                     #[cfg(not(target_arch = "wasm32"))]
                     {
                         eprintln!("Warning: Visibility update hit tile processing limit");
+                        break;
                     }
-                    break;
                 }
 
                 let x = player_pos.x + dx;
@@ -383,8 +374,16 @@ impl Game {
 
         // Add more tile visibility for the screen around the player
         // This ensures all tiles shown on screen are visible, even beyond the circular radius
-        let screen_width = 30.min(max_width as i32 / 2); // Bounded screen width
-        let screen_height = 10.min(max_height as i32 / 2); // Bounded screen height
+        let screen_width = if cfg!(target_arch = "wasm32") {
+            8.min(max_width as i32 / 2) // Match WASM viewport
+        } else {
+            30.min(max_width as i32 / 2) // Bounded screen width
+        };
+        let screen_height = if cfg!(target_arch = "wasm32") {
+            8.min(max_height as i32 / 2) // Match WASM viewport
+        } else {
+            10.min(max_height as i32 / 2) // Bounded screen height
+        };
 
         for dy in -screen_height..=screen_height {
             for dx in -screen_width..=screen_width {
@@ -394,12 +393,13 @@ impl Game {
                         console::log_1(
                             &"Warning: Screen visibility update hit tile processing limit".into(),
                         );
+                        // Continue processing for WASM to prevent incomplete visibility
                     }
                     #[cfg(not(target_arch = "wasm32"))]
                     {
                         eprintln!("Warning: Screen visibility update hit tile processing limit");
+                        break;
                     }
-                    break;
                 }
 
                 let x = player_pos.x + dx;
