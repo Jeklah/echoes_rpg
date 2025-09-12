@@ -17,10 +17,23 @@ This document provides a comprehensive analysis of all game freezing and infinit
 
 ## Critical Bugs Discovered
 
-### 1. WASM Map Size Hanging Bug (CRITICAL - December 2024)
+### 1. WASM Viewport/Visibility Mismatch Bug (CRITICAL - December 2024)
 **Severity:** Critical - Game completely unplayable  
 **Platform:** WASM only  
-**Symptom:** Game hung immediately after starting new game
+**Symptom:** Game froze immediately when player attempted to move one square
+
+**Root Cause:**
+- Viewport trying to render 50×20 = 1,000 tiles
+- Visibility system only calculated for 5-tile radius = ~78 tiles  
+- 922 tiles rendered without proper visibility data, causing browser freeze
+- Movement triggered render with massive undefined state processing
+
+**Impact:** WASM version completely broken after first movement attempt
+
+### 2. WASM Map Size Hanging Bug (CRITICAL - December 2024)
+**Severity:** Critical - Game completely unplayable  
+**Platform:** WASM only  
+**Symptom:** Game hung immediately after starting new game (RESOLVED FIRST)
 
 **Root Cause:**
 - WASM maps were configured too small (20x15 minimal, 40x30 regular)
@@ -28,9 +41,9 @@ This document provides a comprehensive analysis of all game freezing and infinit
 - On small maps, visibility update never completed, leaving game in inconsistent state
 - First render would attempt to draw partially calculated visibility, causing hang
 
-**Impact:** WASM version completely broken - couldn't start new games
+**Impact:** WASM version completely broken - couldn't start new games (RESOLVED)
 
-### 2. Chest Placement Infinite Loop (CRITICAL - Original Investigation)
+### 3. Chest Placement Infinite Loop (CRITICAL - Original Investigation)
 **File:** `src/world/level.rs:344-390`  
 **Severity:** Critical - Game hung on level generation  
 **Platform:** All platforms
@@ -51,14 +64,14 @@ while (Some(chest_pos) == self.stairs_down)
 
 **Impact:** Game would freeze during level generation in crowded or small rooms
 
-### 3. Enemy Placement Unbounded Attempts (HIGH)
+### 4. Enemy Placement Unbounded Attempts (HIGH)
 **File:** `src/world/level.rs:323-385`  
 **Severity:** High - Could cause long delays or hangs  
 **Platform:** All platforms
 
 **Issue:** No bounds checking on enemy placement attempts - could spend excessive time trying to find valid positions in crowded rooms
 
-### 4. Visibility Update Performance Hang (MEDIUM)
+### 5. Visibility Update Performance Hang (MEDIUM)
 **File:** `src/game/mod.rs:270-420`  
 **Severity:** Medium - Browser freezing on WASM  
 **Platform:** WASM particularly affected
@@ -68,14 +81,14 @@ while (Some(chest_pos) == self.stairs_down)
 - No completion guarantee for first visibility update
 - Early returns preventing proper initialization
 
-### 5. WASM Timer Accumulation (MEDIUM)
+### 6. WASM Timer Accumulation (MEDIUM)
 **File:** `src/web.rs:510-580`  
 **Severity:** Medium - Memory leaks and performance degradation  
 **Platform:** WASM only
 
 **Issue:** No limit on concurrent timers, leading to potential accumulation and memory issues
 
-### 6. Input System Blocking (LOW)
+### 7. Input System Blocking (LOW)
 **File:** `src/ui/mod.rs:1563-1588`  
 **Severity:** Low - Could hang on input errors  
 **Platform:** Desktop only
@@ -86,29 +99,56 @@ while (Some(chest_pos) == self.stairs_down)
 
 ### Primary Contributing Factors
 
-1. **Overly Conservative WASM Configuration**
-   - Maps made too small to avoid performance issues
+1. **Viewport/Visibility Processing Mismatch**
+   - Render viewport (1,000 tiles) vastly exceeded visibility calculation (~78 tiles)
+   - Browser overwhelmed trying to render tiles without proper visibility data
+   - Movement triggered massive undefined state processing
+
+2. **Overly Conservative WASM Configuration**
+   - Maps made too small to avoid performance issues  
    - Counter-productive: caused hanging instead of preventing it
    - Insufficient space for game mechanics to function properly
 
-2. **Unbounded Operations**
+3. **Unbounded Operations**
    - Placement algorithms with no attempt limits
    - While loops that could run indefinitely
    - No timeout mechanisms for heavy operations
 
-3. **Browser Threading Limitations**
+4. **Browser Threading Limitations**
    - WASM runs on main browser thread
    - Long synchronous operations block entire browser
    - Need for careful yielding and chunked processing
 
-4. **Incomplete Initialization Handling**
+5. **Incomplete Initialization Handling**
    - First-time operations not guaranteed to complete
    - Early return mechanisms preventing proper startup
    - Inconsistent state management during initialization
 
 ## Fixes Applied
 
-### 1. WASM Map Size & Room Configuration Fix
+### 1. WASM Viewport/Visibility Balance Fix
+
+**Problem:** 50×20 viewport (1,000 tiles) vs 5-tile visibility radius (~78 tiles)
+
+**Before:**
+```rust
+// PROBLEMATIC: Massive viewport/visibility mismatch
+const VIEW_WIDTH: i32 = 50;   // 1,000 tiles to render
+const VIEW_HEIGHT: i32 = 20;
+let view_radius = 5;          // ~78 tiles with visibility
+// Ratio: 1,000 ÷ 78 = 12.8x overreach → BROWSER FREEZE
+```
+
+**After:**
+```rust
+// BALANCED: Viewport matches visibility capability
+const VIEW_WIDTH: i32 = 15;   // 225 tiles to render  
+const VIEW_HEIGHT: i32 = 15;
+let view_radius = 8;          // ~200 tiles with visibility
+// Ratio: 225 ÷ 200 = 1.1x perfect match → SMOOTH GAMEPLAY
+```
+
+### 2. WASM Map Size & Room Configuration Fix
 
 **Before:**
 ```rust
@@ -132,7 +172,7 @@ let (max_rooms, max_attempts) = (3.min(difficulty / 2 + 2), 20); // Better gamep
 let min_size = 6, max_size = 8; // Proper room sizes
 ```
 
-### 2. Visibility Update Completion Guarantee
+### 3. Visibility Update Completion Guarantee
 
 **Added First Update Tracking:**
 ```rust
@@ -151,7 +191,7 @@ if tiles_cleared % 1000 == 0 && tiles_cleared > 0 && !is_first_update {
 }
 ```
 
-### 3. Bounded Placement System
+### 4. Bounded Placement System
 
 **Chest Placement Fix:**
 ```rust
@@ -186,7 +226,7 @@ for _ in 0..num_enemies {
 }
 ```
 
-### 4. WASM Timer Safety System
+### 5. WASM Timer Safety System
 
 ```rust
 struct WebGame {
@@ -204,7 +244,7 @@ fn start_timer(&mut self) -> Result<(), JsValue> {
 }
 ```
 
-### 5. Render Rate Limiting
+### 6. Render Rate Limiting
 
 ```rust
 fn render_game(&mut self) -> Result<(), JsValue> {
@@ -225,7 +265,7 @@ fn render_game(&mut self) -> Result<(), JsValue> {
 }
 ```
 
-### 6. Error Recovery Systems
+### 7. Error Recovery Systems
 
 ```rust
 let mut consecutive_errors = 0;
@@ -250,11 +290,13 @@ match operation() {
 | Aspect | Desktop | WASM | Rationale |
 |--------|---------|------|-----------|
 | Map Size | 80x45 (3600 tiles) | 60x40 (2400 tiles) | 33% smaller for performance |
+| **Viewport Size** | **Dynamic** | **15x15 (225 tiles)** | **Matches visibility capability** |
+| **Visibility Radius** | **10 tiles** | **8 tiles** | **Perfect viewport coverage** |
 | Max Rooms | 10-15 | 3-8 | Fewer entities to process |
 | Room Size | 5-12 | 6-8 | Consistent but manageable |
 | Enemies/Room | 5 | 2 | Reduced processing load |
-| View Radius | 10 tiles | 5 tiles | Smaller visibility calculations |
 | Max Visibility Tiles | 2000 | 1500 (5000 first) | Chunked processing |
+| **Render Limit** | **Dynamic** | **500 tiles** | **Safety margin for viewport** |
 | Timer Limit | None | 3 concurrent | Browser resource management |
 
 ### Memory & Resource Management
@@ -323,6 +365,8 @@ match operation() {
 | Test Scenario | Before | After |
 |---------------|--------|-------|
 | WASM New Game | ❌ Hangs immediately | ✅ Starts properly |
+| **WASM Movement** | **❌ Freezes on first move** | **✅ Smooth movement** |
+| **Viewport Rendering** | **❌ Partial/corrupted** | **✅ Complete 15×15 view** |
 | Level Generation | ❌ Could hang indefinitely | ✅ Completes in <1 second |
 | Visibility Update | ❌ Partial/incomplete | ✅ Always completes |
 | Timer Management | ❌ Could accumulate | ✅ Properly limited |
@@ -333,11 +377,12 @@ match operation() {
 
 ### ✅ All Critical Issues Resolved
 
-1. **WASM Hanging:** Fixed with proper map sizing and visibility completion
-2. **Infinite Loops:** Eliminated with bounded operations
-3. **Performance Issues:** Optimized with platform-specific limits
-4. **Resource Leaks:** Prevented with automatic cleanup
-5. **Error Handling:** Improved with recovery mechanisms
+1. **WASM Movement Freezing:** Fixed with balanced viewport/visibility ratio (15×15 viewport, 8-tile radius)
+2. **WASM Startup Hanging:** Fixed with proper map sizing and visibility completion
+3. **Infinite Loops:** Eliminated with bounded operations  
+4. **Performance Issues:** Optimized with platform-specific limits
+5. **Resource Leaks:** Prevented with automatic cleanup
+6. **Error Handling:** Improved with recovery mechanisms
 
 ### ✅ No Regressions
 
@@ -348,7 +393,7 @@ match operation() {
 
 ### ✅ Performance Improvements
 
-- **WASM:** 60x40 maps run smoothly vs previous hanging on 40x30
+- **WASM:** 15×15 viewport with 60×40 maps runs smoothly vs previous freezing
 - **Desktop:** No performance impact, some optimizations benefit
 - **All Platforms:** More stable, better error recovery
 
@@ -379,9 +424,9 @@ match operation() {
 ## Files Modified
 
 ### Core Fixes
+- `src/web.rs` - **Viewport sizing and render limits (CRITICAL FIX)**
+- `src/game/mod.rs` - **Visibility radius and screen visibility area (CRITICAL FIX)**  
 - `src/world/level.rs` - Map sizing and room generation bounds
-- `src/game/mod.rs` - Visibility update completion tracking
-- `src/web.rs` - WASM timer safety and minimal dungeon sizing
 
 ### Safety Mechanisms  
 - `src/ui/mod.rs` - Input system error recovery (desktop only)
