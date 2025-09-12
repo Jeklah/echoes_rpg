@@ -139,8 +139,50 @@ impl WebGame {
     pub fn start_game(&mut self) -> Result<(), JsValue> {
         console::log_1(&"Starting visual dungeon crawler...".into());
 
-        self.setup_keyboard_handlers()?;
-        self.show_title_screen()?;
+        // Setup keyboard handlers with error handling
+        if let Err(e) = self.setup_keyboard_handlers() {
+            console::log_2(&"Error setting up keyboard handlers:".into(), &e);
+            return Err(e);
+        }
+
+        // Show title screen with error handling
+        if let Err(e) = self.show_title_screen() {
+            console::log_2(&"Error showing title screen:".into(), &e);
+            return Err(e);
+        }
+
+        Ok(())
+    }
+
+    fn show_main_menu(&mut self) -> Result<(), JsValue> {
+        console::log_1(&"Showing main menu".into());
+        self.clear_canvas()?;
+        self.game.game_state = GameState::MainMenu;
+
+        // Draw title on canvas
+        self.context
+            .set_fill_style(&wasm_bindgen::JsValue::from_str(TEXT_COLOR));
+        self.context.set_font("20px 'Courier New'");
+        self.context.fill_text("ECHOES RPG", 200.0, 100.0)?;
+
+        self.context.set_font("12px 'Courier New'");
+        self.context
+            .fill_text("Web Dungeon Crawler", 220.0, 130.0)?;
+
+        // Update UI panel with menu
+        self.ui_panel.set_inner_html(&format!(
+            "<div style='text-align: center; margin-top: 50px;'>
+                <div style='font-size: 16px; margin-bottom: 20px;'>MAIN MENU</div>
+                <div>1. Start New Game</div>
+                <div>2. Load Game</div>
+                <div>3. Instructions</div>
+                <div>4. Exit</div>
+                <div style='margin-top: 30px; font-size: 10px;'>Press number key to select</div>
+            </div>"
+        ));
+
+        self.add_message("Welcome to Echoes RPG!");
+        self.add_message("Use number keys to navigate the menu.");
 
         Ok(())
     }
@@ -271,9 +313,12 @@ impl WebGame {
 
             unsafe {
                 if let Some(game) = game_ptr1.as_mut() {
-                    if let Err(e) = game.handle_key_down(&key) {
-                        console::log_2(&"Error in key down handler:".into(), &e);
-                        game.clear_all_key_states();
+                    // Add safety check to prevent recursive calls
+                    if game.consecutive_movement_count < game.max_consecutive_movements {
+                        if let Err(e) = game.handle_key_down(&key) {
+                            console::log_2(&"Error in key down handler:".into(), &e);
+                            game.clear_all_key_states();
+                        }
                     }
                 }
             }
@@ -291,8 +336,10 @@ impl WebGame {
             let key = event.key();
             unsafe {
                 if let Some(game) = game_ptr2.as_mut() {
+                    // Always try to handle key up to prevent stuck keys
                     if let Err(e) = game.handle_key_up(&key) {
                         console::log_2(&"Error in key up handler:".into(), &e);
+                        // Force clear all key states on error
                         game.clear_all_key_states();
                     }
                 }
@@ -746,18 +793,32 @@ impl WebGame {
 
     fn start_new_game(&mut self) -> Result<(), JsValue> {
         console::log_1(&"start_new_game() called".into());
+
+        // Clear any existing timers to prevent conflicts
+        self.stop_repeat_timer();
+        self.clear_all_key_states();
+
         // For now, start with a simple character creation
         // In full implementation, this would show character creation screen
         let player = Player::new("Hero".to_string(), ClassType::Warrior);
         console::log_1(&"Player created".into());
+
+        // Create game with minimal initialization for WASM
         self.game = Game::new(player);
         console::log_1(&"Game created".into());
+
+        // Set game state to playing
         self.game.game_state = GameState::Playing;
         console::log_1(&"Game state set to Playing".into());
+
+        // Initialize visibility after game creation (safer for WASM)
+        self.game.update_visibility();
+        console::log_1(&"Visibility updated".into());
 
         self.add_message("Welcome to the dungeon! Use arrow keys to move.");
         self.add_message("Press 'i' for inventory, 'c' for character, 'g' to get items.");
         console::log_1(&"Messages added, rendering game...".into());
+
         let result = self.render_game();
         console::log_1(&"Render complete".into());
         result
@@ -776,43 +837,27 @@ impl WebGame {
     }
 
     fn show_title_screen(&mut self) -> Result<(), JsValue> {
-        self.clear_canvas()?;
-        self.game.game_state = GameState::MainMenu;
-
-        // Draw title on canvas
-        self.context
-            .set_fill_style(&wasm_bindgen::JsValue::from_str(TEXT_COLOR));
-        self.context.set_font("20px 'Courier New'");
-        self.context.fill_text("ECHOES RPG", 200.0, 100.0)?;
-
-        self.context.set_font("12px 'Courier New'");
-        self.context
-            .fill_text("Web Dungeon Crawler", 220.0, 130.0)?;
-
-        // Update UI panel with menu
-        self.ui_panel.set_inner_html(&format!(
-            "<div style='text-align: center; margin-top: 50px;'>
-                <div style='font-size: 16px; margin-bottom: 20px;'>MAIN MENU</div>
-                <div>1. Start New Game</div>
-                <div>2. Load Game</div>
-                <div>3. Instructions</div>
-                <div>4. Exit</div>
-                <div style='margin-top: 30px; font-size: 10px;'>Press number key to select</div>
-            </div>"
-        ));
-
-        self.add_message("Welcome to Echoes RPG!");
-        self.add_message("Use number keys to navigate the menu.");
-
-        Ok(())
+        self.show_main_menu()
     }
 
     fn render_game(&mut self) -> Result<(), JsValue> {
-        self.clear_canvas()?;
-        self.update_visibility();
+        // Add safety check to prevent infinite render loops
+        static mut LAST_RENDER_TIME: f64 = 0.0;
+        let now = js_sys::Date::now();
+        unsafe {
+            if now - LAST_RENDER_TIME < 16.0 {
+                // Skip render if called too frequently (60 FPS limit)
+                return Ok(());
+            }
+            LAST_RENDER_TIME = now;
+        }
 
+        self.clear_canvas()?;
+
+        // Update visibility only when necessary
         match self.game.game_state {
             GameState::Playing | GameState::Combat(_) => {
+                self.update_visibility();
                 self.render_map()?;
                 self.render_ui_panel()?;
             }
