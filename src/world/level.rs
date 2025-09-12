@@ -4,7 +4,18 @@ use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+#[cfg(target_arch = "wasm32")]
+use web_sys;
+
+// WASM-optimized map sizes to prevent freezing
+#[cfg(target_arch = "wasm32")]
+const MAP_WIDTH: usize = 40;
+#[cfg(target_arch = "wasm32")]
+const MAP_HEIGHT: usize = 30;
+
+#[cfg(not(target_arch = "wasm32"))]
 const MAP_WIDTH: usize = 80;
+#[cfg(not(target_arch = "wasm32"))]
 const MAP_HEIGHT: usize = 45;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -103,14 +114,27 @@ impl Level {
         let mut level = Level::new(MAP_WIDTH, MAP_HEIGHT);
         level.level_num = level_num;
 
-        // Generate rooms
-        let max_rooms = 10 + (difficulty / 2).min(15) as i32;
-        let min_size = 5;
-        let max_size = 12;
+        // Generate rooms with WASM-specific limits
+        let max_rooms = if cfg!(target_arch = "wasm32") {
+            5 + (difficulty / 3).min(8) as i32 // Fewer rooms for WASM
+        } else {
+            10 + (difficulty / 2).min(15) as i32
+        };
+
+        let min_size = if cfg!(target_arch = "wasm32") { 4 } else { 5 };
+        let max_size = if cfg!(target_arch = "wasm32") { 8 } else { 12 };
 
         let mut rng = rand::thread_rng();
+        let mut rooms_created = 0;
+        let mut attempts = 0;
+        let max_attempts = if cfg!(target_arch = "wasm32") {
+            50
+        } else {
+            100
+        };
 
-        for _ in 0..max_rooms {
+        while rooms_created < max_rooms && attempts < max_attempts {
+            attempts += 1;
             let w = rng.gen_range(min_size..=max_size);
             let h = rng.gen_range(min_size..=max_size);
             let x = rng.gen_range(1..(MAP_WIDTH as i32 - w - 1));
@@ -157,7 +181,15 @@ impl Level {
 
                 // Store the room
                 level.rooms.push(new_room);
+                rooms_created += 1;
             }
+        }
+
+        // Ensure we have at least one room
+        if level.rooms.is_empty() {
+            let fallback_room = Room::new(5, 5, 6, 6);
+            level.create_room(&fallback_room);
+            level.rooms.push(fallback_room);
         }
 
         // Place player in the first room
@@ -297,23 +329,56 @@ impl Level {
 
             // Number of enemies increases with difficulty and room size
             let room_area = room.width() * room.height();
-            let num_enemies = ((room_area as f32 * 0.01 * difficulty as f32).round() as u32).min(5);
+            let max_enemies = if cfg!(target_arch = "wasm32") { 2 } else { 5 };
+            let num_enemies =
+                ((room_area as f32 * 0.01 * difficulty as f32).round() as u32).min(max_enemies);
+
+            let mut enemies_placed = 0;
+            let max_attempts = 20; // Prevent infinite attempts
 
             for _ in 0..num_enemies {
-                let x = rng.gen_range((room.x1 + 1)..room.x2);
-                let y = rng.gen_range((room.y1 + 1)..room.y2);
+                let mut attempts = 0;
+                let mut enemy_placed = false;
 
-                let pos = Position::new(x, y);
+                while attempts < max_attempts && !enemy_placed {
+                    let x = rng.gen_range((room.x1 + 1)..room.x2);
+                    let y = rng.gen_range((room.y1 + 1)..room.y2);
+                    let pos = Position::new(x, y);
 
-                // Don't place enemies on stairs or other enemies
-                if (Some(pos) != self.stairs_down)
-                    && (Some(pos) != self.stairs_up)
-                    && (!self.enemies.contains_key(&pos))
-                {
-                    // Generate enemy based on difficulty and level number
-                    let enemy = Enemy::generate_random(self.level_num, difficulty);
+                    // Don't place enemies on stairs, other enemies, or player position
+                    if (Some(pos) != self.stairs_down)
+                        && (Some(pos) != self.stairs_up)
+                        && (Some(pos) != self.stairs_up)
+                        && (!self.enemies.contains_key(&pos))
+                        && (pos != self.player_position)
+                    {
+                        // Generate enemy based on difficulty and level number
+                        let enemy = Enemy::generate_random(self.level_num, difficulty);
+                        self.enemies.insert(pos, enemy);
+                        enemy_placed = true;
+                        enemies_placed += 1;
+                    }
+                    attempts += 1;
+                }
 
-                    self.enemies.insert(pos, enemy);
+                // If we couldn't place an enemy after max attempts, skip remaining enemies for this room
+                if !enemy_placed {
+                    #[cfg(target_arch = "wasm32")]
+                    web_sys::console::log_1(
+                        &format!(
+                            "Warning: Could not place enemy {} in room {}",
+                            enemies_placed + 1,
+                            i
+                        )
+                        .into(),
+                    );
+                    #[cfg(not(target_arch = "wasm32"))]
+                    eprintln!(
+                        "Warning: Could not place enemy {} in room {}",
+                        enemies_placed + 1,
+                        i
+                    );
+                    break;
                 }
             }
         }
@@ -329,57 +394,82 @@ impl Level {
             // 50% chance of chest (increased from 30% to ensure more chests spawn for testing)
             // This makes it easier to verify the fix works
             if rng.gen_bool(0.5) {
-                // Find a spot for the chest
-                let mut chest_x = rng.gen_range((room.x1 + 1)..room.x2);
-                let mut chest_y = rng.gen_range((room.y1 + 1)..room.y2);
-                let mut chest_pos = Position::new(chest_x, chest_y);
+                // Find a spot for the chest with bounded attempts to prevent infinite loops
+                let mut chest_placed = false;
+                let max_attempts = 20; // Prevent infinite loops
 
-                // Make sure we're not placing on top of stairs, enemies, or player
-                while (Some(chest_pos) == self.stairs_down)
-                    || (Some(chest_pos) == self.stairs_up)
-                    || (self.enemies.contains_key(&chest_pos))
-                    || (chest_pos == self.player_position)
-                {
-                    chest_x = rng.gen_range((room.x1 + 1)..room.x2);
-                    chest_y = rng.gen_range((room.y1 + 1)..room.y2);
-                    chest_pos = Position::new(chest_x, chest_y);
+                for _ in 0..max_attempts {
+                    let chest_x = rng.gen_range((room.x1 + 1)..room.x2);
+                    let chest_y = rng.gen_range((room.y1 + 1)..room.y2);
+                    let chest_pos = Position::new(chest_x, chest_y);
+
+                    // Make sure we're not placing on top of stairs, enemies, or player
+                    if (Some(chest_pos) != self.stairs_down)
+                        && (Some(chest_pos) != self.stairs_up)
+                        && (!self.enemies.contains_key(&chest_pos))
+                        && (chest_pos != self.player_position)
+                    {
+                        // Place chest
+                        self.tiles[chest_y as usize][chest_x as usize] = Tile::chest();
+
+                        // Generate a guaranteed quality item specifically for chests
+                        let item = Item::generate_for_chest(self.level_num);
+                        self.items.insert(chest_pos, item);
+
+                        // Debug validation - confirm item was added at this position
+                        #[cfg(debug_assertions)]
+                        assert!(
+                            self.items.contains_key(&chest_pos),
+                            "Failed to insert item at chest position: {chest_pos:?}"
+                        );
+
+                        chest_placed = true;
+                        break;
+                    }
                 }
 
-                // Place chest
-                self.tiles[chest_y as usize][chest_x as usize] = Tile::chest();
-
-                // Generate a guaranteed quality item specifically for chests
-                // This ensures consistent chest contents across all platforms
-                let item = Item::generate_for_chest(self.level_num);
-
-                // Explicitly insert the item at the chest position
-                // We force the item to exist by inserting before any potential platform-specific checks
-                self.items.insert(chest_pos, item);
-
-                // Debug validation - confirm item was added at this position
-                if cfg!(debug_assertions) {
-                    assert!(
-                        self.items.contains_key(&chest_pos),
-                        "Failed to insert item at chest position: {chest_pos:?}"
+                // If we couldn't place a chest after max attempts, skip this room
+                if !chest_placed {
+                    #[cfg(target_arch = "wasm32")]
+                    web_sys::console::log_1(
+                        &format!("Warning: Could not place chest in room {}", i).into(),
                     );
+                    #[cfg(not(target_arch = "wasm32"))]
+                    eprintln!("Warning: Could not place chest in room {}", i);
                 }
             }
 
             // Maybe place some loose items too (20% chance)
             if rng.gen_bool(0.2) {
-                let x = rng.gen_range((room.x1 + 1)..room.x2);
-                let y = rng.gen_range((room.y1 + 1)..room.y2);
-                let pos = Position::new(x, y);
+                let mut item_placed = false;
+                let max_attempts = 15; // Prevent infinite attempts for loose items
 
-                // Don't place on stairs, enemies, chests, or player
-                if (Some(pos) != self.stairs_down)
-                    && (Some(pos) != self.stairs_up)
-                    && (!self.enemies.contains_key(&pos))
-                    && (self.tiles[y as usize][x as usize].tile_type != TileType::Chest)
-                    && (pos != self.player_position)
-                {
-                    let item = Item::generate_random(self.level_num);
-                    self.items.insert(pos, item);
+                for _ in 0..max_attempts {
+                    let x = rng.gen_range((room.x1 + 1)..room.x2);
+                    let y = rng.gen_range((room.y1 + 1)..room.y2);
+                    let pos = Position::new(x, y);
+
+                    // Don't place on stairs, enemies, chests, or player
+                    if (Some(pos) != self.stairs_down)
+                        && (Some(pos) != self.stairs_up)
+                        && (!self.enemies.contains_key(&pos))
+                        && (self.tiles[y as usize][x as usize].tile_type != TileType::Chest)
+                        && (pos != self.player_position)
+                        && (!self.items.contains_key(&pos))
+                    {
+                        let item = Item::generate_random(self.level_num);
+                        self.items.insert(pos, item);
+                        item_placed = true;
+                        break;
+                    }
+                }
+
+                // Log if we couldn't place a loose item (less critical than chests/enemies)
+                if !item_placed {
+                    #[cfg(target_arch = "wasm32")]
+                    web_sys::console::log_1(
+                        &format!("Info: Could not place loose item in room {}", i).into(),
+                    );
                 }
             }
         }

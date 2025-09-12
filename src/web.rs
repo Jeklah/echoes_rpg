@@ -63,6 +63,10 @@ pub struct WebGame {
     movement_repeat_rate: f64,
     max_consecutive_movements: u32,
     consecutive_movement_count: u32,
+    timer_count: u32,
+    max_timers: u32,
+    render_count: u32,
+    last_render_check: f64,
 }
 
 #[wasm_bindgen]
@@ -129,6 +133,10 @@ impl WebGame {
             movement_repeat_rate: 120.0, // milliseconds between movement when holding key
             max_consecutive_movements: 50, // Prevent infinite timer loops
             consecutive_movement_count: 0,
+            timer_count: 0,
+            max_timers: 3, // Maximum concurrent timers allowed
+            render_count: 0,
+            last_render_check: 0.0,
         };
 
         Ok(web_game)
@@ -506,6 +514,8 @@ impl WebGame {
             self.pressed_keys.insert(key.to_string(), false);
         }
         self.stop_repeat_timer();
+        // Force reset timer count as safety measure
+        self.timer_count = 0;
     }
 
     fn start_simple_repeat_timer(&mut self) -> Result<(), JsValue> {
@@ -518,6 +528,12 @@ impl WebGame {
         if self.consecutive_movement_count >= self.max_consecutive_movements {
             console::log_1(&"Movement timer limit reached, stopping timer".into());
             self.consecutive_movement_count = 0;
+            return Ok(());
+        }
+
+        // Prevent timer accumulation
+        if self.timer_count >= self.max_timers {
+            console::log_1(&"Too many timers active, skipping timer creation".into());
             return Ok(());
         }
 
@@ -540,6 +556,7 @@ impl WebGame {
         ) {
             Ok(id) => {
                 self.key_repeat_timeout = Some(id);
+                self.timer_count += 1;
                 closure.forget();
                 Ok(())
             }
@@ -556,6 +573,9 @@ impl WebGame {
             if let Some(window) = window() {
                 window.clear_timeout_with_handle(id);
             }
+            if self.timer_count > 0 {
+                self.timer_count -= 1;
+            }
         }
         // Reset the consecutive movement counter when stopping
         self.consecutive_movement_count = 0;
@@ -563,6 +583,9 @@ impl WebGame {
 
     fn process_movement_repeat(&mut self) -> Result<(), JsValue> {
         self.key_repeat_timeout = None;
+        if self.timer_count > 0 {
+            self.timer_count -= 1;
+        }
         self.consecutive_movement_count += 1;
 
         if !matches!(self.game.game_state, GameState::Playing) {
@@ -841,9 +864,23 @@ impl WebGame {
     }
 
     fn render_game(&mut self) -> Result<(), JsValue> {
-        // Add safety check to prevent infinite render loops
-        static mut LAST_RENDER_TIME: f64 = 0.0;
+        // Add comprehensive render safety checks
         let now = js_sys::Date::now();
+
+        // Reset render count every second
+        if now - self.last_render_check > 1000.0 {
+            self.render_count = 0;
+            self.last_render_check = now;
+        }
+
+        // Limit renders per second to prevent infinite loops
+        if self.render_count > 120 {
+            console::log_1(&"Warning: Too many renders per second, throttling".into());
+            return Ok(());
+        }
+
+        // Frame rate limiting
+        static mut LAST_RENDER_TIME: f64 = 0.0;
         unsafe {
             if now - LAST_RENDER_TIME < 16.0 {
                 // Skip render if called too frequently (60 FPS limit)
@@ -852,6 +889,7 @@ impl WebGame {
             LAST_RENDER_TIME = now;
         }
 
+        self.render_count += 1;
         self.clear_canvas()?;
 
         // Update visibility only when necessary
@@ -906,8 +944,17 @@ impl WebGame {
         {
             let level = self.game.current_level();
             // WASM: Render viewport centered on player (independent camera system)
+            let mut tiles_processed = 0;
+            const MAX_RENDER_TILES: usize = 2000; // Safety limit for WASM
+
             for screen_y in 0..VIEW_HEIGHT {
                 for screen_x in 0..VIEW_WIDTH {
+                    if tiles_processed >= MAX_RENDER_TILES {
+                        console::log_1(
+                            &"Warning: Render tile limit reached, stopping render".into(),
+                        );
+                        break;
+                    }
                     // WASM: Calculate map coordinates with camera offset
                     let map_x = player_pos.x - center_x + screen_x;
                     let map_y = player_pos.y - center_y + screen_y;
@@ -925,8 +972,12 @@ impl WebGame {
                             tile.explored,
                             tile.tile_type.clone(),
                         ));
+                        tiles_processed += 1;
                     }
                 }
+            }
+            if tiles_processed >= MAX_RENDER_TILES {
+                return Ok(());
             }
 
             // WASM: Collect entity positions relative to camera viewport
@@ -948,8 +999,15 @@ impl WebGame {
             }
         }
 
-        // WASM: Render everything using camera-relative coordinates
+        // WASM: Render everything using camera-relative coordinates with bounds check
+        let mut entities_rendered = 0;
+        const MAX_RENDER_ENTITIES: usize = 500; // Safety limit for entities
+
         for (screen_x, screen_y, map_x, map_y, visible, explored, tile_type) in tile_data {
+            if entities_rendered >= MAX_RENDER_ENTITIES {
+                console::log_1(&"Warning: Entity render limit reached".into());
+                break;
+            }
             if visible {
                 self.render_tile(screen_x, screen_y, &tile_type)?;
 
@@ -961,8 +1019,10 @@ impl WebGame {
                 } else if item_positions.contains(&(screen_x, screen_y)) {
                     self.render_item(screen_x, screen_y)?;
                 }
+                entities_rendered += 1;
             } else if explored {
                 self.render_fog_tile(screen_x, screen_y)?;
+                entities_rendered += 1;
             }
         }
 
