@@ -4,6 +4,8 @@ use rand::Rng;
 use serde::{Deserialize, Serialize};
 #[cfg(all(windows, not(all(feature = "gui", target_os = "windows"))))]
 use std::time::Instant;
+#[cfg(target_arch = "wasm32")]
+use web_sys::console;
 
 use crate::character::Player;
 #[cfg(all(
@@ -64,8 +66,16 @@ impl Game {
             last_render_time: None,
         };
 
-        // Initialize visibility for the starting level
-        game.update_visibility();
+        // Initialize visibility for the starting level (with WASM safety)
+        #[cfg(target_arch = "wasm32")]
+        {
+            // Skip visibility update during initialization in WASM to prevent freezing
+            console::log_1(&"WASM: Skipping initial visibility update".into());
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            game.update_visibility();
+        }
 
         game
     }
@@ -233,38 +243,88 @@ impl Game {
     }
 
     pub fn update_visibility(&mut self) {
+        // WASM safety check - prevent freezing during rapid updates
+        #[cfg(target_arch = "wasm32")]
+        {
+            static mut LAST_VISIBILITY_UPDATE: f64 = 0.0;
+            let now = js_sys::Date::now();
+            unsafe {
+                if now - LAST_VISIBILITY_UPDATE < 50.0 {
+                    // Skip update if called too frequently
+                    return;
+                }
+                LAST_VISIBILITY_UPDATE = now;
+            }
+        }
+
         // Get the current level and player position
         let level = self.current_level_mut();
         let player_pos = level.player_position;
 
         // Safety bounds to prevent excessive computation
-        let max_width = level.width.min(200); // Cap at reasonable size
-        let max_height = level.height.min(200);
+        let max_width = level.width.min(80); // Reduced for WASM performance
+        let max_height = level.height.min(60);
 
-        // Set all tiles to not visible with bounds checking
-        if level.visible_tiles.len() <= max_height
-            && level.visible_tiles.iter().all(|row| row.len() <= max_width)
+        // Set all tiles to not visible with bounds checking and WASM safety
+        if level.visible_tiles.len() > max_height
+            || !level.visible_tiles.iter().all(|row| row.len() <= max_width)
         {
-            for row in &mut level.visible_tiles {
-                for tile in row {
-                    *tile = false;
-                }
+            #[cfg(target_arch = "wasm32")]
+            {
+                console::log_1(
+                    &"Warning: Visibility tiles exceed safety bounds, skipping update".into(),
+                );
             }
-        } else {
-            eprintln!("Warning: Visibility tiles exceed safety bounds, skipping update");
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                eprintln!("Warning: Visibility tiles exceed safety bounds, skipping update");
+            }
             return;
         }
 
+        let mut tiles_cleared = 0;
+        for row in &mut level.visible_tiles {
+            for tile in row {
+                *tile = false;
+                tiles_cleared += 1;
+                // WASM: Yield control periodically during large operations
+                #[cfg(target_arch = "wasm32")]
+                {
+                    if tiles_cleared % 500 == 0 {
+                        // Allow browser to process other events
+                        return;
+                    }
+                }
+            }
+        }
+
         // Reveal a circular area around the player
-        let view_radius = 10.min(max_width as i32 / 4).min(max_height as i32 / 4); // Bounded view radius
+        let view_radius = if cfg!(target_arch = "wasm32") {
+            5.min(max_width as i32 / 6).min(max_height as i32 / 6) // Smaller radius for WASM
+        } else {
+            10.min(max_width as i32 / 4).min(max_height as i32 / 4)
+        };
 
         let mut tiles_processed = 0;
-        const MAX_TILES_PER_UPDATE: usize = 2000; // Prevent excessive processing
+        let max_tiles_per_update = if cfg!(target_arch = "wasm32") {
+            500 // Much lower limit for WASM to prevent freezing
+        } else {
+            2000
+        };
 
         for dy in -view_radius..=view_radius {
             for dx in -view_radius..=view_radius {
-                if tiles_processed >= MAX_TILES_PER_UPDATE {
-                    eprintln!("Warning: Visibility update hit tile processing limit");
+                if tiles_processed >= max_tiles_per_update {
+                    #[cfg(target_arch = "wasm32")]
+                    {
+                        console::log_1(
+                            &"Warning: Visibility update hit tile processing limit".into(),
+                        );
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        eprintln!("Warning: Visibility update hit tile processing limit");
+                    }
                     break;
                 }
 
@@ -297,7 +357,7 @@ impl Game {
                 }
                 tiles_processed += 1;
             }
-            if tiles_processed >= MAX_TILES_PER_UPDATE {
+            if tiles_processed >= max_tiles_per_update {
                 break;
             }
         }
@@ -309,8 +369,17 @@ impl Game {
 
         for dy in -screen_height..=screen_height {
             for dx in -screen_width..=screen_width {
-                if tiles_processed >= MAX_TILES_PER_UPDATE {
-                    eprintln!("Warning: Screen visibility update hit tile processing limit");
+                if tiles_processed >= max_tiles_per_update {
+                    #[cfg(target_arch = "wasm32")]
+                    {
+                        console::log_1(
+                            &"Warning: Screen visibility update hit tile processing limit".into(),
+                        );
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        eprintln!("Warning: Screen visibility update hit tile processing limit");
+                    }
                     break;
                 }
 
@@ -334,7 +403,7 @@ impl Game {
                 }
                 tiles_processed += 1;
             }
-            if tiles_processed >= MAX_TILES_PER_UPDATE {
+            if tiles_processed >= max_tiles_per_update {
                 break;
             }
         }
