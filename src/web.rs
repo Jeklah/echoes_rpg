@@ -875,6 +875,8 @@ impl WebGame {
             current_dungeon_index: 0,
             game_state: GameState::Playing,
             combat_started: false,
+            #[cfg(target_arch = "wasm32")]
+            first_visibility_update_done: false,
             #[cfg(all(windows, not(all(feature = "gui", target_os = "windows"))))]
             last_render_time: None,
         };
@@ -895,11 +897,11 @@ impl WebGame {
         console::log_1(&"Building minimal level...".into());
 
         // Create very simple level manually
-        let mut level = Level::new(20, 15); // Very small
+        let mut level = Level::new(40, 25); // Larger but still manageable
         level.level_num = 1;
 
         // Create one room manually
-        let room = Room::new(2, 2, 16, 11);
+        let room = Room::new(5, 5, 30, 15);
 
         // Fill the room with floor tiles
         for y in (room.y1 + 1)..room.y2 {
@@ -911,7 +913,7 @@ impl WebGame {
         }
 
         level.rooms.push(room);
-        level.player_position = Position::new(5, 5);
+        level.player_position = Position::new(10, 10);
 
         // Create minimal dungeon
         let dungeon = Dungeon {
@@ -930,14 +932,14 @@ impl WebGame {
         console::log_1(&"Creating emergency fallback game state".into());
 
         // Create absolute minimal state that cannot fail
-        let player = Player::new("Hero".to_string(), ClassType::Warrior);
-
         self.game = Game {
-            player,
+            player: Player::new("Hero".to_string(), ClassType::Warrior),
             dungeons: vec![],
             current_dungeon_index: 0,
             game_state: GameState::Playing,
             combat_started: false,
+            #[cfg(target_arch = "wasm32")]
+            first_visibility_update_done: false,
             #[cfg(all(windows, not(all(feature = "gui", target_os = "windows"))))]
             last_render_time: None,
         };

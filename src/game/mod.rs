@@ -46,9 +46,10 @@ pub struct Game {
     pub current_dungeon_index: usize,
     pub game_state: GameState,
     pub combat_started: bool,
-    #[serde(skip)]
+    #[cfg(target_arch = "wasm32")]
+    pub first_visibility_update_done: bool,
     #[cfg(all(windows, not(all(feature = "gui", target_os = "windows"))))]
-    pub last_render_time: Option<Instant>,
+    pub last_render_time: Option<std::time::Instant>,
 }
 
 impl Game {
@@ -56,12 +57,14 @@ impl Game {
         // Create initial dungeon
         let first_dungeon = Dungeon::generate_random(player.level);
 
-        let mut game = Game {
+        let game = Game {
             player,
             dungeons: vec![first_dungeon],
             current_dungeon_index: 0,
             game_state: GameState::MainMenu,
             combat_started: false,
+            #[cfg(target_arch = "wasm32")]
+            first_visibility_update_done: false,
             #[cfg(all(windows, not(all(feature = "gui", target_os = "windows"))))]
             last_render_time: None,
         };
@@ -243,6 +246,12 @@ impl Game {
     }
 
     pub fn update_visibility(&mut self) {
+        // Check if this is the first visibility update for WASM
+        #[cfg(target_arch = "wasm32")]
+        let is_first_update = !self.first_visibility_update_done;
+        #[cfg(not(target_arch = "wasm32"))]
+        let is_first_update = false;
+
         // WASM safety check - prevent freezing during rapid updates
         #[cfg(target_arch = "wasm32")]
         {
@@ -290,8 +299,8 @@ impl Game {
                 // WASM: Yield control periodically during large operations
                 #[cfg(target_arch = "wasm32")]
                 {
-                    if tiles_cleared % 500 == 0 {
-                        // Allow browser to process other events
+                    if tiles_cleared % 1000 == 0 && tiles_cleared > 0 && !is_first_update {
+                        // Allow browser to process other events, but complete first update
                         return;
                     }
                 }
@@ -307,7 +316,11 @@ impl Game {
 
         let mut tiles_processed = 0;
         let max_tiles_per_update = if cfg!(target_arch = "wasm32") {
-            500 // Much lower limit for WASM to prevent freezing
+            if is_first_update {
+                5000
+            } else {
+                1500
+            } // Ensure first update completes
         } else {
             2000
         };
@@ -406,6 +419,12 @@ impl Game {
             if tiles_processed >= max_tiles_per_update {
                 break;
             }
+        }
+
+        // Mark first visibility update as complete for WASM
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.first_visibility_update_done = true;
         }
     }
 

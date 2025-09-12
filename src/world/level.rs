@@ -9,9 +9,9 @@ use web_sys;
 
 // WASM-optimized map sizes to prevent freezing
 #[cfg(target_arch = "wasm32")]
-const MAP_WIDTH: usize = 40;
+const MAP_WIDTH: usize = 60;
 #[cfg(target_arch = "wasm32")]
-const MAP_HEIGHT: usize = 30;
+const MAP_HEIGHT: usize = 40;
 
 #[cfg(not(target_arch = "wasm32"))]
 const MAP_WIDTH: usize = 80;
@@ -116,14 +116,14 @@ impl Level {
 
         // Generate rooms with WASM-specific limits and early termination
         let (max_rooms, max_attempts) = if cfg!(target_arch = "wasm32") {
-            // Very conservative limits for WASM
-            (2.min(difficulty / 2 + 1) as i32, 10) // Maximum 2-3 rooms, only 10 attempts
+            // Increased limits for better gameplay
+            (3.min(difficulty / 2 + 2) as i32, 20) // Maximum 3-5 rooms, 20 attempts
         } else {
             (10 + (difficulty / 2).min(15) as i32, 100)
         };
 
-        let min_size = if cfg!(target_arch = "wasm32") { 5 } else { 5 };
-        let max_size = if cfg!(target_arch = "wasm32") { 6 } else { 12 };
+        let min_size = if cfg!(target_arch = "wasm32") { 6 } else { 5 };
+        let max_size = if cfg!(target_arch = "wasm32") { 8 } else { 12 };
 
         let mut rng = rand::thread_rng();
         let mut rooms_created = 0;
@@ -131,7 +131,7 @@ impl Level {
 
         // WASM: Start with a guaranteed room to ensure we have at least one
         if cfg!(target_arch = "wasm32") {
-            let starter_room = Room::new(3, 3, 8, 8);
+            let starter_room = Room::new(5, 5, 10, 8);
             level.create_room(&starter_room);
             level.rooms.push(starter_room);
             rooms_created = 1;
@@ -206,7 +206,7 @@ impl Level {
         // Ensure we have at least one room (more aggressive for WASM)
         if level.rooms.is_empty() {
             let fallback_room = if cfg!(target_arch = "wasm32") {
-                Room::new(2, 2, 12, 8) // Larger fallback room for WASM
+                Room::new(5, 5, 15, 10) // Larger fallback room for WASM
             } else {
                 Room::new(5, 5, 6, 6)
             };
