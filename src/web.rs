@@ -15,8 +15,8 @@ use crate::world::tile::Tile;
 use crate::world::{Dungeon, Position, TileType};
 
 // WASM-specific viewport constants (independent of desktop versions)
-const VIEW_WIDTH: i32 = 15; // WASM: Number of tiles visible horizontally (smaller viewport)
-const VIEW_HEIGHT: i32 = 15; // WASM: Number of tiles visible vertically (smaller viewport)
+const VIEW_WIDTH: i32 = 40; // WASM: Number of tiles visible horizontally
+const VIEW_HEIGHT: i32 = 25; // WASM: Number of tiles visible vertically
 const CELL_SIZE: i32 = 10; // WASM: Base cell size for calculations
 const CANVAS_WIDTH: i32 = 800; // WASM: Large canvas width for scaling
 const CANVAS_HEIGHT: i32 = 600; // WASM: Large canvas height for scaling
@@ -1046,7 +1046,7 @@ impl WebGame {
             let level = self.game.current_level();
             // WASM: Render viewport centered on player (independent camera system)
             let mut tiles_processed = 0;
-            const MAX_RENDER_TILES: usize = 500; // Safety limit for WASM (smaller viewport)
+            const MAX_RENDER_TILES: usize = 1500; // Safety limit for WASM viewport
 
             for screen_y in 0..VIEW_HEIGHT {
                 for screen_x in 0..VIEW_WIDTH {

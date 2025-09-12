@@ -252,20 +252,10 @@ impl Game {
         #[cfg(not(target_arch = "wasm32"))]
         let is_first_update = false;
 
-        // WASM safety check - prevent freezing during rapid updates
+        // WASM: Removed rate limiting to ensure all movement updates complete
         #[cfg(target_arch = "wasm32")]
         {
-            static mut LAST_VISIBILITY_UPDATE: f64 = 0.0;
-            let now = js_sys::Date::now();
-            unsafe {
-                if now - LAST_VISIBILITY_UPDATE < 8.0 {
-                    // Skip update if called too frequently (120 FPS limit)
-                    console::log_1(&"Visibility update skipped due to rate limiting".into());
-                    return;
-                }
-                LAST_VISIBILITY_UPDATE = now;
-                console::log_1(&"Starting visibility update".into());
-            }
+            console::log_1(&"Starting visibility update".into());
         }
 
         // Get the current level and player position
@@ -308,15 +298,15 @@ impl Game {
 
         // Reveal a circular area around the player
         let view_radius = if cfg!(target_arch = "wasm32") {
-            8.min(max_width as i32 / 6).min(max_height as i32 / 6) // Match viewport size better
+            20.min(max_width as i32 / 3).min(max_height as i32 / 3) // Large radius to cover 40x25 viewport
         } else {
             10.min(max_width as i32 / 4).min(max_height as i32 / 4)
         };
 
         let mut tiles_processed = 0;
         let max_tiles_per_update = if cfg!(target_arch = "wasm32") {
-            // Always allow full completion for WASM to prevent freezing
-            10000
+            // Large limit to handle 40x25 viewport with 20-tile radius
+            5000
         } else {
             2000
         };
@@ -375,12 +365,12 @@ impl Game {
         // Add more tile visibility for the screen around the player
         // This ensures all tiles shown on screen are visible, even beyond the circular radius
         let screen_width = if cfg!(target_arch = "wasm32") {
-            8.min(max_width as i32 / 2) // Match WASM viewport
+            25.min(max_width as i32 / 2) // Cover full 40-tile width viewport
         } else {
             30.min(max_width as i32 / 2) // Bounded screen width
         };
         let screen_height = if cfg!(target_arch = "wasm32") {
-            8.min(max_height as i32 / 2) // Match WASM viewport
+            15.min(max_height as i32 / 2) // Cover full 25-tile height viewport
         } else {
             10.min(max_height as i32 / 2) // Bounded screen height
         };
