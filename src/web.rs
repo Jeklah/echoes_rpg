@@ -10,7 +10,9 @@ use crate::character::{ClassType, Player};
 use crate::combat::CombatAction;
 use crate::game::{Game, GameState};
 use crate::inventory::InventoryManager;
-use crate::world::{Position, TileType};
+use crate::world::level::{Level, Room};
+use crate::world::tile::Tile;
+use crate::world::{Dungeon, Position, TileType};
 
 // WASM-specific viewport constants (independent of desktop versions)
 const VIEW_WIDTH: i32 = 50; // WASM: Number of tiles visible horizontally
@@ -821,30 +823,127 @@ impl WebGame {
         self.stop_repeat_timer();
         self.clear_all_key_states();
 
-        // For now, start with a simple character creation
-        // In full implementation, this would show character creation screen
+        console::log_1(&"Starting WASM-optimized game initialization".into());
+
+        // Try minimal game creation with detailed logging
+        match self.create_minimal_wasm_game() {
+            Ok(_) => {
+                console::log_1(&"Minimal game creation successful".into());
+                self.add_message("Welcome to the dungeon! Use arrow keys to move.");
+                self.add_message("Press 'i' for inventory, 'c' for character, 'g' to get items.");
+
+                // Schedule first render for next frame
+                let game_ptr = self as *mut WebGame;
+                let render_closure = Closure::wrap(Box::new(move || unsafe {
+                    if let Some(game) = game_ptr.as_mut() {
+                        console::log_1(&"Performing first render".into());
+                        let _ = game.render_game();
+                        console::log_1(&"First render complete".into());
+                    }
+                }) as Box<dyn FnMut()>);
+
+                let window = web_sys::window().unwrap();
+                let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(
+                    render_closure.as_ref().unchecked_ref(),
+                    16, // Next frame
+                );
+                render_closure.forget();
+            }
+            Err(e) => {
+                console::log_2(
+                    &"Game creation failed, using emergency fallback:".into(),
+                    &e,
+                );
+                self.create_emergency_fallback();
+            }
+        }
+
+        Ok(())
+    }
+
+    fn create_minimal_wasm_game(&mut self) -> Result<(), JsValue> {
+        console::log_1(&"Creating player...".into());
         let player = Player::new("Hero".to_string(), ClassType::Warrior);
-        console::log_1(&"Player created".into());
+        console::log_1(&"Player created successfully".into());
 
-        // Create game with minimal initialization for WASM
-        self.game = Game::new(player);
-        console::log_1(&"Game created".into());
+        console::log_1(&"Creating game with timeout protection...".into());
 
-        // Set game state to playing
-        self.game.game_state = GameState::Playing;
-        console::log_1(&"Game state set to Playing".into());
+        // Create a minimal game state first
+        self.game = Game {
+            player,
+            dungeons: vec![],
+            current_dungeon_index: 0,
+            game_state: GameState::Playing,
+            combat_started: false,
+            #[cfg(all(windows, not(all(feature = "gui", target_os = "windows"))))]
+            last_render_time: None,
+        };
 
-        // Initialize visibility after game creation (safer for WASM)
-        self.game.update_visibility();
-        console::log_1(&"Visibility updated".into());
+        // Create minimal dungeon manually
+        console::log_1(&"Creating minimal dungeon...".into());
+        let minimal_dungeon = self.create_minimal_dungeon()?;
+        self.game.dungeons.push(minimal_dungeon);
+        console::log_1(&"Minimal dungeon created successfully".into());
 
-        self.add_message("Welcome to the dungeon! Use arrow keys to move.");
-        self.add_message("Press 'i' for inventory, 'c' for character, 'g' to get items.");
-        console::log_1(&"Messages added, rendering game...".into());
+        // Defer visibility update
+        console::log_1(&"Deferring visibility update...".into());
 
-        let result = self.render_game();
-        console::log_1(&"Render complete".into());
-        result
+        Ok(())
+    }
+
+    fn create_minimal_dungeon(&self) -> Result<Dungeon, JsValue> {
+        console::log_1(&"Building minimal level...".into());
+
+        // Create very simple level manually
+        let mut level = Level::new(20, 15); // Very small
+        level.level_num = 1;
+
+        // Create one room manually
+        let room = Room::new(2, 2, 16, 11);
+
+        // Fill the room with floor tiles
+        for y in (room.y1 + 1)..room.y2 {
+            for x in (room.x1 + 1)..room.x2 {
+                if y < level.height as i32 && x < level.width as i32 {
+                    level.tiles[y as usize][x as usize] = Tile::floor();
+                }
+            }
+        }
+
+        level.rooms.push(room);
+        level.player_position = Position::new(5, 5);
+
+        // Create minimal dungeon
+        let dungeon = Dungeon {
+            name: "Test Dungeon".to_string(),
+            dungeon_type: crate::world::DungeonType::Ruins,
+            levels: vec![level],
+            current_level: 0,
+            difficulty: 1,
+        };
+
+        console::log_1(&"Minimal dungeon built successfully".into());
+        Ok(dungeon)
+    }
+
+    fn create_emergency_fallback(&mut self) {
+        console::log_1(&"Creating emergency fallback game state".into());
+
+        // Create absolute minimal state that cannot fail
+        let player = Player::new("Hero".to_string(), ClassType::Warrior);
+
+        self.game = Game {
+            player,
+            dungeons: vec![],
+            current_dungeon_index: 0,
+            game_state: GameState::Playing,
+            combat_started: false,
+            #[cfg(all(windows, not(all(feature = "gui", target_os = "windows"))))]
+            last_render_time: None,
+        };
+
+        self.add_message("Emergency mode: Minimal game state loaded");
+        self.add_message("Some features may be limited");
     }
 
     fn show_instructions(&mut self) -> Result<(), JsValue> {

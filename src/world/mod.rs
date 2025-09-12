@@ -97,41 +97,50 @@ impl Dungeon {
         let dungeon_type = DungeonType::random();
         let difficulty = player_level.max(1);
 
-        // Generate a thematic name
-        let prefix = match rng.gen_range(0..4) {
-            0 => "Forgotten",
-            1 => "Ancient",
-            2 => "Mysterious",
-            _ => "Haunted",
+        // WASM: Simplified name generation to reduce RNG calls
+        let name = if cfg!(target_arch = "wasm32") {
+            "Simple Dungeon".to_string()
+        } else {
+            // Generate a thematic name
+            let prefix = match rng.gen_range(0..4) {
+                0 => "Forgotten",
+                1 => "Ancient",
+                2 => "Mysterious",
+                _ => "Haunted",
+            };
+
+            let location = match dungeon_type {
+                DungeonType::Ruins => match rng.gen_range(0..3) {
+                    0 => "Temple",
+                    1 => "Citadel",
+                    _ => "Palace",
+                },
+                DungeonType::Forest => match rng.gen_range(0..3) {
+                    0 => "Grove",
+                    1 => "Thicket",
+                    _ => "Woods",
+                },
+                DungeonType::Mountain => match rng.gen_range(0..3) {
+                    0 => "Peaks",
+                    1 => "Summit",
+                    _ => "Cliffs",
+                },
+                DungeonType::Cavern => match rng.gen_range(0..3) {
+                    0 => "Caverns",
+                    1 => "Depths",
+                    _ => "Grotto",
+                },
+            };
+
+            format!("{prefix} {location}")
         };
 
-        let location = match dungeon_type {
-            DungeonType::Ruins => match rng.gen_range(0..3) {
-                0 => "Temple",
-                1 => "Citadel",
-                _ => "Palace",
-            },
-            DungeonType::Forest => match rng.gen_range(0..3) {
-                0 => "Grove",
-                1 => "Thicket",
-                _ => "Woods",
-            },
-            DungeonType::Mountain => match rng.gen_range(0..3) {
-                0 => "Peaks",
-                1 => "Summit",
-                _ => "Cliffs",
-            },
-            DungeonType::Cavern => match rng.gen_range(0..3) {
-                0 => "Caverns",
-                1 => "Depths",
-                _ => "Grotto",
-            },
+        // Number of levels - minimal for WASM
+        let num_levels = if cfg!(target_arch = "wasm32") {
+            1 // Only one level for WASM to prevent hanging
+        } else {
+            3 + (difficulty / 5).min(5) as usize
         };
-
-        let name = format!("{prefix} {location}");
-
-        // Number of levels increases with difficulty
-        let num_levels = 3 + (difficulty / 5).min(5) as usize;
 
         Dungeon::new(name, dungeon_type, difficulty, num_levels)
     }

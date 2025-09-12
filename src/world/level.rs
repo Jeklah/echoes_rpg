@@ -114,24 +114,28 @@ impl Level {
         let mut level = Level::new(MAP_WIDTH, MAP_HEIGHT);
         level.level_num = level_num;
 
-        // Generate rooms with WASM-specific limits
-        let max_rooms = if cfg!(target_arch = "wasm32") {
-            5 + (difficulty / 3).min(8) as i32 // Fewer rooms for WASM
+        // Generate rooms with WASM-specific limits and early termination
+        let (max_rooms, max_attempts) = if cfg!(target_arch = "wasm32") {
+            // Very conservative limits for WASM
+            (2.min(difficulty / 2 + 1) as i32, 10) // Maximum 2-3 rooms, only 10 attempts
         } else {
-            10 + (difficulty / 2).min(15) as i32
+            (10 + (difficulty / 2).min(15) as i32, 100)
         };
 
-        let min_size = if cfg!(target_arch = "wasm32") { 4 } else { 5 };
-        let max_size = if cfg!(target_arch = "wasm32") { 8 } else { 12 };
+        let min_size = if cfg!(target_arch = "wasm32") { 5 } else { 5 };
+        let max_size = if cfg!(target_arch = "wasm32") { 6 } else { 12 };
 
         let mut rng = rand::thread_rng();
         let mut rooms_created = 0;
         let mut attempts = 0;
-        let max_attempts = if cfg!(target_arch = "wasm32") {
-            50
-        } else {
-            100
-        };
+
+        // WASM: Start with a guaranteed room to ensure we have at least one
+        if cfg!(target_arch = "wasm32") {
+            let starter_room = Room::new(3, 3, 8, 8);
+            level.create_room(&starter_room);
+            level.rooms.push(starter_room);
+            rooms_created = 1;
+        }
 
         while rooms_created < max_rooms && attempts < max_attempts {
             attempts += 1;
@@ -142,20 +146,26 @@ impl Level {
 
             let new_room = Room::new(x, y, w, h);
 
-            let mut overlap = false;
-            for other_room in &level.rooms {
-                if new_room.intersects(other_room) {
-                    overlap = true;
-                    break;
+            // WASM: Skip overlap checking for faster generation
+            let overlap = if cfg!(target_arch = "wasm32") {
+                false // Accept overlaps to speed up generation
+            } else {
+                let mut has_overlap = false;
+                for other_room in &level.rooms {
+                    if new_room.intersects(other_room) {
+                        has_overlap = true;
+                        break;
+                    }
                 }
-            }
+                has_overlap
+            };
 
             if !overlap {
                 // Create room
                 level.create_room(&new_room);
 
-                // Connect to previous room
-                if !level.rooms.is_empty() {
+                // Connect to previous room (simplified for WASM)
+                if level.rooms.len() > 0 {
                     let (new_x, new_y) = {
                         let center = new_room.center();
                         (center.x, center.y)
@@ -166,18 +176,26 @@ impl Level {
                         (center.x, center.y)
                     };
 
-                    // Randomly decide if we go horizontal first or vertical first
-                    if rng.gen_bool(0.5) {
+                    // WASM: Always use horizontal first to simplify
+                    if cfg!(target_arch = "wasm32") {
                         level.create_horizontal_tunnel(prev_x, new_x, prev_y);
                         level.create_vertical_tunnel(prev_y, new_y, new_x);
                     } else {
-                        level.create_vertical_tunnel(prev_y, new_y, prev_x);
-                        level.create_horizontal_tunnel(prev_x, new_x, new_y);
+                        // Original random logic for desktop
+                        if rng.gen_bool(0.5) {
+                            level.create_horizontal_tunnel(prev_x, new_x, prev_y);
+                            level.create_vertical_tunnel(prev_y, new_y, new_x);
+                        } else {
+                            level.create_vertical_tunnel(prev_y, new_y, prev_x);
+                            level.create_horizontal_tunnel(prev_x, new_x, new_y);
+                        }
                     }
                 }
 
-                // Place doors
-                level.place_doors(&new_room);
+                // WASM: Skip door placement for speed
+                if !cfg!(target_arch = "wasm32") {
+                    level.place_doors(&new_room);
+                }
 
                 // Store the room
                 level.rooms.push(new_room);
@@ -185,9 +203,13 @@ impl Level {
             }
         }
 
-        // Ensure we have at least one room
+        // Ensure we have at least one room (more aggressive for WASM)
         if level.rooms.is_empty() {
-            let fallback_room = Room::new(5, 5, 6, 6);
+            let fallback_room = if cfg!(target_arch = "wasm32") {
+                Room::new(2, 2, 12, 8) // Larger fallback room for WASM
+            } else {
+                Room::new(5, 5, 6, 6)
+            };
             level.create_room(&fallback_room);
             level.rooms.push(fallback_room);
         }
@@ -216,11 +238,30 @@ impl Level {
             level.stairs_up = Some(stairs_up_pos);
         }
 
-        // Place enemies
-        level.place_enemies(difficulty);
+        // WASM: Skip enemy and item placement during initialization to speed up
+        if cfg!(target_arch = "wasm32") {
+            // Place minimal entities for WASM
+            if level.rooms.len() > 1 {
+                // Place one enemy in the last room only
+                let last_room = &level.rooms[level.rooms.len() - 1];
+                let enemy_pos = last_room.center();
+                let enemy = Enemy::generate_random(level_num, 1); // Minimal difficulty
+                level.enemies.insert(enemy_pos, enemy);
 
-        // Place items and chests
-        level.place_items(difficulty);
+                // Place one chest
+                if level.rooms.len() > 1 {
+                    let mut chest_pos = level.rooms[1].center();
+                    chest_pos.x += 1; // Offset from center
+                    level.tiles[chest_pos.y as usize][chest_pos.x as usize] = Tile::chest();
+                    let item = Item::generate_for_chest(level_num);
+                    level.items.insert(chest_pos, item);
+                }
+            }
+        } else {
+            // Full generation for desktop
+            level.place_enemies(difficulty);
+            level.place_items(difficulty);
+        }
 
         level
     }
